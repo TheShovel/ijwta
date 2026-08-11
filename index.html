@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keyframe Studio · frame interpolation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="toolbar">
+    <div class="toolbar-group">
+      <div class="menu-wrap">
+        <button id="btnFile" class="btn" title="Project file">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>File</span>
+        </button>
+        <div class="menu hidden" id="fileMenu">
+          <button id="btnSaveProject">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span>Save project (.ijwta)</span>
+          </button>
+          <button id="btnLoadProject">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+            <span>Load project…</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-wrap">
+        <button id="btnSettings" class="btn" title="Project settings">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </button>
+        <div class="menu hidden" id="settingsMenu">
+          <label class="field">FPS <input id="fpsInput" type="number" min="1" max="60" step="1" value="12"></label>
+          <label class="field check">Snap to frames <input id="snapInput" type="checkbox" checked></label>
+          <label class="field">Working size
+            <select id="resInput">
+              <option value="512">512px (max)</option>
+              <option value="448">448px</option>
+              <option value="384">384px</option>
+              <option value="320">320px (fast)</option>
+            </select>
+          </label>
+          <div class="menu-sep"></div>
+          <button id="btnRegenerate" class="btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Regenerate all frames</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="menu-wrap">
+        <button id="btnExport" class="btn">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          <span>Export</span>
+        </button>
+        <div class="menu hidden" id="exportMenu">
+          <button id="btnExportPNG">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            <span>PNG sequence (.zip)</span>
+          </button>
+          <button id="btnExportGIF">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            <span>Animated GIF</span>
+          </button>
+          <button id="btnExportMP4">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            <span>MP4 video</span>
+          </button>
+          <button id="btnExportFrame">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            <span>Current frame (PNG)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage">
+    <aside class="side-col">
+      <div class="side-title">Keyframe</div>
+      <div class="kf-card hidden" id="kfCard">
+        <div class="kf-card-thumb"><img id="kfThumb" alt=""></div>
+        <div class="kf-card-meta">
+          <div class="kf-card-name" id="kfName"></div>
+          <div class="kf-card-time" id="kfTime"></div>
+        </div>
+      </div>
+      <div class="kf-empty" id="kfEmpty">No keyframe selected. Click a frame chip on the timeline.</div>
+      <label class="field">Time (s)
+        <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
+      </label>
+      <button id="btnReplace" class="btn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span>Replace image</span>
+      </button>
+      <button id="btnDelete" class="btn danger">Delete keyframe</button>
+    </aside>
+    <section class="preview-col">
+      <div class="preview-wrap" id="previewWrap">
+        <canvas id="previewCanvas" width="512" height="512"></canvas>
+        <div id="previewEmpty" class="empty-overlay">
+          <div class="empty-box">
+            <div class="empty-title">Drop your animation frames here</div>
+            <button class="btn primary" id="btnEmptyAdd">Choose images…</button>
+          </div>
+        </div>
+      </div>
+      <div class="transport">
+        <span id="timeLabel" class="mono">0.00s</span>
+        <span class="sep-dot"></span>
+        <span id="frameLabel" class="mono">frame 1 / 1</span>
+        <span class="spacer"></span>
+        <span id="genStatus" class="status idle"></span>
+        <span id="resLabel" class="muted"></span>
+      </div>
+      <div class="genbar hidden" id="genProgress">
+        <div class="bar"><div class="fill" id="genFill"></div></div>
+        <div class="bar-meta"><span id="genLabel"></span><span><span id="genMeta"></span> <button id="btnCancel" class="btn mini hidden">Stop</button></span></div>
+      </div>
+      <div class="filmstrip" id="filmstrip"></div>
+    </section>
+  </main>
+
+  <footer class="timeline-col">
+    <div class="tl-transport">
+      <button id="btnAddKeyframes" class="btn" title="Add keyframe images (also drag & drop anywhere)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Keyframes</span>
+      </button>
+      <span class="vsep"></span>
+      <button id="btnStepBack" class="btn icon" title="Previous frame">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14"/><path d="M18 6l-9 6 9 6z"/></svg>
+      </button>
+      <button id="btnPlay" class="btn icon" title="Play / pause (Space)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>
+      </button>
+      <button id="btnStepFwd" class="btn icon" title="Next frame">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5v14"/><path d="M6 6l9 6-9 6z"/></svg>
+      </button>
+      <button id="btnLoop" class="btn icon" title="Loop playback">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+      <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide interpolated frames)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
+      </button>
+    </div>
+    <div class="timeline-scroll" id="timeline">
+      <div class="track" id="track">
+        <div class="ruler" id="ruler"></div>
+        <div class="lane" id="lane"></div>
+        <div class="playhead" id="playhead"></div>
+      </div>
+    </div>
+    <div class="timeline-hint">
+      <span id="zoomLabel" class="mono"></span>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Model loading overlay: shown while the AI model downloads+compiles on launch -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-box">
+      <div class="logo big">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      </div>
+      <div class="loading-title">Loading the interpolation model</div>
+      <div class="loading-sub" id="loadingSub">Fetching the local AI engine + model (one-time, ~21 MB)…</div>
+      <div class="progress">
+        <div class="bar"><div class="fill" id="loadingFill"></div></div>
+        <div class="bar-meta"><span id="loadingLabel"></span><span id="loadingMeta"></span></div>
+      </div>
+      <button id="btnLoadingRetry" class="btn hidden">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span>Retry</span>
+      </button>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*" multiple hidden>
+  <input type="file" id="projectInput" accept=".ijwta,application/json" hidden>
+
+  <script src="vendor/gifenc.js"></script>
+  <script src="morph.js"></script>
+  <script src="model.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
