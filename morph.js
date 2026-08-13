@@ -124,31 +124,55 @@
     var n = w * h;
     var ou = new Float32Array(n);
     var ov = new Float32Array(n);
-    var us = [], vs = [];
+    var win = (2 * r + 1) * (2 * r + 1);
+    var us = new Float64Array(win);
+    var vs = new Float64Array(win);
+    var i, j, len, dy, dx;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         var p = y * w + x;
         var gc = gray[p];
-        us.length = 0;
-        vs.length = 0;
-        for (var dy = -r; dy <= r; dy++) {
+        len = 0;
+        var fU = 0, fV = 0, allSame = true;
+        // Same window as the original: every dy/dx in [-r, r] with each step
+        // clamped, so border rows/cols contribute duplicates exactly like the
+        // old median window.
+        for (dy = -r; dy <= r; dy++) {
           var yy = y + dy;
           if (yy < 0) yy = 0; else if (yy >= h) yy = h - 1;
-          for (var dx = -r; dx <= r; dx++) {
+          var row = yy * w;
+          for (dx = -r; dx <= r; dx++) {
             var xx = x + dx;
             if (xx < 0) xx = 0; else if (xx >= w) xx = w - 1;
-            var q = yy * w + xx;
+            var q = row + xx;
             if (Math.abs(gray[q] - gc) <= colorThresh) {
-              us.push(u[q]);
-              vs.push(v[q]);
+              var uv = u[q];
+              var vv = v[q];
+              if (!len) { fU = uv; fV = vv; }
+              else if (uv !== fU || vv !== fV) allSame = false;
+              us[len] = uv;
+              vs[len] = vv;
+              len++;
             }
           }
         }
-        if (!us.length) { us.push(u[p]); vs.push(v[p]); }
-        us.sort(function (a, b) { return a - b; });
-        vs.sort(function (a, b) { return a - b; });
-        ou[p] = us[us.length >> 1];
-        ov[p] = vs[vs.length >> 1];
+        if (!len) { ou[p] = u[p]; ov[p] = v[p]; continue; }
+        // Uniform window (static background, flat interiors): the median is the
+        // value itself — skip the sort entirely. Otherwise insertion sort: the
+        // window overlaps almost fully between adjacent pixels, so the values
+        // are nearly sorted and insertion sort beats Array#sort (no comparator
+        // callbacks, no garbage) with the same median.
+        if (allSame) { ou[p] = fU; ov[p] = fV; continue; }
+        for (i = 1; i < len; i++) {
+          var uu = us[i]; j = i - 1;
+          while (j >= 0 && us[j] > uu) { us[j + 1] = us[j]; j--; }
+          us[j + 1] = uu;
+          var vv2 = vs[i]; j = i - 1;
+          while (j >= 0 && vs[j] > vv2) { vs[j + 1] = vs[j]; j--; }
+          vs[j + 1] = vv2;
+        }
+        ou[p] = us[len >> 1];
+        ov[p] = vs[len >> 1];
       }
     }
     return { u: ou, v: ov };
@@ -178,72 +202,82 @@
 
   // Dense flow via coarse-to-fine block matching
 
-  function ssdAt(a, b, wa, ha, x, y, offx, offy, r) {
-    var sum = 0, count = 0;
-    for (var dy = -r; dy <= r; dy++) {
-      var sy = y + dy;
-      if (sy < 0 || sy >= ha) continue;
-      var ty = y + offy + dy;
-      if (ty < 0 || ty >= ha) continue;
-      for (var dx = -r; dx <= r; dx++) {
-        var sx = x + dx;
-        if (sx < 0 || sx >= wa) continue;
-        var tx = x + offx + dx;
-        if (tx < 0 || tx >= wa) continue;
-        var d = a[sy * wa + sx] - b[ty * wa + tx];
-        sum += d * d;
-        count++;
-      }
-    }
-    return count ? sum / count : Infinity;
-  }
-
-  // Mean absolute deviation of the A patch around its centre pixel: 0 in flat
-  // regions, large at edges/texture.
-  function textureAt(a, wa, ha, x, y, r) {
-    var sum = 0, count = 0;
-    var centre = a[y * wa + x];
-    for (var dy = -r; dy <= r; dy++) {
-      var sy = y + dy;
-      if (sy < 0 || sy >= ha) continue;
-      for (var dx = -r; dx <= r; dx++) {
-        var sx = x + dx;
-        if (sx < 0 || sx >= wa) continue;
-        sum += Math.abs(a[sy * wa + sx] - centre);
-        count++;
-      }
-    }
-    return count ? sum / count : 0;
-  }
-
+  // Dense flow via coarse-to-fine block matching. The source patch around
+  // (x,y) is gathered once per pixel (row-major, matching the old per-offset
+  // loops exactly), then each candidate offset walks it skipping out-of-bounds
+  // targets. Same arithmetic order as before, so results are identical — but
+  // no per-offset function calls and no patch re-gathering.
   function blockMatch(a, b, wa, ha, uIn, vIn, searchR, patchR, isCancelled) {
     var n = wa * ha;
     var u = new Float32Array(n);
     var v = new Float32Array(n);
     var checkEvery = Math.max(1, Math.floor(n / 50000));
+    var pr = patchR;
+    var win = (2 * pr + 1) * (2 * pr + 1);
+    var srcX = new Int32Array(win);
+    var srcY = new Int32Array(win);
+    var sr = new Float32Array(win);
     for (var y = 0; y < ha; y++) {
+      var sy0 = y - pr; if (sy0 < 0) sy0 = 0;
+      var sy1 = y + pr; if (sy1 >= ha) sy1 = ha - 1;
       for (var x = 0; x < wa; x++) {
         var p = y * wa + x;
         if (isCancelled && p % checkEvery === 0 && isCancelled()) throw new Error('Cancelled');
+        var sx0 = x - pr; if (sx0 < 0) sx0 = 0;
+        var sx1 = x + pr; if (sx1 >= wa) sx1 = wa - 1;
+        var centre = a[p];
+        var len = 0, tsum = 0;
+        for (var dy = sy0; dy <= sy1; dy++) {
+          for (var dx = sx0; dx <= sx1; dx++) {
+            var q = dy * wa + dx;
+            sr[len] = a[q];
+            srcX[len] = dx;
+            srcY[len] = dy;
+            tsum += Math.abs(a[q] - centre);
+            len++;
+          }
+        }
         var cu = uIn ? uIn[p] : 0;
         var cv = vIn ? vIn[p] : 0;
         // Flat patches carry no motion information: keep the propagated estimate
         // instead of letting noise push the flow around (this is what keeps
         // flat backgrounds clean and stops flow bleeding from moving objects).
-        if (textureAt(a, wa, ha, x, y, patchR) < 6) {
+        if (tsum < 6 * len) {
           u[p] = cu;
           v[p] = cv;
           continue;
         }
         // Start from the current estimate so ties in flat regions keep it
         // (otherwise every refinement pass drifts toward the first candidate).
-        var best = ssdAt(a, b, wa, ha, x, y, cu, cv, patchR);
+        // Candidate order matches the original: the (0,0) estimate is evaluated
+        // first, then every offset in scan order — strict < keeps the first
+        // (earliest) minimum on ties, so results are identical.
+        var k, offx, offy, sum, cnt, d, s, ty, tx;
+        offx = cu; offy = cv;
+        sum = 0; cnt = 0;
+        for (k = 0; k < len; k++) {
+          ty = srcY[k] + offy; tx = srcX[k] + offx;
+          if (ty < 0 || ty >= ha || tx < 0 || tx >= wa) continue;
+          d = sr[k] - b[ty * wa + tx];
+          sum += d * d;
+          cnt++;
+        }
+        var best = cnt ? sum / cnt : Infinity;
         var bu = cu, bv = cv;
-        for (var dy = -searchR; dy <= searchR; dy++) {
-          for (var dx = -searchR; dx <= searchR; dx++) {
-            if (dx === 0 && dy === 0) continue;
-            var s = ssdAt(a, b, wa, ha, x, y, cu + dx, cv + dy, patchR);
-            if (s < best) { best = s; bu = cu + dx; bv = cv + dy; }
+        for (var oy = -searchR; oy <= searchR; oy++) {
+          for (var ox = -searchR; ox <= searchR; ox++) {
+            if (ox === 0 && oy === 0) continue;
+            offx = cu + ox; offy = cv + oy;
+            sum = 0; cnt = 0;
+            for (k = 0; k < len; k++) {
+              ty = srcY[k] + offy; tx = srcX[k] + offx;
+              if (ty < 0 || ty >= ha || tx < 0 || tx >= wa) continue;
+              d = sr[k] - b[ty * wa + tx];
+              sum += d * d;
+              cnt++;
+            }
+            s = cnt ? sum / cnt : Infinity;
+            if (s < best) { best = s; bu = cu + ox; bv = cv + oy; }
           }
         }
         u[p] = bu;
@@ -279,10 +313,16 @@
 
   // Flow A->B: u,v such that A(x,y) ≈ B(x+u, y+v).
   function computeFlow(rgbaA, rgbaB, width, height, opts, onStep, isCancelled) {
+    return computeFlowGray(grayscale(rgbaA, width, height), grayscale(rgbaB, width, height), width, height, opts, onStep, isCancelled);
+  }
+
+  // Same as computeFlow, but takes precomputed grayscale luma so callers that
+  // need both directions (computeFlowBoth) only convert each image once.
+  function computeFlowGray(grayA0, grayB0, width, height, opts, onStep, isCancelled) {
     opts = opts || {};
     var maxLevels = opts.maxLevels || 5;
-    var levelsA = buildPyramid(grayscale(rgbaA, width, height), width, height, maxLevels);
-    var levelsB = buildPyramid(grayscale(rgbaB, width, height), width, height, maxLevels);
+    var levelsA = buildPyramid(grayA0, width, height, maxLevels);
+    var levelsB = buildPyramid(grayB0, width, height, maxLevels);
     var levels = levelsA.length;
     var u = null, v = null;
 
@@ -322,15 +362,15 @@
   // Both directions + mutual repair. Returns { flowAB, flowBA, flowBARaw }.
   function computeFlowBoth(rgbaA, rgbaB, width, height, opts, onStep, isCancelled) {
     opts = opts || {};
-    return computeFlow(rgbaA, rgbaB, width, height, opts, function (frac, label) {
+    var grayA = grayscale(rgbaA, width, height);
+    var grayB = grayscale(rgbaB, width, height);
+    return computeFlowGray(grayA, grayB, width, height, opts, function (frac, label) {
       if (onStep) onStep(frac * 0.45, label);
     }, isCancelled).then(function (ab) {
-      return computeFlow(rgbaB, rgbaA, width, height, opts, function (frac, label) {
+      return computeFlowGray(grayB, grayA, width, height, opts, function (frac, label) {
         if (onStep) onStep(0.45 + frac * 0.45, label);
       }, isCancelled).then(function (ba) {
         if (isCancelled && isCancelled()) throw new Error('Cancelled');
-        var grayA = grayscale(rgbaA, width, height);
-        var grayB = grayscale(rgbaB, width, height);
         // Smooth the raw flows first, THEN repair. (Running the median after the
         // repair wiped the occlusion completion: at an object's top/bottom edge
         // the median window mixes in background rows where the completion hasn't
@@ -374,41 +414,74 @@
     return out;
   }
 
-  // t in [0,1]: 0 = exactly frame A, 1 = exactly frame B.
   // Separable box blur on all four channels (including alpha). Softens the
   // warped color pass: hard silhouette edges feather out instead of aliasing
   // against the sharp line art beneath, and noisy flow at object edges stops
   // producing single-pixel color speckles.
+  // Sliding-window sums make this O(n) instead of O(n·r); channel values are
+  // integers so the running sum is exact — byte-identical to the old loop.
   function smoothRGBA(rgba, w, h, r) {
     var n = w * h;
     var tmp = new Uint8ClampedArray(rgba.length);
     var out = new Uint8ClampedArray(rgba.length);
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        var x0 = x - r, x1 = x + r;
-        if (x0 < 0) x0 = 0; if (x1 >= w) x1 = w - 1;
-        var a0 = 0, a1 = 0, a2 = 0, a3 = 0, cnt = 0;
-        for (var xx = x0; xx <= x1; xx++) {
-          var q = (y * w + xx) * 4;
-          a0 += rgba[q]; a1 += rgba[q + 1]; a2 += rgba[q + 2]; a3 += rgba[q + 3];
-          cnt++;
+    var x, y, q, i, cnt, lo, hi, newLo, newHi;
+    var sum0, sum1, sum2, sum3;
+    // horizontal pass
+    for (y = 0; y < h; y++) {
+      var rb = y * w * 4;
+      sum0 = 0; sum1 = 0; sum2 = 0; sum3 = 0; cnt = 0;
+      lo = 0; hi = r; if (hi >= w) hi = w - 1;
+      for (i = 0; i <= hi; i++) {
+        q = rb + i * 4;
+        sum0 += rgba[q]; sum1 += rgba[q + 1]; sum2 += rgba[q + 2]; sum3 += rgba[q + 3];
+        cnt++;
+      }
+      for (x = 0; x < w; x++) {
+        q = rb + x * 4;
+        tmp[q] = sum0 / cnt; tmp[q + 1] = sum1 / cnt; tmp[q + 2] = sum2 / cnt; tmp[q + 3] = sum3 / cnt;
+        // slide the window one pixel right
+        newLo = x + 1 - r; if (newLo < 0) newLo = 0;
+        if (newLo > lo) {
+          q = rb + lo * 4;
+          sum0 -= rgba[q]; sum1 -= rgba[q + 1]; sum2 -= rgba[q + 2]; sum3 -= rgba[q + 3];
+          cnt--;
+          lo = newLo;
         }
-        var p = (y * w + x) * 4;
-        tmp[p] = a0 / cnt; tmp[p + 1] = a1 / cnt; tmp[p + 2] = a2 / cnt; tmp[p + 3] = a3 / cnt;
+        newHi = x + 1 + r; if (newHi >= w) newHi = w - 1;
+        if (newHi > hi) {
+          q = rb + newHi * 4;
+          sum0 += rgba[q]; sum1 += rgba[q + 1]; sum2 += rgba[q + 2]; sum3 += rgba[q + 3];
+          cnt++;
+          hi = newHi;
+        }
       }
     }
-    for (var yy = 0; yy < h; yy++) {
-      for (var xx2 = 0; xx2 < w; xx2++) {
-        var y0 = yy - r, y1 = yy + r;
-        if (y0 < 0) y0 = 0; if (y1 >= h) y1 = h - 1;
-        var b0 = 0, b1 = 0, b2 = 0, b3 = 0, cnt2 = 0;
-        for (var qy = y0; qy <= y1; qy++) {
-          var q2 = (qy * w + xx2) * 4;
-          b0 += tmp[q2]; b1 += tmp[q2 + 1]; b2 += tmp[q2 + 2]; b3 += tmp[q2 + 3];
-          cnt2++;
+    // vertical pass
+    for (x = 0; x < w; x++) {
+      sum0 = 0; sum1 = 0; sum2 = 0; sum3 = 0; cnt = 0;
+      lo = 0; hi = r; if (hi >= h) hi = h - 1;
+      for (i = 0; i <= hi; i++) {
+        q = (i * w + x) * 4;
+        sum0 += tmp[q]; sum1 += tmp[q + 1]; sum2 += tmp[q + 2]; sum3 += tmp[q + 3];
+        cnt++;
+      }
+      for (y = 0; y < h; y++) {
+        q = (y * w + x) * 4;
+        out[q] = sum0 / cnt; out[q + 1] = sum1 / cnt; out[q + 2] = sum2 / cnt; out[q + 3] = sum3 / cnt;
+        newLo = y + 1 - r; if (newLo < 0) newLo = 0;
+        if (newLo > lo) {
+          q = (lo * w + x) * 4;
+          sum0 -= tmp[q]; sum1 -= tmp[q + 1]; sum2 -= tmp[q + 2]; sum3 -= tmp[q + 3];
+          cnt--;
+          lo = newLo;
         }
-        var p2 = (yy * w + xx2) * 4;
-        out[p2] = b0 / cnt2; out[p2 + 1] = b1 / cnt2; out[p2 + 2] = b2 / cnt2; out[p2 + 3] = b3 / cnt2;
+        newHi = y + 1 + r; if (newHi >= h) newHi = h - 1;
+        if (newHi > hi) {
+          q = (newHi * w + x) * 4;
+          sum0 += tmp[q]; sum1 += tmp[q + 1]; sum2 += tmp[q + 2]; sum3 += tmp[q + 3];
+          cnt++;
+          hi = newHi;
+        }
       }
     }
     return out;
@@ -432,14 +505,32 @@
   // Used by color layers: the colored pass of one frame is warped to follow
   // the line-art frame it colors, so colors track the animation. A positive
   // radius smooths the result (feathered edges) to avoid jagged color edges.
+  // Bilinear sampling is inlined — no per-pixel function calls or allocation.
   function warpFrame(src, flowAB, width, height, radius) {
     var u = flowAB.u, v = flowAB.v;
     var out = new Uint8ClampedArray(src.length);
-    var n = width * height;
-    for (var p = 0, q = 0; p < n; p++, q += 4) {
-      var x = p % width, y = (p / width) | 0;
-      var samp = bilinearSampleRGBA(src, width, height, x - u[p], y - v[p]);
-      out[q] = samp[0]; out[q + 1] = samp[1]; out[q + 2] = samp[2]; out[q + 3] = samp[3];
+    var w1 = width - 1, h1 = height - 1;
+    var y, x, p, q;
+    for (y = 0; y < height; y++) {
+      for (x = 0; x < width; x++) {
+        p = y * width + x;
+        q = p * 4;
+        var fx = x - u[p], fy = y - v[p];
+        if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+        if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+        var x0 = fx | 0, y0 = fy | 0;
+        var x1 = x0 < w1 ? x0 + 1 : x0;
+        var y1 = y0 < h1 ? y0 + 1 : y0;
+        var ax = fx - x0, ay = fy - y0;
+        var w00 = (1 - ax) * (1 - ay), w01 = ax * (1 - ay);
+        var w10 = (1 - ax) * ay, w11 = ax * ay;
+        var i00 = (y0 * width + x0) * 4, i01 = (y0 * width + x1) * 4;
+        var i10 = (y1 * width + x0) * 4, i11 = (y1 * width + x1) * 4;
+        out[q] = (src[i00] * w00 + src[i01] * w01) + (src[i10] * w10 + src[i11] * w11);
+        out[q + 1] = (src[i00 + 1] * w00 + src[i01 + 1] * w01) + (src[i10 + 1] * w10 + src[i11 + 1] * w11);
+        out[q + 2] = (src[i00 + 2] * w00 + src[i01 + 2] * w01) + (src[i10 + 2] * w10 + src[i11 + 2] * w11);
+        out[q + 3] = (src[i00 + 3] * w00 + src[i01 + 3] * w01) + (src[i10 + 3] * w10 + src[i11 + 3] * w11);
+      }
     }
     if (radius > 0) return smoothRGBA(out, width, height, radius);
     return out;
@@ -452,6 +543,8 @@
     var uBA = flowBA.u, vBA = flowBA.v;
     var thresh = 4.0;
     var inv = 1 - t;
+    var w1 = width - 1, h1 = height - 1;
+    var a = aData, b = bData;
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         var p = y * width + x;
@@ -460,15 +553,15 @@
         // forward/backward consistency: the two flows should point at each other
         var ux = uAB[p], vy = vAB[p];
         var lx = Math.round(x + ux), ly = Math.round(y + vy);
-        if (lx < 0) lx = 0; else if (lx > width - 1) lx = width - 1;
-        if (ly < 0) ly = 0; else if (ly > height - 1) ly = height - 1;
+        if (lx < 0) lx = 0; else if (lx > w1) lx = w1;
+        if (ly < 0) ly = 0; else if (ly > h1) ly = h1;
         var lp = ly * width + lx;
         var cA = Math.abs(ux + uBA[lp]) + Math.abs(vy + vBA[lp]);
 
         var ux2 = uBA[p], vy2 = vBA[p];
         var mx = Math.round(x + ux2), my = Math.round(y + vy2);
-        if (mx < 0) mx = 0; else if (mx > width - 1) mx = width - 1;
-        if (my < 0) my = 0; else if (my > height - 1) my = height - 1;
+        if (mx < 0) mx = 0; else if (mx > w1) mx = w1;
+        if (my < 0) my = 0; else if (my > h1) my = h1;
         var mp = my * width + mx;
         var cB = Math.abs(ux2 + uAB[mp]) + Math.abs(vy2 + vAB[mp]);
 
@@ -481,12 +574,40 @@
         var eps = 0.1;
         var denom = wa + wb + eps;
 
-        var sa = bilinearSampleRGBA(aData, width, height, x - t * ux, y - t * vy);
-        var sb = bilinearSampleRGBA(bData, width, height, x - inv * ux2, y - inv * vy2);
-        for (var c = 0; c < 3; c++) {
-          out[q + c] = Math.round((wa * sa[c] + wb * sb[c] + eps * (inv * aData[q + c] + t * bData[q + c])) / denom);
-        }
-        out[q + 3] = Math.round((wa * sa[3] + wb * sb[3] + eps * (inv * aData[q + 3] + t * bData[q + 3])) / denom);
+        var sax = x - t * ux, say = y - t * vy;
+        var sbx = x - inv * ux2, sby = y - inv * vy2;
+        var fx = sax; if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+        var fy = say; if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+        var x0 = fx | 0, y0 = fy | 0;
+        var x1 = x0 < w1 ? x0 + 1 : x0;
+        var y1 = y0 < h1 ? y0 + 1 : y0;
+        var ax = fx - x0, ay = fy - y0;
+        var w00 = (1 - ax) * (1 - ay), w01 = ax * (1 - ay);
+        var w10 = (1 - ax) * ay, w11 = ax * ay;
+        var ia00 = (y0 * width + x0) * 4, ia01 = (y0 * width + x1) * 4;
+        var ia10 = (y1 * width + x0) * 4, ia11 = (y1 * width + x1) * 4;
+        fx = sbx; if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+        fy = sby; if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+        x0 = fx | 0; y0 = fy | 0;
+        x1 = x0 < w1 ? x0 + 1 : x0;
+        y1 = y0 < h1 ? y0 + 1 : y0;
+        ax = fx - x0; ay = fy - y0;
+        var u00 = (1 - ax) * (1 - ay), u01 = ax * (1 - ay);
+        var u10 = (1 - ax) * ay, u11 = ax * ay;
+        var ib00 = (y0 * width + x0) * 4, ib01 = (y0 * width + x1) * 4;
+        var ib10 = (y1 * width + x0) * 4, ib11 = (y1 * width + x1) * 4;
+        var sa0 = (a[ia00] * w00 + a[ia01] * w01) + (a[ia10] * w10 + a[ia11] * w11);
+        var sa1 = (a[ia00 + 1] * w00 + a[ia01 + 1] * w01) + (a[ia10 + 1] * w10 + a[ia11 + 1] * w11);
+        var sa2 = (a[ia00 + 2] * w00 + a[ia01 + 2] * w01) + (a[ia10 + 2] * w10 + a[ia11 + 2] * w11);
+        var sa3 = (a[ia00 + 3] * w00 + a[ia01 + 3] * w01) + (a[ia10 + 3] * w10 + a[ia11 + 3] * w11);
+        var sb0 = (b[ib00] * u00 + b[ib01] * u01) + (b[ib10] * u10 + b[ib11] * u11);
+        var sb1 = (b[ib00 + 1] * u00 + b[ib01 + 1] * u01) + (b[ib10 + 1] * u10 + b[ib11 + 1] * u11);
+        var sb2v = (b[ib00 + 2] * u00 + b[ib01 + 2] * u01) + (b[ib10 + 2] * u10 + b[ib11 + 2] * u11);
+        var sb3 = (b[ib00 + 3] * u00 + b[ib01 + 3] * u01) + (b[ib10 + 3] * u10 + b[ib11 + 3] * u11);
+        out[q] = Math.round((wa * sa0 + wb * sb0 + eps * (inv * a[q] + t * b[q])) / denom);
+        out[q + 1] = Math.round((wa * sa1 + wb * sb1 + eps * (inv * a[q + 1] + t * b[q + 1])) / denom);
+        out[q + 2] = Math.round((wa * sa2 + wb * sb2v + eps * (inv * a[q + 2] + t * b[q + 2])) / denom);
+        out[q + 3] = Math.round((wa * sa3 + wb * sb3 + eps * (inv * a[q + 3] + t * b[q + 3])) / denom);
       }
     }
     return out;
@@ -589,15 +710,48 @@
     var out = new Uint8ClampedArray(n * 4);
     var covered = new Uint8Array(n);
     var inv = 1 - t;
+    var w1 = width - 1, h1 = height - 1;
+    var a = aData, b = bData;
+    var uAB = meshAB.u, vAB = meshAB.v, uBA = meshBA.u, vBA = meshBA.v;
+    var cols = meshAB.cols, rows = meshAB.rows, cell = meshAB.cell;
+    // Hoisted per-row and per-column mesh-sample factors (fx/fy, cell coords,
+    // interpolation weights) so the per-pixel hot loop only combines them.
+    var fxArr = new Float32Array(width), axArr = new Float32Array(width);
+    var i0c = new Int32Array(width), i1c = new Int32Array(width);
+    var fyArr = new Float32Array(height), ayArr = new Float32Array(height);
+    var j0r = new Int32Array(height), j1r = new Int32Array(height);
+    var y, x, p, q;
+    for (x = 0; x < width; x++) {
+      var ffx = x / cell;
+      if (ffx < 0) ffx = 0; else if (ffx > cols - 2) ffx = cols - 2;
+      fxArr[x] = ffx;
+      i0c[x] = ffx | 0;
+      i1c[x] = (ffx | 0) + 1;
+      axArr[x] = ffx - (ffx | 0);
+    }
+    for (y = 0; y < height; y++) {
+      var ffy = y / cell;
+      if (ffy < 0) ffy = 0; else if (ffy > rows - 2) ffy = rows - 2;
+      fyArr[y] = ffy;
+      j0r[y] = ffy | 0;
+      j1r[y] = (ffy | 0) + 1;
+      ayArr[y] = ffy - (ffy | 0);
+    }
     // Forward-splat coverage: which output pixels does A's deformation land on?
-    for (var y = 0; y < height; y++) {
-      for (var x = 0; x < width; x++) {
-        var p = y * width + x;
-        var f = sampleMesh(meshAB, x, y);
-        var qx = Math.round(x + t * f[0]);
-        var qy = Math.round(y + t * f[1]);
-        if (qx < 0) qx = 0; else if (qx > width - 1) qx = width - 1;
-        if (qy < 0) qy = 0; else if (qy > height - 1) qy = height - 1;
+    for (y = 0; y < height; y++) {
+      var fy0 = fyArr[y], ay0 = ayArr[y], j0 = j0r[y], j1 = j1r[y];
+      var j0c = j0 * cols, j1c = j1 * cols;
+      for (x = 0; x < width; x++) {
+        p = y * width + x;
+        var i0 = i0c[x], i1 = i1c[x], ax0 = axArr[x];
+        var u0 = uAB[j0c + i0] * (1 - ax0) * (1 - ay0) + uAB[j0c + i1] * ax0 * (1 - ay0)
+              + uAB[j1c + i0] * (1 - ax0) * ay0 + uAB[j1c + i1] * ax0 * ay0;
+        var v0 = vAB[j0c + i0] * (1 - ax0) * (1 - ay0) + vAB[j0c + i1] * ax0 * (1 - ay0)
+              + vAB[j1c + i0] * (1 - ax0) * ay0 + vAB[j1c + i1] * ax0 * ay0;
+        var qx = Math.round(x + t * u0);
+        var qy = Math.round(y + t * v0);
+        if (qx < 0) qx = 0; else if (qx > w1) qx = w1;
+        if (qy < 0) qy = 0; else if (qy > h1) qy = h1;
         covered[qy * width + qx] = 1;
       }
     }
@@ -610,48 +764,94 @@
     for (y = 0; y < height; y++) {
       for (x = 0; x < width; x++) {
         if (covered[y * width + x]) continue;
-        var cx2 = x, cy2 = y;
-        for (var dy2 = -1; dy2 <= 1; dy2++) {
+        var found = false;
+        for (var dy2 = -1; dy2 <= 1 && !found; dy2++) {
           var ny = y + dy2;
           if (ny < 0 || ny >= height) continue;
           for (var dx2 = -1; dx2 <= 1; dx2++) {
             if (dx2 === 0 && dy2 === 0) continue;
             var nx = x + dx2;
             if (nx < 0 || nx >= width) continue;
-            if (covered[ny * width + nx]) { covered[y * width + x] = 1; break; }
+            if (covered[ny * width + nx]) { found = true; break; }
           }
-          if (covered[y * width + x]) break;
         }
+        if (found) covered[y * width + x] = 1;
       }
     }
     for (y = 0; y < height; y++) {
+      var fy1 = fyArr[y], ay1 = ayArr[y], j0b = j0r[y], j1b = j1r[y];
+      var j0bc = j0b * cols, j1bc = j1b * cols;
       for (x = 0; x < width; x++) {
         p = y * width + x;
-        var q = p * 4;
+        q = p * 4;
+        var i0b = i0c[x], i1b = i1c[x], ax1 = axArr[x];
+        var omax = 1 - ax1, omay = 1 - ay1;
         if (covered[p]) {
-          var fA = sampleMesh(meshAB, x, y);
-          var fB = sampleMesh(meshBA, x, y);
-          var sa = bilinearSampleRGBA(aData, width, height, x - t * fA[0], y - t * fA[1]);
-          var sb = bilinearSampleRGBA(bData, width, height, x - inv * fB[0], y - inv * fB[1]);
-          for (var c = 0; c < 3; c++) {
-            out[q + c] = Math.round(inv * sa[c] + t * sb[c]);
-          }
-          out[q + 3] = Math.round(inv * sa[3] + t * sb[3]);
+          var uA = uAB[j0bc + i0b] * omax * omay + uAB[j0bc + i1b] * ax1 * omay
+                 + uAB[j1bc + i0b] * omax * ay1 + uAB[j1bc + i1b] * ax1 * ay1;
+          var vA = vAB[j0bc + i0b] * omax * omay + vAB[j0bc + i1b] * ax1 * omay
+                 + vAB[j1bc + i0b] * omax * ay1 + vAB[j1bc + i1b] * ax1 * ay1;
+          var uB = uBA[j0bc + i0b] * omax * omay + uBA[j0bc + i1b] * ax1 * omay
+                 + uBA[j1bc + i0b] * omax * ay1 + uBA[j1bc + i1b] * ax1 * ay1;
+          var vB = vBA[j0bc + i0b] * omax * omay + vBA[j0bc + i1b] * ax1 * omay
+                 + vBA[j1bc + i0b] * omax * ay1 + vBA[j1bc + i1b] * ax1 * ay1;
+          var sax = x - t * uA, say = y - t * vA;
+          var sbx = x - inv * uB, sby = y - inv * vB;
+          var fx = sax; if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+          var fy = say; if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+          var x0 = fx | 0, y0 = fy | 0;
+          var x1 = x0 < w1 ? x0 + 1 : x0;
+          var y1 = y0 < h1 ? y0 + 1 : y0;
+          var ax = fx - x0, ay = fy - y0;
+          var w00 = (1 - ax) * (1 - ay), w01 = ax * (1 - ay);
+          var w10 = (1 - ax) * ay, w11 = ax * ay;
+          var ia00 = (y0 * width + x0) * 4, ia01 = (y0 * width + x1) * 4;
+          var ia10 = (y1 * width + x0) * 4, ia11 = (y1 * width + x1) * 4;
+          fx = sbx; if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+          fy = sby; if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+          x0 = fx | 0; y0 = fy | 0;
+          x1 = x0 < w1 ? x0 + 1 : x0;
+          y1 = y0 < h1 ? y0 + 1 : y0;
+          ax = fx - x0; ay = fy - y0;
+          var u00 = (1 - ax) * (1 - ay), u01 = ax * (1 - ay);
+          var u10 = (1 - ax) * ay, u11 = ax * ay;
+          var ib00 = (y0 * width + x0) * 4, ib01 = (y0 * width + x1) * 4;
+          var ib10 = (y1 * width + x0) * 4, ib11 = (y1 * width + x1) * 4;
+          var sa0 = (a[ia00] * w00 + a[ia01] * w01) + (a[ia10] * w10 + a[ia11] * w11);
+          var sa1 = (a[ia00 + 1] * w00 + a[ia01 + 1] * w01) + (a[ia10 + 1] * w10 + a[ia11 + 1] * w11);
+          var sa2 = (a[ia00 + 2] * w00 + a[ia01 + 2] * w01) + (a[ia10 + 2] * w10 + a[ia11 + 2] * w11);
+          var sa3 = (a[ia00 + 3] * w00 + a[ia01 + 3] * w01) + (a[ia10 + 3] * w10 + a[ia11 + 3] * w11);
+          var sb0 = (b[ib00] * u00 + b[ib01] * u01) + (b[ib10] * u10 + b[ib11] * u11);
+          var sb1 = (b[ib00 + 1] * u00 + b[ib01 + 1] * u01) + (b[ib10 + 1] * u10 + b[ib11 + 1] * u11);
+          var sb2 = (b[ib00 + 2] * u00 + b[ib01 + 2] * u01) + (b[ib10 + 2] * u10 + b[ib11 + 2] * u11);
+          var sb3 = (b[ib00 + 3] * u00 + b[ib01 + 3] * u01) + (b[ib10 + 3] * u10 + b[ib11 + 3] * u11);
+          out[q] = Math.round(inv * sa0 + t * sb0);
+          out[q + 1] = Math.round(inv * sa1 + t * sb1);
+          out[q + 2] = Math.round(inv * sa2 + t * sb2);
+          out[q + 3] = Math.round(inv * sa3 + t * sb3);
         } else if (uRaw) {
           var fu = bilinearField(uRaw, width, height, x, y);
           var fv = bilinearField(vRaw, width, height, x, y);
-          var sb2 = bilinearSampleRGBA(bData, width, height, x - inv * fu, y - inv * fv);
-          out[q] = Math.round(sb2[0]);
-          out[q + 1] = Math.round(sb2[1]);
-          out[q + 2] = Math.round(sb2[2]);
-          out[q + 3] = sb2[3];
+          var sb2x = x - inv * fu, sb2y = y - inv * fv;
+          var fx2 = sb2x; if (fx2 < 0) fx2 = 0; else if (fx2 > w1) fx2 = w1;
+          var fy2 = sb2y; if (fy2 < 0) fy2 = 0; else if (fy2 > h1) fy2 = h1;
+          var x0 = fx2 | 0, y0 = fy2 | 0;
+          var x1 = x0 < w1 ? x0 + 1 : x0;
+          var y1 = y0 < h1 ? y0 + 1 : y0;
+          var ax = fx2 - x0, ay = fy2 - y0;
+          var w00 = (1 - ax) * (1 - ay), w01 = ax * (1 - ay);
+          var w10 = (1 - ax) * ay, w11 = ax * ay;
+          var ib2 = (y0 * width + x0) * 4, ib3 = (y0 * width + x1) * 4;
+          var ib4 = (y1 * width + x0) * 4, ib5 = (y1 * width + x1) * 4;
+          out[q] = Math.round((b[ib2] * w00 + b[ib3] * w01) + (b[ib4] * w10 + b[ib5] * w11));
+          out[q + 1] = Math.round((b[ib2 + 1] * w00 + b[ib3 + 1] * w01) + (b[ib4 + 1] * w10 + b[ib5 + 1] * w11));
+          out[q + 2] = Math.round((b[ib2 + 2] * w00 + b[ib3 + 2] * w01) + (b[ib4 + 2] * w10 + b[ib5 + 2] * w11));
+          out[q + 3] = (b[ib2 + 3] * w00 + b[ib3 + 3] * w01) + (b[ib4 + 3] * w10 + b[ib5 + 3] * w11);
         } else {
           // No raw flow available: fall back to B at rest.
-          var sb3 = bilinearSampleRGBA(bData, width, height, x, y);
-          out[q] = Math.round(sb3[0]);
-          out[q + 1] = Math.round(sb3[1]);
-          out[q + 2] = Math.round(sb3[2]);
-          out[q + 3] = sb3[3];
+          var x0 = x < w1 ? x : w1, y0 = y < h1 ? y : h1;
+          var ib6 = (y0 * width + x0) * 4;
+          out[q] = b[ib6]; out[q + 1] = b[ib6 + 1]; out[q + 2] = b[ib6 + 2]; out[q + 3] = b[ib6 + 3];
         }
       }
     }
@@ -909,19 +1109,121 @@
     var out = new Uint8ClampedArray(n * 4);
     var cx = px != null && isFinite(px) ? px : width / 2;
     var cy = py != null && isFinite(py) ? py : height / 2;
+    var w1 = width - 1, h1 = height - 1;
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         var dx = x - cx, dy = y - cy;
         var along = dx * ux + dy * uy;
         var perp = dx * -uy + dy * ux;
-        var samp = bilinearSampleRGBA(src, width, height,
-          cx + (along / s) * ux - (perp / inv) * uy,
-          cy + (along / s) * uy + (perp / inv) * ux);
+        var fx = cx + (along / s) * ux - (perp / inv) * uy;
+        var fy = cy + (along / s) * uy + (perp / inv) * ux;
+        if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+        if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+        var x0 = fx | 0, y0 = fy | 0;
+        var x1 = x0 < w1 ? x0 + 1 : x0;
+        var y1 = y0 < h1 ? y0 + 1 : y0;
+        var ax = fx - x0, ay = fy - y0;
+        var w00 = (1 - ax) * (1 - ay), w01 = ax * (1 - ay);
+        var w10 = (1 - ax) * ay, w11 = ax * ay;
         var q = (y * width + x) * 4;
-        out[q] = Math.round(samp[0]);
-        out[q + 1] = Math.round(samp[1]);
-        out[q + 2] = Math.round(samp[2]);
-        out[q + 3] = Math.round(samp[3]);
+        var i00 = (y0 * width + x0) * 4, i01 = (y0 * width + x1) * 4;
+        var i10 = (y1 * width + x0) * 4, i11 = (y1 * width + x1) * 4;
+        out[q] = Math.round((src[i00] * w00 + src[i01] * w01) + (src[i10] * w10 + src[i11] * w11));
+        out[q + 1] = Math.round((src[i00 + 1] * w00 + src[i01 + 1] * w01) + (src[i10 + 1] * w10 + src[i11 + 1] * w11));
+        out[q + 2] = Math.round((src[i00 + 2] * w00 + src[i01 + 2] * w01) + (src[i10 + 2] * w10 + src[i11 + 2] * w11));
+        out[q + 3] = Math.round((src[i00 + 3] * w00 + src[i01 + 3] * w01) + (src[i10 + 3] * w10 + src[i11 + 3] * w11));
+      }
+    }
+    return out;
+  }
+
+  // Motion blur for inbetween frames: smears the rendered frame along the local
+  // motion direction (the mesh flow), with the amount scaling with the pixel's
+  // motion magnitude and easing in and out across the gap (sin(pi·t): no blur at
+  // the keyframes, peak mid-gap). Static regions are copied untouched, so only
+  // content that actually moved gets a streak — that is what makes it accurate
+  // motion blur (and what masks warp/AI imperfections along the motion path).
+  function motionBlurFrame(rgba, meshes, width, height, t, intensity) {
+    var n = width * height;
+    var out = new Uint8ClampedArray(rgba.length);
+    if (!(intensity > 0) || !meshes || !meshes.meshAB) { out.set(rgba); return out; }
+    var mesh = meshes.meshAB;
+    var cols = mesh.cols, rows = mesh.rows, cell = mesh.cell;
+    var mu = mesh.u, mv = mesh.v;
+    var w1 = width - 1, h1 = height - 1;
+    var ease = Math.sin(Math.PI * t);
+    if (!(ease > 0)) { out.set(rgba); return out; }
+    var fxArr = new Float32Array(width), axArr = new Float32Array(width);
+    var i0c = new Int32Array(width), i1c = new Int32Array(width);
+    var fyArr = new Float32Array(height), ayArr = new Float32Array(height);
+    var j0r = new Int32Array(height), j1r = new Int32Array(height);
+    for (var x = 0; x < width; x++) {
+      var ffx = x / cell;
+      if (ffx < 0) ffx = 0; else if (ffx > cols - 2) ffx = cols - 2;
+      fxArr[x] = ffx;
+      i0c[x] = ffx | 0;
+      i1c[x] = (ffx | 0) + 1;
+      axArr[x] = ffx - (ffx | 0);
+    }
+    for (var y = 0; y < height; y++) {
+      var ffy = y / cell;
+      if (ffy < 0) ffy = 0; else if (ffy > rows - 2) ffy = rows - 2;
+      fyArr[y] = ffy;
+      j0r[y] = ffy | 0;
+      j1r[y] = (ffy | 0) + 1;
+      ayArr[y] = ffy - (ffy | 0);
+    }
+    var MAX_TRAIL = 24;   // longest streak in px (cap keeps tap count sane)
+    var MAX_TAPS = 12;    // cap on samples per pixel
+    var src = rgba;
+    for (y = 0; y < height; y++) {
+      var j0 = j0r[y], j1 = j1r[y], ay = ayArr[y];
+      var omay = 1 - ay;
+      var j0c = j0 * cols, j1c = j1 * cols;
+      for (x = 0; x < width; x++) {
+        var p = y * width + x;
+        var q = p * 4;
+        var i0 = i0c[x], i1 = i1c[x], ax = axArr[x];
+        var omax = 1 - ax;
+        var ux = mu[j0c + i0] * omax * omay + mu[j0c + i1] * ax * omay
+               + mu[j1c + i0] * omax * ay + mu[j1c + i1] * ax * ay;
+        var vy = mv[j0c + i0] * omax * omay + mv[j0c + i1] * ax * omay
+               + mv[j1c + i0] * omax * ay + mv[j1c + i1] * ax * ay;
+        var mag = Math.sqrt(ux * ux + vy * vy);
+        var trail = ease * intensity * mag;
+        if (trail < 0.6) {
+          out[q] = src[q]; out[q + 1] = src[q + 1]; out[q + 2] = src[q + 2]; out[q + 3] = src[q + 3];
+          continue;
+        }
+        if (trail > MAX_TRAIL) trail = MAX_TRAIL;
+        var taps = Math.min(MAX_TAPS, 1 + 2 * Math.round(trail / 2));
+        if (taps < 3) taps = 3;
+        var dx = ux / mag, dy = vy / mag;
+        var half = taps >> 1;
+        var step = trail / (taps - 1);
+        var r0 = 0, g0 = 0, b0 = 0, a0 = 0;
+        for (var k = 0; k < taps; k++) {
+          var off = (k - half) * step;
+          var fx = x + dx * off, fy = y + dy * off;
+          if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+          if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+          var x0 = fx | 0, y0 = fy | 0;
+          var x1 = x0 < w1 ? x0 + 1 : x0;
+          var y1 = y0 < h1 ? y0 + 1 : y0;
+          var ax2 = fx - x0, ay2 = fy - y0;
+          var w00 = (1 - ax2) * (1 - ay2), w01 = ax2 * (1 - ay2);
+          var w10 = (1 - ax2) * ay2, w11 = ax2 * ay2;
+          var i00 = (y0 * width + x0) * 4, i01 = (y0 * width + x1) * 4;
+          var i10 = (y1 * width + x0) * 4, i11 = (y1 * width + x1) * 4;
+          r0 += (src[i00] * w00 + src[i01] * w01) + (src[i10] * w10 + src[i11] * w11);
+          g0 += (src[i00 + 1] * w00 + src[i01 + 1] * w01) + (src[i10 + 1] * w10 + src[i11 + 1] * w11);
+          b0 += (src[i00 + 2] * w00 + src[i01 + 2] * w01) + (src[i10 + 2] * w10 + src[i11 + 2] * w11);
+          a0 += (src[i00 + 3] * w00 + src[i01 + 3] * w01) + (src[i10 + 3] * w10 + src[i11 + 3] * w11);
+        }
+        out[q] = r0 / taps;
+        out[q + 1] = g0 / taps;
+        out[q + 2] = b0 / taps;
+        out[q + 3] = a0 / taps;
       }
     }
     return out;
@@ -936,7 +1238,6 @@
     }
     return true;
   }
-
   return {
     computeFlow: computeFlow,
     computeFlowBoth: computeFlowBoth,
@@ -945,6 +1246,7 @@
     gateFill: gateFill,
     morphFrame: morphFrame,
     morphFrameMesh: morphFrameMesh,
+    motionBlurFrame: motionBlurFrame,
     squashStretchFrame: squashStretchFrame,
     warpAlpha: warpAlpha,
     synthesizeInbetweenFrame: synthesizeInbetweenFrame,

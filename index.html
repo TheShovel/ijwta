@@ -163,6 +163,15 @@
             </select>
           </label>
         </div>
+        <div id="gapBlurGroup" class="hidden squash-group">
+          <label class="field check">
+            <input id="gapBlurOn" type="checkbox"> Motion blur
+          </label>
+          <label class="field">Blur intensity — <span id="gapBlurValue" class="mono">50%</span>
+            <input id="gapBlurAmount" type="range" min="0" max="1" step="0.02" value="0.5">
+          </label>
+          <span class="squash-hint mono">smears inbetweens along their motion · eases in/out</span>
+        </div>
       </div>
       <div id="kfSection">
         <div class="side-title">Keyframe</div>

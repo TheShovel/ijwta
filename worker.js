@@ -22,6 +22,8 @@ self.onmessage = function (e) {
   var msg = e.data;
   if (msg.type === 'load-model') loadModel();
   else if (msg.type === 'generate-gap') generateGap(msg);
+  else if (msg.type === 'color-pass') colorPass(msg);
+  else if (msg.type === 'color-pass-free') colorPassFree(msg);
   else if (msg.type === 'color-frame') colorFrame(msg);
   else if (msg.type === 'cancel') cancelled = true;
   else if (msg.type === 'upscale') upscaleFrame(msg);
@@ -43,23 +45,84 @@ function loadModel() {
   });
 }
 
+// Cached color passes: the same colored pass + source frame (aData) are used
+// for every frame of a color gap, so they are sent once per gap and reused by
+// passId — instead of structured-cloning 16 MB into the worker per frame.
+var colorPasses = {};
+
+function colorPass(msg) {
+  colorPasses[msg.passId] = {
+    pass: new Uint8ClampedArray(msg.passData),
+    a: new Uint8ClampedArray(msg.aData),
+    width: msg.width, height: msg.height
+  };
+  var keys = Object.keys(colorPasses);
+  if (keys.length > 8) delete colorPasses[keys[0]]; // LRU-ish cap
+}
+
+function colorPassFree(msg) {
+  if (colorPasses[msg.passId]) delete colorPasses[msg.passId];
+}
+
+// Encode a finished frame to a PNG data URL inside the worker (OffscreenCanvas),
+// so the main thread never runs the (Firefox-slow) canvas.toDataURL per frame.
+// Falls back to null when unsupported — the caller then ships the raw RGBA.
+function encodePNG(rgba, width, height) {
+  if (typeof OffscreenCanvas === 'undefined' || typeof FileReaderSync === 'undefined') return null;
+  try {
+    var c = new OffscreenCanvas(width, height);
+    var ctx = c.getContext('2d');
+    var img = ctx.createImageData(width, height);
+    img.data.set(rgba);
+    ctx.putImageData(img, 0, 0);
+    return c.convertToBlob({ type: 'image/png' }).then(function (blob) {
+      return new FileReaderSync().readAsDataURL(blob);
+    });
+  } catch (e) { return null; }
+}
+
+// Post a finished frame, encoding to a PNG data URL in the worker when
+// possible. Any encode failure (unsupported codec, memory pressure) falls back
+// to shipping the raw RGBA buffer — generation never stalls on encoding.
+function postFrame(jobId, frame, rgba, width, height) {
+  var enc = encodePNG(rgba, width, height);
+  if (!enc) {
+    var buf = rgba.buffer;
+    post({ type: 'frame', jobId: jobId, idx: frame.idx, t: frame.t, time: frame.time, ai: frame.ai, width: width, height: height, rgba: buf }, [buf]);
+    return Promise.resolve();
+  }
+  return enc.then(function (dataUrl) {
+    post({ type: 'frame', jobId: jobId, idx: frame.idx, t: frame.t, time: frame.time, ai: frame.ai, width: width, height: height, img: dataUrl });
+  }, function () {
+    var buf = rgba.buffer;
+    post({ type: 'frame', jobId: jobId, idx: frame.idx, t: frame.t, time: frame.time, ai: frame.ai, width: width, height: height, rgba: buf }, [buf]);
+  });
+}
+
 // Color-layer frame: warp the colored pass along the source layer's motion
 // (flow from the pass's line-art frame to the current line-art frame), so the
-// colors follow the animation. One message per frame — the heavy optical-flow
-// pass runs here, off the main thread.
+// colors follow the animation. The pass + source frame arrive once per gap via
+// 'color-pass' (or inline for direct callers); bData is transferred per frame.
 function colorFrame(msg) {
   cancelled = false;
   var jobId = msg.jobId;
-  var pass = new Uint8ClampedArray(msg.passData);
-  var a = new Uint8ClampedArray(msg.aData);
+  var rec = msg.passId ? colorPasses[msg.passId] : null;
+  var pass, a, width, height;
+  if (rec) {
+    pass = rec.pass; a = rec.a; width = rec.width; height = rec.height;
+  } else {
+    pass = new Uint8ClampedArray(msg.passData);
+    a = new Uint8ClampedArray(msg.aData);
+    width = msg.width; height = msg.height;
+  }
   var b = new Uint8ClampedArray(msg.bData);
-  var width = msg.width, height = msg.height;
   morph.computeFlowBoth(a, b, width, height, {}, null, function () { return cancelled; }).then(function (pair) {
     if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
     var warped = morph.warpFrame(pass, pair.flowAB, width, height, 2);
     morph.gateFill(warped, b, width, height);
-    var buf = warped.buffer;
-    post({ type: 'frame', jobId: jobId, idx: msg.idx, t: msg.t, time: msg.time, ai: false, width: width, height: height, rgba: buf }, [buf]);
+    return postFrame(jobId, { idx: msg.idx, t: msg.t, time: msg.time, ai: false }, warped, width, height);
+  }).then(function () {
+    if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
     post({ type: 'gap-done', jobId: jobId });
   }).catch(function (err) {
     if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
@@ -76,7 +139,9 @@ function generateGap(msg) {
   var fromTime = msg.fromTime, toTime = msg.toTime;
   var mode = msg.mode || 'ai';
   var squash = msg.squash || null;
+  var blur = msg.blur || null;
   var missing = msg.missing; // [{idx, t}]
+  var blurOn = !!(blur && blur.on && blur.intensity > 0);
 
   var meshes = null;
   var flowPromise = null;
@@ -124,9 +189,20 @@ function generateGap(msg) {
     if (cancelled) return Promise.resolve();
     var t = m.t;
     var time = fromTime + (toTime - fromTime) * t;
+    // Encode the frame to a PNG data URL in the worker when possible
+    // (OffscreenCanvas) so the main thread never runs the slow canvas.toDataURL
+    // per frame. Falls back to shipping the raw RGBA buffer otherwise.
     var send = function (rgba, ai) {
-      var buf = rgba.buffer;
-      post({ type: 'frame', jobId: jobId, idx: m.idx, t: t, time: time, ai: ai, width: width, height: height, rgba: buf }, [buf]);
+      return postFrame(jobId, { idx: m.idx, t: t, time: time, ai: ai }, rgba, width, height);
+    };
+    // Motion blur needs the flow, so it forces the (lazily-computed) meshes
+    // even for the opaque-AI path that would otherwise skip them entirely.
+    var finish = function (rgba, ai) {
+      if (!blurOn) return send(rgba, ai);
+      return ensureMeshes().then(function () {
+        if (cancelled) return;
+        return send(morph.motionBlurFrame(rgba, meshes, width, height, t, blur.intensity), ai);
+      });
     };
     // RIFE renders RGB with alpha 255; give the frame the mesh-warped alpha so
     // transparent keyframes (cut-out characters) stay transparent in inbetweens.
@@ -139,28 +215,28 @@ function generateGap(msg) {
     };
     if (mode === 'squash') {
       return ensureMeshes().then(function () {
-        send(morph.squashStretchFrame(aData, bData, meshes, width, height, t, squash), false);
+        return finish(morph.squashStretchFrame(aData, bData, meshes, width, height, t, squash), false);
       });
     }
     if (model.isReady()) {
       return model.interpolate(aData, bData, width, height, t).then(function (aiOut) {
         if (cancelled) return;
-        if (opaque) { send(aiOut, true); return; }
+        if (opaque) return finish(aiOut, true);
         return ensureMeshes().then(function () {
           if (cancelled) return;
           applyAlpha(aiOut);
-          send(aiOut, true);
+          return finish(aiOut, true);
         });
       }).catch(function (err) {
         if (cancelled) return;
         console.error('AI inbetween failed, using mesh warp:', err);
         return ensureMeshes().then(function () {
-          send(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
+          return finish(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
         });
       });
     }
     return ensureMeshes().then(function () {
-      send(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
+      return finish(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
     });
   };
 

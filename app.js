@@ -22,6 +22,7 @@
     gapMeta: {},          // gapId -> { h, count } — what the frames were made from
     gapType: {},          // gapId -> 'ai' | 'squash' | 'none' (per-gap interpolation)
     gapSquash: {},        // gapId -> { amount, curve, preserve }
+    gapBlur: {},          // gapId -> { on, intensity } (per-gap motion blur)
     dirty: new Set(),     // gapIds that need (re)generation
     fps: 12,
     zoom: 90,             // px per second
@@ -118,6 +119,10 @@
     gapSquashAuto: byId('gapSquashAuto'),
     gapSquashCurve: byId('gapSquashCurve'),
     gapSquashPreserve: byId('gapSquashPreserve'),
+    gapBlurGroup: byId('gapBlurGroup'),
+    gapBlurOn: byId('gapBlurOn'),
+    gapBlurAmount: byId('gapBlurAmount'),
+    gapBlurValue: byId('gapBlurValue'),
     layerNameLabel: byId('layerNameLabel'),
     layerVisible: byId('layerVisible'),
     layerType: byId('layerType'),
@@ -269,11 +274,18 @@
     else if (m.type === 'frame') {
       var jf = workerJobs[m.jobId];
       if (!jf) return;
-      var rgba = new Uint8ClampedArray(m.rgba);
-      jf.onFrame({
-        idx: m.idx, t: m.t, time: m.time, ai: m.ai,
-        img: dataToDataURL(rgba, m.width, m.height)
-      });
+      if (m.img) {
+        // Worker encoded the frame (OffscreenCanvas) — nothing to do here.
+        jf.onFrame({
+          idx: m.idx, t: m.t, time: m.time, ai: m.ai, img: m.img
+        });
+      } else {
+        var rgba = new Uint8ClampedArray(m.rgba);
+        jf.onFrame({
+          idx: m.idx, t: m.t, time: m.time, ai: m.ai,
+          img: dataToDataURL(rgba, m.width, m.height)
+        });
+      }
     }
     else if (m.type === 'gap-done' || m.type === 'gap-cancelled') {
       var jd = workerJobs[m.jobId];
@@ -446,6 +458,33 @@
     }
   }
 
+  // Per-gap motion blur: { on, intensity }. Intensity 0..1 scales the streak
+  // length relative to the pixel's motion (see morph.motionBlurFrame).
+  function gapBlurOpts(gapId) {
+    var o = state.gapBlur[gapId];
+    if (!o) return { on: false, intensity: 0.5 };
+    return {
+      on: !!o.on,
+      intensity: typeof o.intensity === 'number' && isFinite(o.intensity)
+        ? Math.max(0, Math.min(1, o.intensity)) : 0.5
+    };
+  }
+
+  function setGapBlur(gapId, patch) {
+    var cur = gapBlurOpts(gapId);
+    var next = {
+      on: patch.hasOwnProperty('on') ? !!patch.on : cur.on,
+      intensity: patch.hasOwnProperty('intensity') ? patch.intensity : cur.intensity
+    };
+    if (!isFinite(next.intensity)) next.intensity = cur.intensity;
+    next.intensity = Math.max(0, Math.min(1, next.intensity));
+    if (!next.on) {
+      delete state.gapBlur[gapId];
+    } else {
+      state.gapBlur[gapId] = next;
+    }
+  }
+
   function keyframeHold(k) {
     // Hold duration in seconds: how long the keyframe displays before the next
     // gap starts interpolating. Defaults to one frame at the current FPS.
@@ -559,22 +598,45 @@
 
   // Hash of what a gap's frames were generated from: the two endpoint images
   // plus the frame count. If these are unchanged, existing frames stay valid
-  // (only their timestamps may need re-deriving).
+  // (only their timestamps may need re-deriving). Color gaps also hash the
+  // source layer's frames at the color frame times — the pass is warped along
+  // that motion, so when the line art beneath changes (e.g. motion blur toggled)
+  // the color frames must regenerate too.
   function gapStamp(g) {
     var squash = gapSquashOpts(g.id);
     var squashKey = squash.amount == null ? 'auto' : String(Math.round(squash.amount * 1000) / 1000);
+    var blur = gapBlurOpts(g.id);
+    var blurKey = blur.on ? 'mb' + Math.round(blur.intensity * 1000) : 'none';
+    var h;
+    if (g.mode === 'color') {
+      var srcLayer = state.layers[state.layers.indexOf(layerById(g.layer)) + 1];
+      var srcParts = [];
+      if (srcLayer) {
+        colorFrameTimes(g).forEach(function (t) {
+          var fr = layerFrameAt(srcLayer.id, t, false);
+          srcParts.push(fr ? fr.img : '');
+        });
+      }
+      h = hashStr(g.from.img + '|' + g.to.img + '|' + srcParts.join('|'));
+    } else {
+      h = hashStr(g.from.img + '|' + g.to.img);
+    }
     return {
-      h: hashStr(g.from.img + '|' + g.to.img),
+      h: h,
       count: g.genCount,
       mode: g.mode || gapMode(g),
-      squash: squashKey + '|' + squash.curve + '|' + squash.preserve
+      squash: squashKey + '|' + squash.curve + '|' + squash.preserve,
+      blur: blurKey
     };
   }
 
   function stampMatches(g, stamp) {
     if (!stamp) return false;
     var cur = gapStamp(g);
-    return stamp.h === cur.h && stamp.count === cur.count && stamp.mode === cur.mode && stamp.squash === cur.squash;
+    // Older projects saved stamps without the blur key — treat that as the
+    // default (blur off) so existing frames stay valid.
+    var stampBlur = stamp.blur === undefined ? 'none' : stamp.blur;
+    return stamp.h === cur.h && stamp.count === cur.count && stamp.mode === cur.mode && stamp.squash === cur.squash && stampBlur === cur.blur;
   }
 
   // Which frame indices (1..genCount) are still missing for this gap. When the
@@ -617,7 +679,15 @@
   }
 
   function refreshDirty() {
-    var gaps = allGaps();
+    // Iterate bottom-up (source layers before the color layers above them): a
+    // color gap's stamp hashes its source layer's frames, so the source's
+    // frames must be invalidated/cleared BEFORE the color gap's stamp is
+    // re-evaluated — otherwise the color gap still sees the old frames and
+    // never regenerates when the line art beneath changes.
+    var gaps = [];
+    for (var li = state.layers.length - 1; li >= 0; li--) {
+      computeGaps(state.layers[li].id).forEach(function (g) { gaps.push(g); });
+    }
     var ids = {};
     gaps.forEach(function (g) { ids[g.id] = true; });
     // Drop records for gaps that no longer exist (keyframes deleted/merged).
@@ -1243,6 +1313,17 @@
         el.gapSquashCurve.value = squash.curve;
         el.gapSquashPreserve.value = squash.preserve;
       }
+      // Motion blur applies to any gap that actually generates inbetweens
+      // (AI or squash); 'none' gaps hold and color layers are handled elsewhere.
+      var isBlurable = gap.mode === 'ai' || gap.mode === 'squash';
+      var blur = gapBlurOpts(gap.id);
+      el.gapBlurGroup.classList.toggle('hidden', !isBlurable);
+      if (isBlurable) {
+        el.gapBlurOn.checked = blur.on;
+        el.gapBlurAmount.value = String(Math.round(blur.intensity * 100) / 100);
+        el.gapBlurValue.textContent = Math.round(blur.intensity * 100) + '%';
+        el.gapBlurAmount.disabled = !blur.on;
+      }
       return;
     }
     var kf = state.keyframes.find(function (k) { return k.id === state.selectedId; });
@@ -1516,6 +1597,19 @@
     var id = state.selectedGapId;
     if (!id) return;
     setGapSquash(id, patch);
+    delete state.generated[id];
+    delete state.gapMeta[id];
+    refreshDirty();
+    renderSelectedPanel();
+    renderLane();
+    save();
+    scheduleGenerate(50);
+  }
+
+  function applyBlurChange(patch) {
+    var id = state.selectedGapId;
+    if (!id) return;
+    setGapBlur(id, patch);
     delete state.generated[id];
     delete state.gapMeta[id];
     refreshDirty();
@@ -1861,15 +1955,23 @@
     return ctx.getImageData(0, 0, w, h).data;
   }
 
+  // Reused rasterization canvas — allocating one per frame is GC churn during
+  // generation (dataToDataURL runs once per generated frame).
+  var encodeCanvas = null;
+  var encodeCtx = null;
   function dataToDataURL(data, w, h) {
-    var canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    var ctx = canvas.getContext('2d');
-    var imageData = ctx.createImageData(w, h);
+    if (!encodeCanvas) {
+      encodeCanvas = document.createElement('canvas');
+      encodeCtx = encodeCanvas.getContext('2d');
+    }
+    if (encodeCanvas.width !== w || encodeCanvas.height !== h) {
+      encodeCanvas.width = w;
+      encodeCanvas.height = h;
+    }
+    var imageData = encodeCtx.createImageData(w, h);
     imageData.data.set(data);
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL('image/png');
+    encodeCtx.putImageData(imageData, 0, 0);
+    return encodeCanvas.toDataURL('image/png');
   }
 
   // Generate one gap's missing frames. Dispatches to the worker when
@@ -1905,6 +2007,7 @@
             fromTime: gap.fromTime, toTime: gap.toTime,
             mode: gap.mode,
             squash: gapSquashOpts(gap.id),
+            blur: gapBlurOpts(gap.id),
             missing: missingList
           }, [aBuf, bBuf]);
         }).catch(function (err) {
@@ -1938,6 +2041,27 @@
       if (cbs.cancelled()) return;
       var passData = drawImageToData(imgs[0], workW, workH);
       var aData = drawImageToData(imgs[1], workW, workH);
+      // Pin this gap to one worker and upload the constant pass + source frame
+      // once (color-pass). Each frame then sends only the changing bData
+      // (transferred, zero-copy) instead of cloning ~24 MB per frame.
+      var wi = pickWorker();
+      var passId = null;
+      if (workers.length) {
+        passId = gap.id + '-' + (++jobSeq);
+        try {
+          workers[wi].postMessage({
+            type: 'color-pass',
+            passId: passId,
+            passData: passData, aData: aData,
+            width: workW, height: workH
+          });
+        } catch (e) { passId = null; }
+      }
+      var freePass = function () {
+        if (passId && workers.length) {
+          try { workers[wi].postMessage({ type: 'color-pass-free', passId: passId }); } catch (e) {}
+        }
+      };
       var i = 0;
       var next = function () {
         if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
@@ -1953,7 +2077,7 @@
         return loadImage(srcFrame.img).then(function (img) {
           if (cbs.cancelled()) return;
           var bData = drawImageToData(img, workW, workH);
-          if (!workers.length) {
+          if (!workers.length || !passId) {
             // Inline fallback (no worker): the flow pass blocks the main thread
             // here, matching the mesh-warp fallback for normal gaps.
             return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
@@ -1965,9 +2089,8 @@
           }
           // One worker job per frame: the worker computes the optical flow and
           // warps the pass off the main thread, so long color spans never
-          // freeze the UI.
+          // freeze the UI. The pass + source frame already live on the worker.
           var jobId = 'job' + (++jobSeq);
-          var wi = pickWorker();
           return new Promise(function (resolve, reject) {
             workerJobs[jobId] = {
               resolve: resolve,
@@ -1977,13 +2100,15 @@
               worker: workers[wi]
             };
             workerBusy[wi]++;
+            var bBuf = bData.buffer;
             workers[wi].postMessage({
               type: 'color-frame',
               jobId: jobId,
-              passData: passData, aData: aData, bData: bData,
+              passId: passId,
+              bData: bBuf,
               width: workW, height: workH,
               idx: m.idx, t: m.t, time: time
-            });
+            }, [bBuf]);
           }).catch(function (err) {
             // Worker died mid-frame: fall back to the inline warp for this
             // frame instead of failing the whole color gap. A cancelled run
@@ -1999,7 +2124,12 @@
           }).then(next);
         }).then(next);
       };
-      return next();
+      return next().then(function () {
+        freePass();
+      }, function (err) {
+        freePass();
+        throw err;
+      });
     });
   }
 
@@ -2029,11 +2159,23 @@
       var done = function (rgba, ai) {
         cbs.onFrame({ idx: m.idx, t: t, time: time, img: dataToDataURL(rgba, workW, workH), ai: ai });
       };
+      // Motion blur post-process: smears the frame along its motion, easing
+      // in/out over the gap. Needs the meshes, so it forces the lazy flow even
+      // on the opaque-AI path that would otherwise skip it.
+      var blur = gapBlurOpts(gap.id);
+      var blurOn = !!(blur.on && blur.intensity > 0);
+      var finish = function (rgba, ai) {
+        if (!blurOn) { done(rgba, ai); return Promise.resolve(); }
+        return ensureMeshes().then(function () {
+          if (cbs.cancelled()) return;
+          done(morph.motionBlurFrame(rgba, meshes, workW, workH, t, blur.intensity), ai);
+        });
+      };
       // Squash: affine squash-and-stretch along the detected motion
       // direction, pivoted on the moving mass (no mesh warp, no crossfade).
       if (gap.mode === 'squash') {
         return ensureMeshes().then(function () {
-          done(morph.squashStretchFrame(aData, bData, meshes, workW, workH, t, gapSquashOpts(gap.id)), false);
+          return finish(morph.squashStretchFrame(aData, bData, meshes, workW, workH, t, gapSquashOpts(gap.id)), false);
         });
       }
       // RIFE renders RGB with alpha 255; give the frame the mesh-warped alpha so
@@ -2048,22 +2190,22 @@
       if (cbs.aiReady()) {
         return model.interpolate(aData, bData, workW, workH, t).then(function (aiOut) {
           if (cbs.cancelled()) return;
-          if (opaque) { done(aiOut, true); return; }
+          if (opaque) return finish(aiOut, true);
           return ensureMeshes().then(function () {
             if (cbs.cancelled()) return;
             applyAlpha(aiOut);
-            done(aiOut, true);
+            return finish(aiOut, true);
           });
         }).catch(function (err) {
           if (cbs.cancelled()) return;
           console.error('AI inbetween failed, using mesh warp:', err);
           return ensureMeshes().then(function () {
-            done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+            return finish(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
           });
         });
       }
       return ensureMeshes().then(function () {
-        done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+        return finish(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
       });
     };
     var i = 0;
@@ -2106,15 +2248,45 @@
 
   function runGeneration() {
     if (state.genRun) return;
-    // Collect gaps bottom-first so a color layer's source layer (directly under
-    // it) generates its frames before the color warp runs on top of them.
+    // A color gap warps its pass along the source layer's motion, so it needs
+    // the source layer's generated frames to exist BEFORE it starts. Collect
+    // gaps bottom-first and defer every color gap (pending) until the layer
+    // directly beneath it has no incomplete gaps. A color gap whose source
+    // layer is regenerating in this run is also queued — its stamp includes the
+    // source frames, so it must redo after the source finishes.
     var gaps = [];
+    var pending = [];
+    var pendingIds = {};
+    var srcDirty = {};
+    var pend = function (g) {
+      if (pendingIds[g.id]) return;
+      pendingIds[g.id] = true;
+      pending.push(g);
+    };
     for (var li = state.layers.length - 1; li >= 0; li--) {
-      computeGaps(state.layers[li].id).forEach(function (g) {
-        if (g.genCount > 0 && !gapComplete(g)) gaps.push(g);
-      });
+      (function (L) {
+        computeGaps(L.id).forEach(function (g) {
+          if (g.genCount <= 0) return;
+          if (g.mode === 'color') {
+            if (!gapComplete(g)) pend(g);
+            return;
+          }
+          if (!gapComplete(g)) { gaps.push(g); srcDirty[L.id] = true; }
+        });
+      })(state.layers[li]);
     }
+    // Color gaps over a regenerating source must re-run too (their frames were
+    // warped against the old line art).
+    state.layers.forEach(function (L) {
+      if (L.type !== 'color') return;
+      var srcLayer = state.layers[state.layers.indexOf(L) + 1];
+      if (!srcLayer || !srcDirty[srcLayer.id]) return;
+      computeGaps(L.id).forEach(function (g) {
+        if (g.genCount > 0) pend(g);
+      });
+    });
     var total = gaps.reduce(function (s, g) { return s + computeMissing(g).length; }, 0);
+    pending.forEach(function (g) { total += computeMissing(g).length; });
     if (!total) {
       setGenStatus('ready', 'All gaps generated ✓');
       updateEstimate();
@@ -2167,11 +2339,31 @@
         renderFilmstrip();
       });
     };
+    // A color gap may start once every gap of the layer directly beneath it is
+    // complete (no missing frames under its current stamp).
+    var colorSourceReady = function (g) {
+      var colorLayer = layerById(g.layer);
+      var srcLayer = state.layers[state.layers.indexOf(colorLayer) + 1];
+      if (!srcLayer) return true;
+      return computeGaps(srcLayer.id).every(function (sg) {
+        return sg.genCount <= 0 || gapComplete(sg);
+      });
+    };
     // Run up to `concurrency` gaps at once (one per worker) instead of one big
-    // chain, so idle cores keep busy while a slow gap is generating.
+    // chain, so idle cores keep busy while a slow gap is generating. Deferred
+    // color gaps are promoted as soon as their source layer finishes.
     var completion = new Promise(function (resolve, reject) {
+      function promotePending() {
+        for (var i = pending.length - 1; i >= 0; i--) {
+          if (colorSourceReady(pending[i])) {
+            gaps.push(pending[i]);
+            pending.splice(i, 1);
+          }
+        }
+      }
       function pump() {
         if (run.cancelled || firstErr) idx = gaps.length; // stop after cancel/error
+        promotePending();
         while (!run.cancelled && !firstErr && active < concurrency && idx < gaps.length) {
           var gap = gaps[idx], gi = idx;
           idx++;
@@ -2186,6 +2378,8 @@
           });
         }
         if (idx >= gaps.length && active === 0) {
+          promotePending();
+          if (idx < gaps.length) { pump(); return; }
           if (firstErr) reject(firstErr);
           else resolve();
         }
@@ -3142,7 +3336,8 @@
       generated: state.generated,
       gapMeta: state.gapMeta,
       gapType: state.gapType,
-      gapSquash: state.gapSquash
+      gapSquash: state.gapSquash,
+      gapBlur: state.gapBlur
     };
   }
 
@@ -3211,6 +3406,7 @@
     state.gapMeta = (data.gapMeta && typeof data.gapMeta === 'object') ? data.gapMeta : {};
     state.gapType = (data.gapType && typeof data.gapType === 'object') ? data.gapType : {};
     state.gapSquash = (data.gapSquash && typeof data.gapSquash === 'object') ? data.gapSquash : {};
+    state.gapBlur = (data.gapBlur && typeof data.gapBlur === 'object') ? data.gapBlur : {};
     // The image library: saved with the project (v5+), otherwise derived from
     // the keyframe images so older projects still show their images. Any
     // keyframe image missing from the library (e.g. promoted composites) is
@@ -3336,6 +3532,26 @@
     });
     el.gapSquashAuto.addEventListener('click', function () {
       applySquashChange({ amount: null });
+    });
+
+    var blurDebounce = null;
+    el.gapBlurOn.addEventListener('change', function () {
+      if (!state.selectedGapId) return;
+      var cur = gapBlurOpts(state.selectedGapId);
+      applyBlurChange({ on: el.gapBlurOn.checked, intensity: cur.intensity });
+    });
+    el.gapBlurAmount.addEventListener('input', function () {
+      var v = parseFloat(el.gapBlurAmount.value);
+      if (!isFinite(v)) return;
+      el.gapBlurValue.textContent = Math.round(v * 100) + '%';
+      clearTimeout(blurDebounce);
+      blurDebounce = setTimeout(function () { applyBlurChange({ intensity: v }); }, 160);
+    });
+    el.gapBlurAmount.addEventListener('change', function () {
+      clearTimeout(blurDebounce);
+      var v = parseFloat(el.gapBlurAmount.value);
+      if (!isFinite(v)) return;
+      applyBlurChange({ intensity: v });
     });
 
     el.layerVisible.addEventListener('change', function () {
