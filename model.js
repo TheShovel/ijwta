@@ -25,16 +25,44 @@
   // (frame A RGB + frame B RGB, 0..1) and emit [1,3,H,W] float32 (0..1).
   var MODEL_URL = 'https://huggingface.co/yuvraj108c/rife-onnx/resolve/main/rife49_ensemble_True_scale_1_sim.onnx';
 
+  // Super-resolution ONNX model for export upscaling (Real-ESRGAN-style).
+  // Accepts [1,3,H,W] float32 (0..1) and emits [1,3,H*4,W*4] float32.
+  // 4x-ClearRealityV1 is a small (1.9 MB) ESRGAN-family upscaler that runs
+  // comfortably in single-threaded WASM (~1.4 s per 512×288 frame) and keeps
+  // visibly more detail than bilinear upscaling. Swap SR_MODEL_URL / SR_SCALE
+  // to change the upscaler.
+  var SR_MODEL_URL = 'https://huggingface.co/yuvraj108c/ComfyUI-Upscaler-Onnx/resolve/main/4x-ClearRealityV1.onnx';
+  var SR_SCALE = 4;
+
   var state = {
     runtimeLoaded: false,
+    session: null,
+    loading: false,
+    loadPromise: null,
+    feedPlan: null,   // input layout of the loaded model (see detectFeedPlan)
+    scratch: {}       // sizeKey -> reused input-conversion buffers (see scratchFor)
+  };
+
+  var srState = {
     session: null,
     loading: false,
     loadPromise: null
   };
 
-  // ------------------------------------------------------------------
-  // Runtime
-  // ------------------------------------------------------------------
+  // Multi-threaded WASM needs cross-origin isolation (SharedArrayBuffer). When
+  // the page is served with COOP/COEP headers we let ORT use the CPU's cores;
+  // otherwise ORT would try to load the threaded build and fail, so stay on a
+  // single thread. Quality is identical either way — this is pure speed.
+  function workerThreads() {
+    try {
+      if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated &&
+          typeof navigator !== 'undefined' && navigator.hardwareConcurrency) {
+        return Math.min(4, Math.max(1, navigator.hardwareConcurrency));
+      }
+    } catch (e) { /* fall through to single-threaded */ }
+    return 1;
+  }
+
   function loadRuntime() {
     if (state.runtimeLoaded) return Promise.resolve();
     if (root.ort && root.ort.InferenceSession) {
@@ -56,7 +84,7 @@
         }
         try {
           root.ort.env.wasm.wasmPaths = ORT_WASM;
-          root.ort.env.wasm.numThreads = 1;
+          root.ort.env.wasm.numThreads = workerThreads();
         } catch (e) { /* non-fatal */ }
         state.runtimeLoaded = true;
         resolve();
@@ -71,7 +99,7 @@
         }
         try {
           root.ort.env.wasm.wasmPaths = ORT_WASM;
-          root.ort.env.wasm.numThreads = 1;
+          root.ort.env.wasm.numThreads = workerThreads();
         } catch (e) { /* non-fatal */ }
         state.runtimeLoaded = true;
         resolve();
@@ -81,9 +109,8 @@
     });
   }
 
-  // ------------------------------------------------------------------
   // Streaming download with progress (0..1)
-  // ------------------------------------------------------------------
+
   function downloadWithProgress(url, onProgress) {
     return fetch(url).then(function (res) {
       if (!res.ok) throw new Error('Download failed (HTTP ' + res.status + ')');
@@ -121,9 +148,6 @@
     });
   }
 
-  // ------------------------------------------------------------------
-  // Model
-  // ------------------------------------------------------------------
   function loadModel(onProgress) {
     if (state.session) return Promise.resolve();
     if (state.loadPromise) return state.loadPromise;
@@ -163,24 +187,34 @@
     return state.loadPromise;
   }
 
-  // ------------------------------------------------------------------
-  // Inference
-  // ------------------------------------------------------------------
-  // Single frame -> [1,3,H,W] float32 in 0..1 (channel-first R,G,B planes).
-  function rgbaToRifefloat(rgba, w, h) {
-    var n = w * h;
-    var out = new Float32Array(3 * n);
+  // Reusable input-conversion buffers, keyed by pixel count. ORT copies feed
+  // data into wasm memory synchronously during run(), so once a run() call has
+  // been made the JS buffers are free to reuse — and every gap's frames run
+  // strictly sequentially, so nothing is ever overwritten mid-run.
+  function scratchFor(n) {
+    var key = String(n);
+    var s = state.scratch[key];
+    if (!s) {
+      s = state.scratch[key] = {
+        a: new Float32Array(3 * n),
+        b: new Float32Array(3 * n),
+        six: new Float32Array(6 * n)
+      };
+    }
+    return s;
+  }
+
+  // Single frame -> [1,3,H,W] float32 in 0..1 (channel-first R,G,B planes),
+  // written into a preallocated buffer so no per-call allocation happens.
+  function rgbaToRifefloatInto(out, rgba, n) {
     for (var p = 0, i = 0; p < n; p++, i += 4) {
       out[p] = rgba[i] / 255;
       out[n + p] = rgba[i + 1] / 255;
       out[2 * n + p] = rgba[i + 2] / 255;
     }
-    return out;
   }
 
-  function concatFrames(aData, bData, w, h) {
-    var n = w * h;
-    var out = new Float32Array(6 * n);
+  function concatFramesInto(out, aData, bData, n) {
     for (var p = 0, i = 0; p < n; p++, i += 4) {
       out[p] = aData[i] / 255;
       out[n + p] = aData[i + 1] / 255;
@@ -189,6 +223,19 @@
       out[4 * n + p] = bData[i + 1] / 255;
       out[5 * n + p] = bData[i + 2] / 255;
     }
+  }
+
+  function rgbaToRifefloat(rgba, w, h) {
+    var n = w * h;
+    var out = new Float32Array(3 * n);
+    rgbaToRifefloatInto(out, rgba, n);
+    return out;
+  }
+
+  function concatFrames(aData, bData, w, h) {
+    var n = w * h;
+    var out = new Float32Array(6 * n);
+    concatFramesInto(out, aData, bData, n);
     return out;
   }
 
@@ -206,69 +253,78 @@
     return out;
   }
 
-  // Interpolate an inbetween from two keyframe RGBA buffers (size w×h) at time t.
-  // Returns Promise<Uint8ClampedArray> or rejects so callers can fall back.
-  //
   // RIFE exports come in a few flavours and we handle all of them:
   //   A) one 6-channel input [1,6,H,W]  (frameA RGB ++ frameB RGB)
   //   B) two 3-channel inputs          (frameA, frameB) — e.g. named
   //      'frame0'/'frame1', 'img0'/'img1', or 'x'/'y'
   //   C) two 3-channel inputs + a scalar 'timestep' input (t in [0,1])
   // The interpolated frame is the first 3-channel output.
+  function isTimestepName(s) {
+    var l = String(s).toLowerCase();
+    return l.indexOf('timestep') !== -1 || l.indexOf('time') !== -1 || l.indexOf('t_') === 0;
+  }
+  function isFrameAName(s) {
+    var l = String(s).toLowerCase();
+    return l.indexOf('img0') !== -1 || l.indexOf('frame0') !== -1 || l === 'x' || l.indexOf('a') === l.length - 1;
+  }
+
+  // Figure out the model's input layout ONCE, after loading. interpolate() then
+  // builds only the tensors that layout needs (the previous code built all
+  // three candidates — a wasted 6n float fill on every frame for layout C).
+  function detectFeedPlan(session) {
+    var names = [];
+    try { names = session.inputNames || []; } catch (e) {}
+    var plan = { kind: 'six', aName: 'input', bName: null, tsName: null, tsDims: [1] };
+    if (!names.length) return plan; // no metadata: assume the single 6-channel layout
+    var six = null, frames = [], tsName = null, tsDims = null;
+    for (var k = 0; k < names.length; k++) {
+      var meta = session.inputMetadata ? session.inputMetadata[names[k]] : null;
+      var dims = meta && meta.dims ? meta.dims : null;
+      var ch = dims && dims.length > 1 ? dims[1] : 0;
+      if (ch === 6) { six = names[k]; break; }
+      if (isTimestepName(names[k])) { tsName = names[k]; tsDims = dims && dims.length ? dims : [1]; }
+      else frames.push(names[k]);
+    }
+    if (six) {
+      plan.kind = 'six';
+      plan.aName = six;
+    } else if (tsName && frames.length >= 2) {
+      plan.kind = 'twoPlusTs';
+      plan.aName = frames.filter(isFrameAName)[0] || frames[0];
+      plan.bName = frames[0] === plan.aName ? frames[1] : frames[0];
+      plan.tsName = tsName;
+      plan.tsDims = tsDims || [1];
+    } else if (frames.length >= 2) {
+      plan.kind = 'two';
+      plan.aName = frames.filter(isFrameAName)[0] || frames[0];
+      plan.bName = frames[0] === plan.aName ? frames[1] : frames[0];
+    } else {
+      plan.kind = 'six';
+      plan.aName = names[0];
+    }
+    return plan;
+  }
+
+  // Interpolate an inbetween from two keyframe RGBA buffers (size w×h) at time t.
+  // Returns Promise<Uint8ClampedArray> or rejects so callers can fall back.
   function interpolate(aData, bData, w, h, t) {
     if (!state.session) return Promise.reject(new Error('Model not loaded'));
+    if (!state.feedPlan) state.feedPlan = detectFeedPlan(state.session);
+    var plan = state.feedPlan;
     var n = w * h;
-    var tensor6 = new root.ort.Tensor('float32', concatFrames(aData, bData, w, h), [1, 6, h, w]);
-    var tensorA = new root.ort.Tensor('float32', rgbaToRifefloat(aData, w, h), [1, 3, h, w]);
-    var tensorB = new root.ort.Tensor('float32', rgbaToRifefloat(bData, w, h), [1, 3, h, w]);
-    var ts = (typeof t === 'number' && isFinite(t)) ? t : 0.5;
+    var scratch = scratchFor(n);
     var feeds = {};
-    var names = [];
-    try { names = state.session.inputNames || []; } catch (e) {}
-
-    function isTimestepName(s) {
-      var l = String(s).toLowerCase();
-      return l.indexOf('timestep') !== -1 || l.indexOf('time') !== -1 || l.indexOf('t_') === 0;
-    }
-    function isFrameAName(s) {
-      var l = String(s).toLowerCase();
-      return l.indexOf('img0') !== -1 || l.indexOf('frame0') !== -1 || l === 'x' || l.indexOf('a') === l.length - 1;
-    }
-
-    if (!names.length) {
-      // No metadata: assume the single 6-channel layout (most common export).
-      feeds.input = tensor6;
+    if (plan.kind === 'six') {
+      concatFramesInto(scratch.six, aData, bData, n);
+      feeds[plan.aName] = new root.ort.Tensor('float32', scratch.six, [1, 6, h, w]);
     } else {
-      var six = null, frames = [], timestepName = null;
-      for (var k = 0; k < names.length; k++) {
-        var meta = state.session.inputMetadata ? state.session.inputMetadata[names[k]] : null;
-        var ch = meta && meta.dims ? meta.dims[1] : 0;
-        if (ch === 6) { six = names[k]; break; }
-        if (isTimestepName(names[k])) timestepName = names[k];
-        else frames.push(names[k]);
-      }
-      if (six) {
-        feeds[six] = tensor6;
-      } else if (timestepName && frames.length >= 2) {
-        // Layout C: two frame inputs + a scalar timestep input.
-        var aName = frames.filter(isFrameAName)[0] || frames[0];
-        var bName = frames[0] === aName ? frames[1] : frames[0];
-        feeds[aName] = tensorA;
-        feeds[bName] = tensorB;
-        var tsDims = [1];
-        try {
-          var tm = state.session.inputMetadata ? state.session.inputMetadata[timestepName] : null;
-          if (tm && tm.dims && tm.dims.length) tsDims = tm.dims;
-        } catch (e2) {}
-        feeds[timestepName] = new root.ort.Tensor('float32', new Float32Array([ts]), tsDims);
-      } else if (frames.length >= 2) {
-        // Layout B: two frame inputs, no timestep.
-        var aName2 = frames.filter(isFrameAName)[0] || frames[0];
-        var bName2 = frames[0] === aName2 ? frames[1] : frames[0];
-        feeds[aName2] = tensorA;
-        feeds[bName2] = tensorB;
-      } else {
-        feeds[names[0]] = tensor6;
+      rgbaToRifefloatInto(scratch.a, aData, n);
+      rgbaToRifefloatInto(scratch.b, bData, n);
+      feeds[plan.aName] = new root.ort.Tensor('float32', scratch.a, [1, 3, h, w]);
+      feeds[plan.bName] = new root.ort.Tensor('float32', scratch.b, [1, 3, h, w]);
+      if (plan.kind === 'twoPlusTs') {
+        var ts = (typeof t === 'number' && isFinite(t)) ? t : 0.5;
+        feeds[plan.tsName] = new root.ort.Tensor('float32', new Float32Array([ts]), plan.tsDims);
       }
     }
 
@@ -302,6 +358,66 @@
   function isReady() { return !!state.session; }
   function isLoading() { return state.loading; }
 
+  // Super-resolution (export upscaling)
+
+  // Lazily downloads + compiles the upscaler on first use (exports only).
+  // Same shape-agnostic loader as the interpolation model; onProgress is
+  // optional and receives {stage:'model', frac} / {stage:'compile'}.
+  function loadSRModel(onProgress) {
+    if (srState.session) return Promise.resolve();
+    if (srState.loadPromise) return srState.loadPromise;
+    srState.loading = true;
+    srState.loadPromise = loadRuntime()
+      .then(function () {
+        if (onProgress) onProgress({ stage: 'model', frac: 0 });
+        return downloadWithProgress(SR_MODEL_URL, function (frac) {
+          if (onProgress) onProgress({ stage: 'model', frac: frac });
+        });
+      })
+      .then(function (buf) {
+        if (onProgress) onProgress({ stage: 'compile', frac: 1 });
+        return root.ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+      })
+      .then(function (session) {
+        srState.session = session;
+        console.log('[AI] upscaler ready (scale ' + SR_SCALE + 'x)');
+        return session;
+      })
+      .finally(function () {
+        srState.loading = false;
+        srState.loadPromise = null;
+      });
+    return srState.loadPromise;
+  }
+
+  function isSRReady() { return !!srState.session; }
+  function isLoadingSR() { return srState.loading; }
+
+  // Upscale one RGBA buffer (size w×h) by SR_SCALE using the super-resolution
+  // model. Resolves with a Uint8ClampedArray of size (w*SR_SCALE)×(h*SR_SCALE).
+  function upscale(rgba, w, h) {
+    if (!srState.session) return Promise.reject(new Error('Upscaler model not loaded'));
+    var inNames = [];
+    try { inNames = srState.session.inputNames || []; } catch (e) {}
+    var name = inNames[0] || 'input';
+    var n = w * h;
+    var scratch = scratchFor(n);
+    rgbaToRifefloatInto(scratch.a, rgba, n);
+    var tensor = new root.ort.Tensor('float32', scratch.a, [1, 3, h, w]);
+    var feeds = {};
+    feeds[name] = tensor;
+    return srState.session.run(feeds).then(function (results) {
+      var outNames = Object.keys(results);
+      if (!outNames.length) throw new Error('Upscaler returned no outputs');
+      var out = results[outNames[0]];
+      var ow = w * SR_SCALE, oh = h * SR_SCALE;
+      var data = out.data;
+      var len = ow * oh * 3;
+      if (!data || data.length < len) throw new Error('Upscaler output too small (' + (data ? data.length : 0) + ' < ' + len + ')');
+      return rifeOutputToRGBA(data, ow, oh);
+    });
+  }
+
   return {
     loadRuntime: loadRuntime,
     loadModel: loadModel,
@@ -309,7 +425,13 @@
     rgbaToRifefloat: rgbaToRifefloat,
     isReady: isReady,
     isLoading: isLoading,
+    loadSRModel: loadSRModel,
+    isSRReady: isSRReady,
+    isLoadingSR: isLoadingSR,
+    upscale: upscale,
+    SR_SCALE: SR_SCALE,
     MODEL_URL: MODEL_URL,
+    SR_MODEL_URL: SR_MODEL_URL,
     ORT_JS: ORT_JS
   };
 })();

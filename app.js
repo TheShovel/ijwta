@@ -13,18 +13,23 @@
   var gifenc = window.gifenc;
   var model = window.IJWTA_MODEL;
 
-  // ------------------------------------------------------------------
-  // State
-  // ------------------------------------------------------------------
   var state = {
-    keyframes: [],        // { id, time, img, name, w, h }
+    keyframes: [],        // { id, layer, time, img, name, w, h }
+    assets: [],           // { img, name, w, h } — the image library (assets panel)
+    layers: [{ id: 'L1', name: 'Layer 1', visible: true }], // top → bottom draw order (first = topmost)
+    activeLayerId: 'L1',  // layer new keyframes go into
     generated: {},        // gapId -> [{ idx, t, time, img, ai }]
     gapMeta: {},          // gapId -> { h, count } — what the frames were made from
+    gapType: {},          // gapId -> 'ai' | 'squash' | 'none' (per-gap interpolation)
+    gapSquash: {},        // gapId -> { amount, curve, preserve }
     dirty: new Set(),     // gapIds that need (re)generation
     fps: 12,
     zoom: 90,             // px per second
     snap: true,
-    res: 512,
+    res: 512,             // long edge for preset aspects
+    aspect: 'auto',       // 'auto' | '16:9' | '9:16' | '4:3' | '3:4' | '1:1' | 'custom'
+    customW: 1920,        // exact working width in custom aspect mode
+    customH: 1080,        // exact working height in custom aspect mode
     modelReady: false,
     playhead: 0,
     curIndex: 0,
@@ -32,15 +37,31 @@
     loop: true,
     keysOnly: false,   // viewport shows keyframes only (no interpolated frames)
     selectedId: null,
+    selectedGapId: null,   // gap selected in the timeline (right panel shows it)
     genRun: null,
     pendingRegen: false,
+    exporting: false,       // true while an export is running (Stop button)
+    exportCancel: false,    // set to stop a PNG/GIF/frame export mid-run
+    mp4Stop: null,          // stops the MP4 recorder if one is running
     previewToken: 0,
     viewZoom: 1         // preview viewport zoom (1 = fit the panel; pan lives in the scroll position)
   };
 
   var workW = 512, workH = 512;
+  var restoringProject = false; // true while loading a project (skip size invalidation)
   var imgCache = new Map();
+  var assetCache = [];    // [{ img, name, w, h }] — assets panel contents
+  var assetImgs = new Set(); // img srcs already in the panel (change detection)
   var idSeq = 1;
+  var layerSeq = 2;
+  var GUTTER_W = 96; // px at the left of the timeline reserved for layer names
+  var TL_H_DEFAULT = 188; // px, initial timeline height (see .timeline-col)
+  var TL_H_MIN = 96;      // px, smallest the timeline can be dragged to
+  var TL_H_KEY = 'ijwta-timeline-h'; // UI preference, not part of the project file
+  var SIDE_W_DEFAULT = 212; // px, initial side panel width (see .side-col)
+  var SIDE_W_MIN = 140;     // px, smallest a side panel can be dragged to
+  var SIDE_W_KEY_L = 'ijwta-side-w-l'; // UI preferences, not part of the project file
+  var SIDE_W_KEY_R = 'ijwta-side-w-r';
   var toastTimer = null;
   var saveTimer = null;
   var STORE_KEY = 'ijwta-project-v1';
@@ -55,13 +76,11 @@
     download: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>'
   };
 
-  // ------------------------------------------------------------------
-  // DOM refs
-  // ------------------------------------------------------------------
   function byId(id) { return document.getElementById(id); }
 
   var el = {
-    btnAddKeyframes: byId('btnAddKeyframes'),
+    btnAddAssets: byId('btnAddAssets'),
+    assetGrid: byId('assetGrid'),
     btnPlay: byId('btnPlay'),
     btnStepBack: byId('btnStepBack'),
     btnStepFwd: byId('btnStepFwd'),
@@ -77,6 +96,9 @@
     projectInput: byId('projectInput'),
     btnExport: byId('btnExport'),
     exportMenu: byId('exportMenu'),
+    exportFormat: byId('exportFormat'),
+    exportRes: byId('exportRes'),
+    btnExportGo: byId('btnExportGo'),
     btnReplace: byId('btnReplace'),
     btnDelete: byId('btnDelete'),
     btnCancel: byId('btnCancel'),
@@ -85,11 +107,33 @@
     kfName: byId('kfName'),
     kfTime: byId('kfTime'),
     kfEmpty: byId('kfEmpty'),
+    kfSection: byId('kfSection'),
+    gapPanel: byId('gapPanel'),
+    gapName: byId('gapName'),
+    gapTime: byId('gapTime'),
+    gapTypeInput: byId('gapTypeInput'),
+    gapSquashGroup: byId('gapSquashGroup'),
+    gapSquashAmount: byId('gapSquashAmount'),
+    gapSquashValue: byId('gapSquashValue'),
+    gapSquashAuto: byId('gapSquashAuto'),
+    gapSquashCurve: byId('gapSquashCurve'),
+    gapSquashPreserve: byId('gapSquashPreserve'),
+    layerNameLabel: byId('layerNameLabel'),
+    layerVisible: byId('layerVisible'),
+    layerType: byId('layerType'),
+    btnAddLayer: byId('btnAddLayer'),
+    btnRemoveLayer: byId('btnRemoveLayer'),
     previewCanvas: byId('previewCanvas'),
     previewWrap: byId('previewWrap'),
     previewEmpty: byId('previewEmpty'),
     filmstrip: byId('filmstrip'),
     timeline: byId('timeline'),
+    timelineCol: byId('timelineCol'),
+    tlResizer: byId('tlResizer'),
+    leftCol: byId('leftCol'),
+    rightCol: byId('rightCol'),
+    leftResizer: byId('leftResizer'),
+    rightResizer: byId('rightResizer'),
     track: byId('track'),
     ruler: byId('ruler'),
     lane: byId('lane'),
@@ -106,6 +150,10 @@
     fpsInput: byId('fpsInput'),
     snapInput: byId('snapInput'),
     resInput: byId('resInput'),
+    aspectInput: byId('aspectInput'),
+    customWInput: byId('customWInput'),
+    customHInput: byId('customHInput'),
+    customSizeRow: byId('customSizeRow'),
     selTimeInput: byId('selTimeInput'),
     fileInput: byId('fileInput'),
     toast: byId('toast'),
@@ -114,49 +162,106 @@
     loadingFill: byId('loadingFill'),
     loadingLabel: byId('loadingLabel'),
     loadingMeta: byId('loadingMeta'),
-    btnLoadingRetry: byId('btnLoadingRetry')
+    btnLoadingRetry: byId('btnLoadingRetry'),
+    exportOverlay: byId('exportOverlay'),
+    exportTitle: byId('exportTitle'),
+    exportSub: byId('exportSub'),
+    exportFill: byId('exportFill'),
+    exportLabel: byId('exportLabel'),
+    exportMeta: byId('exportMeta'),
+    btnExportCancelOverlay: byId('btnExportCancelOverlay')
   };
 
-  // ------------------------------------------------------------------
-  // Background worker (frame interpolation off the main thread)
-  // ------------------------------------------------------------------
-  var worker = null;          // Worker instance or null (inline fallback)
-  var workerJobs = {};        // jobId -> { resolve, reject, onFrame, onProgress }
-  var jobSeq = 0;
+  // Background worker pool (frame interpolation off the main thread)
 
-  function initWorker() {
-    if (worker !== null || typeof Worker === 'undefined') return;
+  // With cross-origin isolation (COOP/COEP headers) one worker can use every
+  // CPU core via threaded WASM. Without it, ORT runs single-threaded, so we
+  // spawn several workers and hand each gap to a different one — the AI
+  // inference scales near-linearly across cores, with zero quality change.
+  var workers = [];          // active Worker instances
+  var workerBusy = [];       // parallel to workers: active gap jobs per worker
+  var workersReady = 0;      // workers that reported model-ready
+  var workerJobs = {};       // jobId -> { resolve, reject, onFrame, onProgress, worker }
+  var jobSeq = 0;
+  var upscaleJobs = {};      // jobId -> { resolve, reject } (export upscaling)
+
+  function workerPoolSize() {
     try {
-      worker = new Worker('worker.js');
-      worker.onmessage = onWorkerMessage;
-      worker.onerror = function (e) {
-        console.error('Worker error, falling back to inline generation:', e && e.message);
-        try { worker.terminate(); } catch (err) {}
-        worker = null;
-        // Reject pending jobs so the generation chain falls back to inline.
-        Object.keys(workerJobs).forEach(function (id) {
-          var j = workerJobs[id];
-          delete workerJobs[id];
-          j.reject(new Error('Worker failed'));
-        });
-        // If the model was still loading in the worker, unblock the launch
-        // overlay so the app proceeds with the mesh fallback.
-        if (!el.loadingOverlay.classList.contains('hidden')) {
-          onModelError(new Error('Worker failed to load (check the model CDN is reachable)'));
-        }
-      };
-    } catch (e) {
-      console.error('Could not start worker, using inline generation:', e);
-      worker = null;
-    }
+      if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated) return 1;
+      var hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 1;
+      // Leave one core for the UI; cap at 4 workers (diminishing returns + RAM).
+      return Math.max(1, Math.min(3, hw - 1));
+    } catch (e) { return 1; }
   }
 
-  function onWorkerMessage(e) {
+  function initWorker() {
+    if (workers.length || typeof Worker === 'undefined') return;
+    var n = workerPoolSize();
+    for (var i = 0; i < n; i++) spawnWorker();
+  }
+
+  function spawnWorker() {
+    var w;
+    try {
+      w = new Worker('worker.js');
+    } catch (e) {
+      console.error('Could not start worker, using inline generation:', e);
+      return;
+    }
+    workerBusy.push(0);
+    w.onmessage = function (e) { onWorkerMessage(e, w); };
+    w.onerror = function (e) {
+      console.error('Worker error, dropping worker:', e && e.message);
+      try { w.terminate(); } catch (err) {}
+      var idx = workers.indexOf(w);
+      if (idx !== -1) { workers.splice(idx, 1); workerBusy.splice(idx, 1); }
+      // Reject the jobs that were running on this worker so the generation
+      // chain falls back to inline for them.
+      Object.keys(workerJobs).forEach(function (id) {
+        var j = workerJobs[id];
+        if (j && j.worker === w) {
+          delete workerJobs[id];
+          j.reject(new Error('Worker failed'));
+        }
+      });
+      // If the model was still loading and every worker is gone, unblock the
+      // launch overlay so the app proceeds with the mesh fallback.
+      if (workers.length === 0 && !el.loadingOverlay.classList.contains('hidden')) {
+        onModelError(new Error('Workers failed to load (check the model CDN is reachable)'));
+      }
+    };
+    workers.push(w);
+  }
+
+  // Index of the worker with the fewest active gap jobs (round-robin-ish).
+  function pickWorker() {
+    if (!workers.length) return -1;
+    var best = 0;
+    for (var i = 1; i < workers.length; i++) {
+      if (workerBusy[i] < workerBusy[best]) best = i;
+    }
+    return best;
+  }
+
+  function decBusy(w) {
+    var idx = workers.indexOf(w);
+    if (idx !== -1) workerBusy[idx] = Math.max(0, workerBusy[idx] - 1);
+  }
+
+  function onWorkerMessage(e, w) {
     var m = e.data;
     if (!m) return;
     if (m.type === 'model-progress') { onModelProgress(m); }
-    else if (m.type === 'model-ready') { onModelReady(); }
-    else if (m.type === 'model-error') { onModelError(new Error(m.message)); }
+    else if (m.type === 'model-ready') {
+      workersReady++;
+      if (!state.modelReady && workers.length && workersReady >= workers.length) onModelReady();
+    }
+    else if (m.type === 'model-error') {
+      // A pool worker failing to load its own copy of the model shouldn't fail
+      // the app (the other workers still work); only surface it when no worker
+      // is left at all.
+      if (workers.length === 0) onModelError(new Error(m.message));
+    }
     else if (m.type === 'gap-progress') {
       var jp = workerJobs[m.jobId];
       if (jp && jp.onProgress) jp.onProgress(m.label, m.gapFrac);
@@ -172,18 +277,44 @@
     }
     else if (m.type === 'gap-done' || m.type === 'gap-cancelled') {
       var jd = workerJobs[m.jobId];
-      if (jd) { delete workerJobs[m.jobId]; jd.resolve(); }
+      if (jd) { delete workerJobs[m.jobId]; decBusy(jd.worker); jd.resolve(); }
     }
     else if (m.type === 'gap-error') {
       var je = workerJobs[m.jobId];
-      if (je) { delete workerJobs[m.jobId]; je.reject(new Error(m.message)); }
+      if (je) { delete workerJobs[m.jobId]; decBusy(je.worker); je.reject(new Error(m.message)); }
+    }
+    else if (m.type === 'sr-progress') {
+      var sp = upscaleJobs[m.jobId];
+      if (sp && sp.onProgress) sp.onProgress(m.frac);
+    }
+    else if (m.type === 'upscaled') {
+      var uj = upscaleJobs[m.jobId];
+      if (uj) { delete upscaleJobs[m.jobId]; uj.resolve({ data: m.rgba, width: m.width, height: m.height }); }
+    }
+    else if (m.type === 'upscale-cancelled') {
+      var uc = upscaleJobs[m.jobId];
+      if (uc) { delete upscaleJobs[m.jobId]; uc.reject(new Error('Cancelled')); }
+    }
+    else if (m.type === 'upscale-error') {
+      var ue = upscaleJobs[m.jobId];
+      if (ue) { delete upscaleJobs[m.jobId]; ue.reject(new Error(m.message)); }
     }
   }
 
-  // ------------------------------------------------------------------
-  // Small helpers
-  // ------------------------------------------------------------------
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  // Largest the timeline can be dragged to: leave room for the toolbar plus a
+  // usable preview above it.
+  function maxTimelineHeight() {
+    var toolbarH = 48;
+    var bar = document.querySelector('.toolbar');
+    if (bar && bar.offsetHeight) toolbarH = bar.offsetHeight;
+    return Math.max(TL_H_MIN + 10, window.innerHeight - toolbarH - 140);
+  }
+  // Largest a side panel can be dragged to: keep at least half the stage width
+  // for the preview and the other panel.
+  function maxSideWidth() {
+    return Math.max(SIDE_W_MIN + 10, Math.floor(window.innerWidth * 0.4));
+  }
   function fmtTime(t) { return (Math.round(t * 100) / 100).toFixed(2) + 's'; }
   // Ruler/other labels: strip float noise like 0.35000000000000003.
   function fmtNum(n) {
@@ -217,16 +348,22 @@
     });
   }
 
-  // Decode every playback frame's image into the cache ahead of the playhead,
-  // so the first time a frame appears it's already in memory (no black flash).
+  // Decode every layer's playback images into the cache ahead of the playhead,
+  // so the first appearance of a composite is instant instead of a black flash.
   // Concurrency is capped so we don't hammer the decoder with one giant burst.
   var playbackPreload = null;
   function preloadPlaybackFrames() {
-    var frames = buildPlaybackFrames();
     var srcs = [];
     var seen = {};
-    frames.forEach(function (f) {
-      if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
+    state.keyframes.forEach(function (k) {
+      if (k.img && !seen[k.img]) { seen[k.img] = true; srcs.push(k.img); }
+    });
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
+        });
+      });
     });
     var idx = 0;
     function worker() {
@@ -266,14 +403,48 @@
     });
   }
 
-  // ------------------------------------------------------------------
-  // Keyframes & gaps
-  // ------------------------------------------------------------------
-  function sortedKeyframes() {
-    return state.keyframes.slice().sort(function (a, b) { return a.time - b.time; });
+  function layerById(id) {
+    return state.layers.find(function (l) { return l.id === id; }) || state.layers[0];
+  }
+
+  // Keyframes of one layer (or all layers when layerId is omitted), time-sorted.
+  function sortedKeyframes(layerId) {
+    return state.keyframes.filter(function (k) { return !layerId || k.layer === layerId; })
+      .sort(function (a, b) { return a.time - b.time; });
   }
 
   function gapId(fromId, toId) { return fromId + '->' + toId; }
+
+  // Interpolation mode for one gap: 'ai' (neural), 'squash', or 'none'.
+  function gapMode(g) {
+    return state.gapType[g.id] || 'ai';
+  }
+
+  function gapSquashOpts(gapId) {
+    var o = state.gapSquash[gapId];
+    if (!o) return { amount: null, curve: 'peak', preserve: 'area' };
+    return {
+      amount: typeof o.amount === 'number' && isFinite(o.amount) ? o.amount : null,
+      curve: o.curve === 'impact' || o.curve === 'ease' || o.curve === 'linear' ? o.curve : 'peak',
+      preserve: o.preserve === 'volume' ? 'volume' : 'area'
+    };
+  }
+
+  function setGapSquash(gapId, patch) {
+    var cur = gapSquashOpts(gapId);
+    var next = {
+      amount: patch.hasOwnProperty('amount') ? patch.amount : cur.amount,
+      curve: patch.hasOwnProperty('curve') ? patch.curve : cur.curve,
+      preserve: patch.hasOwnProperty('preserve') ? patch.preserve : cur.preserve
+    };
+    if (next.amount != null) next.amount = Math.max(-0.8, Math.min(0.8, next.amount));
+    // Drop defaults so saved projects stay small; null amount means auto.
+    if (next.amount == null && next.curve === 'peak' && next.preserve === 'area') {
+      delete state.gapSquash[gapId];
+    } else {
+      state.gapSquash[gapId] = next;
+    }
+  }
 
   function keyframeHold(k) {
     // Hold duration in seconds: how long the keyframe displays before the next
@@ -282,22 +453,70 @@
     return 1 / state.fps;
   }
 
-  function computeGaps() {
-    var keys = sortedKeyframes();
+  // Gaps of one layer (or all layers when layerId is omitted). gapId is unique
+  // across layers because keyframe ids are globally unique.
+  function computeGaps(layerId) {
+    var keys = sortedKeyframes(layerId);
     var gaps = [];
     for (var i = 0; i < keys.length - 1; i++) {
       var from = keys[i], to = keys[i + 1];
+      var id = gapId(from.id, to.id);
       var fromEnd = from.time + keyframeHold(from);
       var sec = Math.max(0, to.time - fromEnd);
-      var genCount = Math.max(0, Math.round(sec * state.fps) - 1);
+      // Color layers generate colored frames: the pass is warped to follow the
+      // layer directly beneath it. A color layer with nothing under it (or a
+      // source layer with no frames) just holds its pass with zero frames.
+      var isColor = layerById(layerId).type === 'color';
+      var srcBelow = state.layers[state.layers.indexOf(layerById(layerId)) + 1];
+      var colorable = !!(srcBelow && sortedKeyframes(srcBelow.id).length);
+      var mode = isColor ? 'color' : (state.gapType[id] || 'ai');
+      // 'none' gaps hold the from-frame until the next keyframe: no inbetweens.
+      var genCount = (mode === 'none' || (isColor && !colorable)) ? 0 : Math.max(0, Math.round(sec * state.fps) - 1);
       gaps.push({
-        id: gapId(from.id, to.id),
+        id: id,
+        layer: layerId || null,
         from: from, to: to,
         fromTime: fromEnd, toTime: to.time,
         sec: sec,
-        genCount: genCount
+        genCount: genCount,
+        mode: mode
       });
     }
+    // Color layers also color the time after their last keyframe: a synthetic
+    // tail gap runs to the latest keyframe of any layer, so a single color
+    // pass stretches across the whole animation and warps with the line art.
+    var L = layerById(layerId);
+    if (L && L.type === 'color' && keys.length) {
+      var last = keys[keys.length - 1];
+      var end = 0;
+      state.keyframes.forEach(function (k) { if (k.time > end) end = k.time; });
+      var lastEnd = last.time + keyframeHold(last);
+      var tailSec = Math.max(0, end - lastEnd);
+      var tailSrc = state.layers[state.layers.indexOf(L) + 1];
+      var tailColorable = !!(tailSrc && sortedKeyframes(tailSrc.id).length);
+      var tailGen = tailColorable ? Math.max(0, Math.round(tailSec * state.fps) - 1) : 0;
+      if (tailSec > 0 && tailGen > 0) {
+        gaps.push({
+          id: gapId(last.id, last.id + 'end'),
+          layer: layerId,
+          from: last, to: { id: last.id + 'end', time: end, img: last.img },
+          fromTime: lastEnd, toTime: end,
+          sec: tailSec,
+          genCount: tailGen,
+          mode: 'color'
+        });
+      }
+    }
+    return gaps;
+  }
+
+  // Every layer's gaps in one flat list. Never mix keyframes from different
+  // layers into a gap — each layer interpolates its own timeline.
+  function allGaps() {
+    var gaps = [];
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) { gaps.push(g); });
+    });
     return gaps;
   }
 
@@ -305,13 +524,20 @@
   // plus the frame count. If these are unchanged, existing frames stay valid
   // (only their timestamps may need re-deriving).
   function gapStamp(g) {
-    return { h: hashStr(g.from.img + '|' + g.to.img), count: g.genCount };
+    var squash = gapSquashOpts(g.id);
+    var squashKey = squash.amount == null ? 'auto' : String(Math.round(squash.amount * 1000) / 1000);
+    return {
+      h: hashStr(g.from.img + '|' + g.to.img),
+      count: g.genCount,
+      mode: g.mode || gapMode(g),
+      squash: squashKey + '|' + squash.curve + '|' + squash.preserve
+    };
   }
 
   function stampMatches(g, stamp) {
     if (!stamp) return false;
     var cur = gapStamp(g);
-    return stamp.h === cur.h && stamp.count === cur.count;
+    return stamp.h === cur.h && stamp.count === cur.count && stamp.mode === cur.mode && stamp.squash === cur.squash;
   }
 
   // Which frame indices (1..genCount) are still missing for this gap. When the
@@ -339,7 +565,7 @@
   }
 
   function refreshDirty() {
-    var gaps = computeGaps();
+    var gaps = allGaps();
     var ids = {};
     gaps.forEach(function (g) { ids[g.id] = true; });
     // Drop records for gaps that no longer exist (keyframes deleted/merged).
@@ -356,6 +582,13 @@
       } else if (g.genCount > 0) {
         // Images or count changed: drop stale frames so they don't linger.
         if (state.generated[g.id] && state.generated[g.id].length) state.generated[g.id] = [];
+      }
+      if (g.genCount <= 0 && state.generated[g.id] && state.generated[g.id].length) {
+        // The gap shrank to zero frames (a keyframe was moved onto/next to
+        // another): drop leftover generated frames so they don't linger in
+        // playback. If the gap grows again later they simply regenerate.
+        delete state.generated[g.id];
+        delete state.gapMeta[g.id];
       }
       if (g.genCount > 0 && !gapComplete(g)) dirty.add(g.id);
     });
@@ -381,20 +614,47 @@
   // overlays follow the mouse. No dirty-set or stamp side effects — the real
   // validation happens on drop via refreshDirty().
   function retimeAllFrames() {
-    computeGaps().forEach(function (g) {
+    allGaps().forEach(function (g) {
       (state.generated[g.id] || []).forEach(function (f) {
         if (f.idx) f.time = g.fromTime + (g.toTime - g.fromTime) * (f.idx / (g.genCount + 1));
       });
     });
   }
 
-  function workingSize() {
-    var target = state.res;
+  // Snap a dimension onto the 8px grid RIFE's 8x downsampling needs, so any
+  // custom size keeps working through the model instead of throwing shape errors.
+  function gridSnap(v) {
+    return Math.max(8, Math.round(v / 8) * 8);
+  }
+
+  // The project's aspect ratio (w/h). 'auto' follows the first keyframe, as
+  // before; presets give fixed ratios; 'custom' uses the manual dimensions.
+  function projectAspect() {
+    if (state.aspect === 'custom') return gridSnap(state.customW) / gridSnap(state.customH);
+    if (state.aspect === '16:9') return 16 / 9;
+    if (state.aspect === '9:16') return 9 / 16;
+    if (state.aspect === '4:3') return 4 / 3;
+    if (state.aspect === '3:4') return 3 / 4;
+    if (state.aspect === '1:1') return 1;
     var first = sortedKeyframes()[0];
-    var aspect = first && first.h ? first.w / first.h : 1;
+    return first && first.h ? first.w / first.h : 1;
+  }
+
+  function workingSize() {
+    if (state.aspect === 'custom') {
+      var cw = clamp(gridSnap(state.customW), 8, 4096);
+      var ch = clamp(gridSnap(state.customH), 8, 4096);
+      // Memory guard: keep the total under ~8M px (about 4K) by shrinking the
+      // long edge, so any video size stays usable in a browser tab.
+      while (cw * ch > 8 * 1024 * 1024 && cw > 8 && ch > 8) {
+        if (cw >= ch) cw -= 8; else ch -= 8;
+      }
+      return { w: cw, h: ch };
+    }
+    var target = state.res;
+    var aspect = projectAspect();
     var w, h;
-    // The raw SD1.5 UNet only runs correctly when the latent dims (w/8, h/8)
-    // are divisible by 8 — so image dims go on a 64px grid (aspect is letterboxed).
+    // 64px grid keeps dims even for RIFE's 8x downsampling; the aspect is letterboxed.
     if (aspect >= 1) {
       w = target;
       h = Math.max(64, Math.round(target / aspect / 64) * 64);
@@ -408,35 +668,45 @@
     return { w: w, h: h };
   }
 
+  // Applies the current working size to the canvas. Returns the applied size
+  // so callers can react (e.g. warn about very large custom resolutions).
+  // While a project is being restored the canvas is sized to match, but the
+  // freshly-loaded frames are NOT invalidated — they were generated at exactly
+  // this size, and refreshDirty() re-checks their stamps afterwards.
   function applyWorkSize() {
     var s = workingSize();
-    if (s.w === workW && s.h === workH) return;
+    if (s.w === workW && s.h === workH) return s;
     workW = s.w;
     workH = s.h;
     el.previewCanvas.width = workW;
     el.previewCanvas.height = workH;
     resetViewport(); // also refreshes the res/view label
-    // Frames generated at the previous size no longer match the canvas.
-    invalidateAll();
+    if (!restoringProject) {
+      // Frames generated at the previous size no longer match the canvas.
+      invalidateAll();
+    }
+    return s;
   }
 
-  // ------------------------------------------------------------------
-  // Playback frames
-  // ------------------------------------------------------------------
+  // Playback frames: the sorted union of every layer's keyframe and generated
+  // frame times. Each entry is a time the composite image changes; the actual
+  // composite is rendered on demand (see framesAt / drawFrames).
   function buildPlaybackFrames() {
-    var list = [];
-    sortedKeyframes().forEach(function (k) {
-      list.push({ time: k.time, img: k.img, key: true, id: k.id });
+    var times = {};
+    state.layers.forEach(function (L) {
+      sortedKeyframes(L.id).forEach(function (k) {
+        var e = times[k.time] || (times[k.time] = { key: false });
+        e.key = true;
+      });
+      computeGaps(L.id).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          times[f.time] = times[f.time] || { key: false };
+        });
+      });
     });
-    computeGaps().forEach(function (g) {
-      var gen = state.generated[g.id];
-      if (gen) gen.forEach(function (f) { list.push({ time: f.time, img: f.img, key: false }); });
-    });
-    list.sort(function (a, b) {
-      if (a.time !== b.time) return a.time - b.time;
-      return a.key === b.key ? 0 : (a.key ? -1 : 1);
-    });
-    return list;
+    return Object.keys(times).map(function (t) {
+      return { time: parseFloat(t), key: times[t].key };
+    }).sort(function (a, b) { return a.time - b.time; });
   }
 
   function currentFrame() {
@@ -444,13 +714,102 @@
     return frames[state.curIndex] || null;
   }
 
-  // ------------------------------------------------------------------
-  // Rendering
-  // ------------------------------------------------------------------
+  // The frame (keyframe or generated inbetween) of one layer that is active at
+  // time t: the last of that layer's frames at or before t. With keysOnly, only
+  // keyframes count (no interpolated frames), matching the preview toggle.
+  function layerFrameAt(layerId, t, keysOnly) {
+    var frames = [];
+    sortedKeyframes(layerId).forEach(function (k) {
+      frames.push({ time: k.time, img: k.img, gen: false });
+    });
+    if (!keysOnly) {
+      computeGaps(layerId).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          frames.push({ time: f.time, img: f.img, gen: true });
+        });
+      });
+    }
+    if (!frames.length) return null;
+    frames.sort(function (a, b) { return a.time - b.time; });
+    var active = null;
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].time <= t + 1e-9) active = frames[i];
+      else break;
+    }
+    return active;
+  }
+
+  // The image each visible layer contributes to the composite at time t, in
+  // bottom-to-top draw order (the last layer is drawn first, the first layer
+  // — the topmost — last). Each image keeps its own alpha channel, so
+  // transparent keyframes (e.g. a character cut out on clear) composite over
+  // the layers below it. Undecoded images are skipped by the drawing functions
+  // (callers wait for them when needed). Color layers color only the layer
+  // directly beneath them and always blend by multiply (the pass and its
+  // generated warped frames), so the line art's lines stay visible.
+  function framesAt(t, keysOnly) {
+    var list = [];
+    for (var i = state.layers.length - 1; i >= 0; i--) {
+      var L = state.layers[i];
+      if (L.visible === false) continue;
+      var f = layerFrameAt(L.id, t, keysOnly);
+      if (f) list.push({ img: f.img, color: L.type === 'color', gen: !!f.gen });
+    }
+    return list;
+  }
+
+  // Draw a bottom-to-top composite of the given layer frames (black backdrop).
+  function drawFrames(ctx, frames) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, workW, workH);
+    for (var i = 0; i < frames.length; i++) {
+      var img = imgCache.get(frames[i].img);
+      if (!img) continue;
+      // Color layers always blend by multiply (generated warped frames and the
+      // raw pass alike): the line art's paper stays white, its dark lines stay
+      // visible, and the pass's colors tint the drawing beneath it.
+      if (frames[i].color) ctx.globalCompositeOperation = 'multiply';
+      drawContain(ctx, img, workW, workH);
+      if (frames[i].color) ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+
+  function compositeKey(t, keysOnly) {
+    return framesAt(t, keysOnly).map(function (f) {
+      return (f.color ? 'c:' : '') + (f.gen ? 'g:' : '') + f.img;
+    }).join('|');
+  }
+
+  // Render the composite at t into a fresh canvas (filmstrip thumbs, exports).
+  function compositeCanvas(t) {
+    var frames = framesAt(t, false);
+    var canvas = document.createElement('canvas');
+    canvas.width = workW;
+    canvas.height = workH;
+    var ctx = canvas.getContext('2d');
+    return Promise.all(frames.map(function (f) {
+      return loadImage(f.img).catch(function () { return null; });
+    })).then(function (imgs) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, workW, workH);
+      for (var i = 0; i < frames.length; i++) {
+        if (!imgs[i]) continue;
+        if (frames[i].color) ctx.globalCompositeOperation = 'multiply';
+        drawContain(ctx, imgs[i], workW, workH);
+        if (frames[i].color) ctx.globalCompositeOperation = 'source-over';
+      }
+      return canvas;
+    });
+  }
+
+  function compositeDataURL(t) {
+    return compositeCanvas(t).then(function (c) { return c.toDataURL('image/png'); });
+  }
+
   function renderTimeline() {
     var keys = sortedKeyframes();
     var maxTime = keys.length ? keys[keys.length - 1].time : 0;
-    var contentW = Math.max(el.timeline.clientWidth, 40 + (maxTime + 2) * state.zoom);
+    var contentW = Math.max(el.timeline.clientWidth, GUTTER_W + 40 + (maxTime + 2) * state.zoom);
     el.track.style.width = contentW + 'px';
     renderRuler(maxTime);
     renderLane();
@@ -460,6 +819,11 @@
 
   function renderRuler(maxTime) {
     el.ruler.innerHTML = '';
+    // A sticky gutter matching the layer rows, so the time scale starts after
+    // the layer names and stays visible when the timeline scrolls.
+    var rg = document.createElement('div');
+    rg.className = 'ruler-gutter';
+    el.ruler.appendChild(rg);
     var steps = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60];
     var step = steps[0];
     for (var i = 0; i < steps.length; i++) {
@@ -473,7 +837,7 @@
       var isMajor = minor === 0 || Math.abs((t / step) - Math.round(t / step)) < 1e-9;
       var tick = document.createElement('div');
       tick.className = 'tick ' + (isMajor ? 'major' : 'minor');
-      tick.style.left = (t * state.zoom) + 'px';
+      tick.style.left = (GUTTER_W + t * state.zoom) + 'px';
       var line = document.createElement('div');
       line.className = 'line';
       tick.appendChild(line);
@@ -487,78 +851,162 @@
     }
   }
 
+  // Gap labels are absolutely positioned above their gap. When several narrow
+  // gaps sit side by side, their labels overlap horizontally and become
+  // unreadable. Assign each label to the first "row" that fits (measured
+  // against the labels already placed), then lower it to that row so the text
+  // stacks into a readable column instead of colliding.
+  function stackGapLabels(items) {
+    var ROW_H = 14;    // px between stacked rows
+    var MAX_ROWS = 4;  // rows to try before giving up (rarely more are needed)
+    var MARGIN = 4;    // px of horizontal clearance between labels on a row
+    var BADGE = 10;    // extra width the .stacked badge adds (border + padding)
+    var rows = [];
+    items.forEach(function (item) {
+      var w = item.el.offsetWidth || 0;
+      var left = item.left;
+      var right = left + w + (w > 0 ? BADGE : 0);
+      var row = 0;
+      if (w > 0) {
+        while (row < MAX_ROWS && rows[row] && rows[row].some(function (o) {
+          return right + MARGIN > o[0] && left < o[1] + MARGIN;
+        })) row++;
+      }
+      if (!rows[row]) rows[row] = [];
+      rows[row].push([left, right]);
+      if (row > 0) {
+        item.el.style.top = (-16 + row * ROW_H) + 'px';
+        item.el.classList.add('stacked');
+      }
+    });
+  }
+
   function renderLane() {
     el.lane.innerHTML = '';
-    var keys = sortedKeyframes();
-    var gaps = computeGaps();
     var z = state.zoom;
-
-    gaps.forEach(function (g) {
-      var x1 = g.fromTime * z, x2 = g.toTime * z;
-      var gen = state.generated[g.id] || [];
-      var ok = gapComplete(g);
-      var overlay = document.createElement('div');
-      overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '');
-      overlay.style.left = x1 + 'px';
-      overlay.style.width = Math.max(2, x2 - x1) + 'px';
-      if (g.genCount > 0) {
-        var label = document.createElement('div');
-        label.className = 'glabel';
-        label.textContent = ok
-          ? g.genCount + ' frames'
-          : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' : g.genCount + ' frames needed');
-        overlay.appendChild(label);
-        if (g.genCount > WARN_GEN_COUNT) {
-          var warn = document.createElement('div');
-          warn.className = 'gap-warn';
-          warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
-          overlay.dataset.count = String(g.genCount);
-          overlay.appendChild(warn);
-        }
+    state.layers.forEach(function (L) {
+      var row = document.createElement('div');
+      row.className = 'layer-row' + (L.id === state.activeLayerId ? ' active' : '') + (L.id === layerDragId ? ' dragging' : '');
+      row.dataset.layer = L.id;
+      var gutter = document.createElement('div');
+      gutter.className = 'layer-gutter' + (L.id === state.activeLayerId ? ' active' : '');
+      gutter.dataset.layer = L.id;
+      gutter.title = 'Click to make ' + L.name + ' the active layer. Drag to reorder the stack';
+      gutter.textContent = L.name;
+      var grip = document.createElement('span');
+      grip.className = 'layer-grip';
+      grip.setAttribute('aria-hidden', 'true');
+      gutter.appendChild(grip);
+      if (L.type === 'color') {
+        var typeBadge = document.createElement('span');
+        typeBadge.className = 'layer-type-badge';
+        typeBadge.textContent = 'color';
+        gutter.appendChild(typeBadge);
       }
-      el.lane.appendChild(overlay);
+      var content = document.createElement('div');
+      content.className = 'layer-content';
 
-      gen.forEach(function (f) {
-        var dot = document.createElement('div');
-        dot.className = 'frame-dot';
-        dot.style.left = (f.time * z) + 'px';
-        el.lane.appendChild(dot);
-      });
-    });
+      var keys = sortedKeyframes(L.id);
+      var gaps = computeGaps(L.id);
+      var labelItems = [];
 
-    keys.forEach(function (k) {
-      var chip = document.createElement('div');
-      chip.className = 'kf' + (k.id === state.selectedId ? ' selected' : '');
-      chip.dataset.id = k.id;
-      chip.style.left = (k.time * z) + 'px';
-      chip.style.width = Math.max(10, keyframeHold(k) * z) + 'px';
-      chip.title = 'Frame at ' + fmtTime(k.time) + '. Drag to move, drag the right edge to resize its duration';
-      var thumb = document.createElement('div');
-      thumb.className = 'kf-thumb';
-      var img = document.createElement('img');
-      img.src = k.img;
-      thumb.appendChild(img);
-      var tlabel = document.createElement('div');
-      tlabel.className = 'kf-time';
-      tlabel.textContent = fmtTime(k.time);
-      var resize = document.createElement('div');
-      resize.className = 'kf-resize';
-      resize.title = 'Drag to set how long this frame holds';
-      chip.appendChild(thumb);
-      chip.appendChild(tlabel);
-      chip.appendChild(resize);
-      chip.addEventListener('dblclick', function (e) {
-        e.stopPropagation();
-        replaceKeyframeImage(k.id);
+      gaps.forEach(function (g) {
+        var x1 = g.fromTime * z, x2 = g.toTime * z;
+        var gen = state.generated[g.id] || [];
+        var ok = gapComplete(g);
+        var overlay = document.createElement('div');
+        overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '') +
+          ' mode-' + g.mode + (L.type === 'color' ? ' layer-color' : '') + (g.id === state.selectedGapId ? ' selected' : '');
+        overlay.style.left = x1 + 'px';
+        overlay.style.width = Math.max(2, x2 - x1) + 'px';
+        overlay.dataset.gap = g.id;
+        if (g.mode === 'none') {
+          if (g.sec > 0) {
+            var noneLabel = document.createElement('div');
+            noneLabel.className = 'glabel';
+            noneLabel.textContent = 'no interpolation';
+            overlay.appendChild(noneLabel);
+            labelItems.push({ el: noneLabel, left: x1 + 4 });
+          }
+        } else if (g.mode === 'color' && g.genCount <= 0) {
+          if (g.sec > 0) {
+            var colorHold = document.createElement('div');
+            colorHold.className = 'glabel';
+            colorHold.textContent = 'color hold · stretch';
+            overlay.appendChild(colorHold);
+            labelItems.push({ el: colorHold, left: x1 + 4 });
+          }
+        } else if (g.genCount > 0) {
+          var label = document.createElement('div');
+          label.className = 'glabel';
+          var suffix = g.mode === 'squash' ? ' · squash' : (g.mode === 'color' ? ' · color' : '');
+          label.textContent = ok
+            ? g.genCount + ' frames' + suffix
+            : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' + suffix : g.genCount + ' frames needed' + suffix);
+          overlay.appendChild(label);
+          labelItems.push({ el: label, left: x1 + 4 });
+          if (g.genCount > WARN_GEN_COUNT) {
+            var warn = document.createElement('div');
+            warn.className = 'gap-warn';
+            warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
+            overlay.dataset.count = String(g.genCount);
+            overlay.appendChild(warn);
+          }
+        }
+        content.appendChild(overlay);
+
+        gen.forEach(function (f) {
+          var dot = document.createElement('div');
+          dot.className = 'frame-dot';
+          dot.style.left = (f.time * z) + 'px';
+          content.appendChild(dot);
+        });
       });
-      el.lane.appendChild(chip);
+      stackGapLabels(labelItems);
+
+      keys.forEach(function (k) {
+        var chip = document.createElement('div');
+        chip.className = 'kf' + (k.id === state.selectedId ? ' selected' : '');
+        chip.dataset.id = k.id;
+        chip.style.left = (k.time * z) + 'px';
+        chip.style.width = Math.max(10, keyframeHold(k) * z) + 'px';
+        // Chips are appended in time order, so overlapping chips would paint in
+        // that order too. Keep the selected (dragged) chip above the rest so you
+        // can grab and pull a chip across its neighbours instead of grabbing the
+        // chip on top of it.
+        chip.style.zIndex = k.id === state.selectedId ? 10 : 'auto';
+        chip.title = 'Frame at ' + fmtTime(k.time) + '. Drag to move, drag the right edge to resize its duration';
+        var thumb = document.createElement('div');
+        thumb.className = 'kf-thumb';
+        var img = document.createElement('img');
+        img.src = k.img;
+        thumb.appendChild(img);
+        var tlabel = document.createElement('div');
+        tlabel.className = 'kf-time';
+        tlabel.textContent = fmtTime(k.time);
+        var resize = document.createElement('div');
+        resize.className = 'kf-resize';
+        resize.title = 'Drag to set how long this frame holds';
+        chip.appendChild(thumb);
+        chip.appendChild(tlabel);
+        chip.appendChild(resize);
+        chip.addEventListener('dblclick', function (e) {
+          e.stopPropagation();
+          replaceKeyframeImage(k.id);
+        });
+        content.appendChild(chip);
+      });
+
+      row.appendChild(gutter);
+      row.appendChild(content);
+      el.lane.appendChild(row);
     });
   }
 
   function renderPlayhead() {
-    el.playhead.style.left = (state.playhead * state.zoom) + 'px';
+    var left = GUTTER_W + state.playhead * state.zoom;
+    el.playhead.style.left = left + 'px';
     var scroll = el.timeline;
-    var left = state.playhead * state.zoom;
     if (left > scroll.scrollLeft + scroll.clientWidth - 60) {
       scroll.scrollLeft = left - scroll.clientWidth + 60;
     } else if (left < scroll.scrollLeft + 10) {
@@ -577,8 +1025,11 @@
     var div = document.createElement('div');
     div.className = 'thumb' + (f.key ? ' key' : '') + (i === state.curIndex ? ' current' : '');
     var img = document.createElement('img');
-    img.src = f.img;
     div.appendChild(img);
+    // The thumb is the composite of every layer at this frame's time.
+    compositeDataURL(f.time).then(function (url) {
+      if (div.parentNode) img.src = url;
+    }).catch(function () {});
     if (f.key) {
       var badge = document.createElement('div');
       badge.className = 'badge';
@@ -594,10 +1045,10 @@
     if (!f.key) {
       var promote = document.createElement('button');
       promote.innerHTML = ICONS.arrowUp + '<span>use as keyframe</span>';
-      promote.title = 'Turn this generated frame into a keyframe at this time';
+      promote.title = 'Turn this composite frame into a keyframe on the active layer';
       promote.addEventListener('click', function (e) {
         e.stopPropagation();
-        promoteToKeyframe(f);
+        promoteToKeyframe(f).catch(function (err) { toast(err.message); });
       });
       actions.appendChild(promote);
     }
@@ -605,7 +1056,9 @@
     dl.innerHTML = ICONS.download + '<span>download</span>';
     dl.addEventListener('click', function (e) {
       e.stopPropagation();
-      downloadFrame(f.img, 'frame_' + fmtTime(f.time).replace('.', '_').replace('s', '') + '.png');
+      compositeDataURL(f.time).then(function (url) {
+        downloadFrame(url, 'frame_' + fmtTime(f.time).replace('.', '_').replace('s', '') + '.png');
+      }).catch(function () {});
     });
     actions.appendChild(dl);
     div.appendChild(actions);
@@ -614,14 +1067,6 @@
       if (!state.playing) renderFilmstrip();
     });
     return div;
-  }
-
-  // Draw the frame into the backing store at native resolution. The canvas
-  // element itself is CSS-scaled to the viewport size (see applyViewportSize),
-  // so no in-canvas zoom transform is needed — zooming never clips the image
-  // to a fixed-size square, the wrap just scrolls to pan.
-  function paintPreview(ctx, img) {
-    drawContain(ctx, img, workW, workH);
   }
 
   // Scale that makes the work area fit the panel without upscaling (1 at
@@ -674,65 +1119,80 @@
     el.resLabel.textContent = 'working size ' + workW + '×' + workH + ' · view ' + z + '%' + pan;
   }
 
-  // Which frame the viewport shows. With keysOnly on, interpolated frames are
-  // hidden and the active keyframe (the one at/before the playhead) is shown
-  // instead — playback and scrubbing still track the playhead, so you can walk
-  // through the animation as it looked without any inbetweens.
-  function previewFrame() {
-    if (!state.keysOnly) return currentFrame();
-    var keys = sortedKeyframes();
-    var kf = null;
-    for (var i = 0; i < keys.length; i++) {
-      if (keys[i].time <= state.playhead + 1e-9) kf = keys[i];
-      else break;
-    }
-    return kf;
-  }
-
-  var lastPreviewImg = null; // last successfully drawn image (avoid black flashes)
+  // Which frame the viewport shows is now a composite of every visible layer
+  // (see framesAt). The last successfully drawn composite is remembered so the
+  // screen never flashes black while a new frame's images decode.
+  var lastPreview = null; // { key, frames } of the last composite actually drawn
   function renderPreview() {
     var token = ++state.previewToken;
     applyViewportSize();
     var ctx = el.previewCanvas.getContext('2d');
-    var f = previewFrame();
-    if (!f) {
+    if (!state.keyframes.length) {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, workW, workH);
-      lastPreviewImg = null;
-      el.previewEmpty.classList.toggle('hidden', state.keyframes.length > 0);
+      lastPreview = null;
+      el.previewEmpty.classList.toggle('hidden', false);
       return;
     }
     el.previewEmpty.classList.add('hidden');
-    var cached = imgCache.get(f.img);
-    if (cached) {
-      // Already decoded: draw synchronously — no async gap, no black flash.
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, workW, workH);
-      paintPreview(ctx, cached);
-      lastPreviewImg = cached;
+    var key = compositeKey(state.playhead, state.keysOnly);
+    if (lastPreview && lastPreview.key === key) return; // already showing this exact composite
+    var frames = framesAt(state.playhead, state.keysOnly);
+    var missing = frames.some(function (f) { return !imgCache.get(f.img); });
+    if (missing) {
+      // Keep the previous composite on screen while the new images decode.
+      if (lastPreview && lastPreview.frames.length) drawFrames(ctx, lastPreview.frames);
+      else {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, workW, workH);
+      }
+      var srcs = {};
+      frames.forEach(function (f) { if (!imgCache.get(f.img)) srcs[f.img] = true; });
+      Promise.all(Object.keys(srcs).map(function (src) {
+        return loadImage(src).catch(function () {});
+      })).then(function () {
+        if (token !== state.previewToken) return;
+        if (compositeKey(state.playhead, state.keysOnly) !== key) return; // moved on while loading
+        var ctx2 = el.previewCanvas.getContext('2d');
+        var fr = framesAt(state.playhead, state.keysOnly);
+        drawFrames(ctx2, fr);
+        lastPreview = { key: key, frames: fr };
+      });
       return;
     }
-    // Not in cache yet: keep the last frame on screen instead of flashing
-    // black, then swap in the new frame the moment it decodes.
-    if (lastPreviewImg) {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, workW, workH);
-      paintPreview(ctx, lastPreviewImg);
-    } else {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, workW, workH);
-    }
-    loadImage(f.img).then(function (img) {
-      if (token !== state.previewToken) return;
-      var ctx2 = el.previewCanvas.getContext('2d');
-      ctx2.fillStyle = '#000';
-      ctx2.fillRect(0, 0, workW, workH);
-      paintPreview(ctx2, img);
-      lastPreviewImg = img;
-    }).catch(function () {});
+    drawFrames(ctx, frames);
+    lastPreview = { key: key, frames: frames };
   }
 
   function renderSelectedPanel() {
+    var gap = state.selectedGapId ? allGaps().find(function (g) { return g.id === state.selectedGapId; }) : null;
+    if (state.selectedGapId && !gap) state.selectedGapId = null;
+    var hasGap = !!gap;
+    el.gapPanel.classList.toggle('hidden', !hasGap);
+    el.kfSection.classList.toggle('hidden', hasGap);
+    if (hasGap) {
+      var L = layerById(gap.layer);
+      // Color layers always stretch (hold) — their interpolation is fixed.
+      el.gapTypeInput.disabled = !!(L && L.type === 'color');
+      el.gapName.textContent = (L ? L.name + ' · ' : '') + (gap.from.name || 'frame') + ' → ' + (gap.to.name || 'frame');
+      el.gapTime.textContent = fmtTime(gap.fromTime) + ' → ' + fmtTime(gap.toTime) +
+        (gap.mode === 'none' ? ' · hold' : gap.mode === 'color' ? ' · ' + gap.genCount + ' colored frames' : ' · ' + gap.genCount + ' inbetweens');
+      el.gapTypeInput.value = gap.mode;
+      var squash = gapSquashOpts(gap.id);
+      var isSquash = gap.mode === 'squash';
+      el.gapSquashGroup.classList.toggle('hidden', !isSquash);
+      if (isSquash) {
+        var isAuto = squash.amount == null;
+        el.gapSquashAmount.value = isAuto ? '0' : String(Math.round(squash.amount * 100) / 100);
+        el.gapSquashValue.textContent = isAuto ? 'auto' : (Math.round(squash.amount * 100) + '%');
+        el.gapSquashValue.classList.toggle('is-auto', isAuto);
+        el.gapSquashAmount.title = isAuto ? 'auto (distance-based)' : (Math.round(squash.amount * 100) + '%');
+        el.gapSquashAuto.disabled = isAuto;
+        el.gapSquashCurve.value = squash.curve;
+        el.gapSquashPreserve.value = squash.preserve;
+      }
+      return;
+    }
     var kf = state.keyframes.find(function (k) { return k.id === state.selectedId; });
     var has = !!kf;
     el.selTimeInput.disabled = !has;
@@ -745,6 +1205,272 @@
     el.kfThumb.src = kf.img;
     el.kfName.textContent = kf.name || 'keyframe';
     el.kfTime.textContent = fmtTime(kf.time);
+  }
+
+  function activateLayer(id) {
+    if (!layerById(id)) return;
+    state.activeLayerId = id;
+    state.selectedId = null;
+    state.selectedGapId = null;
+    renderLayerPanel();
+    renderSelectedPanel();
+    renderLane();
+  }
+
+  function addLayer() {
+    var id = 'L' + (layerSeq++);
+    // Name the layer after the highest existing number so a name is never
+    // reused, even after layers are removed.
+    var n = 1;
+    state.layers.forEach(function (l) {
+      var m = /^Layer (\d+)$/.exec(l.name);
+      if (m) n = Math.max(n, parseInt(m[1], 10) + 1);
+    });
+    // New layers sit on top of the stack (index 0).
+    state.layers.unshift({ id: id, name: 'Layer ' + n, visible: true });
+    state.activeLayerId = id;
+    renderLayerPanel();
+    renderSelectedPanel();
+    renderLane();
+    save();
+  }
+
+  function removeLayer(id) {
+    if (state.layers.length <= 1) { toast('Keep at least one layer.'); return; }
+    var idx = state.layers.findIndex(function (l) { return l.id === id; });
+    if (idx === -1) return;
+    // Drop the layer's keyframes and any generated frames for its gaps.
+    computeGaps(id).forEach(function (g) {
+      delete state.generated[g.id];
+      delete state.gapMeta[g.id];
+    });
+    state.keyframes = state.keyframes.filter(function (k) { return k.layer !== id; });
+    state.layers.splice(idx, 1);
+    if (state.activeLayerId === id) state.activeLayerId = state.layers[0].id;
+    var sel = state.keyframes.find(function (k) { return k.id === state.selectedId; });
+    if (!sel) state.selectedId = null;
+    applyWorkSize();
+    refreshDirty();
+    renderAll();
+    save();
+    scheduleGenerate();
+  }
+
+  // The layer bar above the timeline follows the active layer. Selecting a
+  // layer happens by clicking its row on the timeline, not via a dropdown.
+  function renderLayerPanel() {
+    var L = layerById(state.activeLayerId);
+    el.layerNameLabel.textContent = L ? L.name : '';
+    el.layerVisible.checked = L ? L.visible !== false : true;
+    el.layerType.value = L && L.type === 'color' ? 'color' : 'normal';
+    el.btnRemoveLayer.disabled = state.layers.length <= 1;
+  }
+
+  // Assets panel (left column): the image library (state.assets). Loading a
+  // file only adds it to the library; keyframes are placed by dragging an
+  // asset onto the timeline. Tiles use a custom pointer drag (native HTML5
+  // DnD cursors are browser-controlled and often show a no-drop X, so the
+  // drag uses its own ghost with a grabbing cursor). An asset lands only
+  // when released over the timeline.
+
+  var assetDrag = { active: false, ghost: null };
+  var dropGuide = null;
+
+  function showDropGuideAt(clientX) {
+    if (!dropGuide) {
+      dropGuide = document.createElement('div');
+      dropGuide.className = 'drop-guide';
+      el.track.appendChild(dropGuide);
+      var label = document.createElement('span');
+      label.className = 'drop-guide-label';
+      dropGuide.appendChild(label);
+    }
+    var t = Math.max(0, timeFromClientX(clientX));
+    dropGuide.style.left = (GUTTER_W + t * state.zoom) + 'px';
+    // The line follows the cursor; the label shows the snapped placement.
+    dropGuide.querySelector('.drop-guide-label').textContent = fmtTime(insertTime(t));
+    dropGuide.classList.add('visible');
+  }
+
+  function hideDropGuide() {
+    if (dropGuide) dropGuide.classList.remove('visible');
+  }
+
+  function isOverTimeline(clientX, clientY) {
+    var r = el.timeline.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  }
+
+  function beginAssetDrag(a) {
+    assetDrag.active = true;
+    document.body.classList.add('dragging-asset');
+    var ghost = document.createElement('div');
+    ghost.className = 'asset-ghost';
+    var img = document.createElement('img');
+    img.src = a.img;
+    img.alt = a.name || 'asset';
+    ghost.appendChild(img);
+    document.body.appendChild(ghost);
+    assetDrag.ghost = ghost;
+  }
+
+  function moveAssetDrag(clientX, clientY) {
+    var g = assetDrag.ghost;
+    if (g) {
+      g.style.left = clientX + 'px';
+      g.style.top = clientY + 'px';
+    }
+    if (isOverTimeline(clientX, clientY)) showDropGuideAt(clientX);
+    else hideDropGuide();
+  }
+
+  function endAssetDrag(a, clientX, clientY) {
+    if (assetDrag.ghost) { assetDrag.ghost.remove(); assetDrag.ghost = null; }
+    assetDrag.active = false;
+    document.body.classList.remove('dragging-asset');
+    hideDropGuide();
+    if (isOverTimeline(clientX, clientY)) {
+      addAssetKeyframe(a.img, insertTime(timeFromClientX(clientX)));
+    }
+  }
+
+  function startAssetPointerDrag(e, a) {
+    if (e.button !== 0) return;
+    var startX = e.clientX, startY = e.clientY;
+    var dragging = false;
+    function onMove(ev) {
+      if (!dragging) {
+        // Small movement threshold so a plain click never starts a drag.
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
+        dragging = true;
+        beginAssetDrag(a);
+      }
+      moveAssetDrag(ev.clientX, ev.clientY);
+    }
+    function onUp(ev) {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      if (dragging) endAssetDrag(a, ev.clientX, ev.clientY);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+
+  // ---- layer reordering ----
+  // Drag a layer's name gutter up/down to move it in the stack. The row under
+  // the cursor determines the target index; the lane re-renders live so the
+  // dragged layer visibly jumps to its new position. Composite order (top →
+  // bottom = first → last in state.layers) only changes on drop.
+  var layerDragId = null; // layer being dragged (also highlights its row)
+  function layerIndexAtY(clientY) {
+    var rows = el.lane.querySelectorAll('.layer-row');
+    if (!rows.length) return 0;
+    var laneRect = el.lane.getBoundingClientRect();
+    var h = rows[0].getBoundingClientRect().height || 66;
+    return clamp(Math.floor((clientY - laneRect.top) / h), 0, rows.length - 1);
+  }
+  function startLayerDrag(e, layerId) {
+    if (e.button !== 0 || state.layers.length < 2) return;
+    var startY = e.clientY;
+    var dragging = false;
+    document.body.classList.add('dragging-layer');
+    function onMove(ev) {
+      if (!dragging) {
+        if (Math.abs(ev.clientY - startY) < 4) return;
+        dragging = true;
+      }
+      var from = state.layers.findIndex(function (l) { return l.id === layerId; });
+      if (from === -1) return;
+      var to = layerIndexAtY(ev.clientY);
+      if (to === from) return;
+      var layer = state.layers[from];
+      state.layers.splice(from, 1);
+      state.layers.splice(to, 0, layer);
+      layerDragId = layerId;
+      renderLane();
+    }
+    function onUp(ev) {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      document.body.classList.remove('dragging-layer');
+      layerDragId = null;
+      renderLane();
+      renderPreview();
+      renderFilmstrip();
+      save();
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+
+  function renderAssets() {
+    var imgs = state.assets;
+    // Skip the DOM rebuild when the library is unchanged.
+    if (imgs.length === assetCache.length && imgs.every(function (a) { return assetImgs.has(a.img); })) return;
+    assetCache = imgs;
+    assetImgs = new Set(imgs.map(function (a) { return a.img; }));
+    el.assetGrid.innerHTML = '';
+    if (!imgs.length) {
+      var empty = document.createElement('div');
+      empty.className = 'asset-empty';
+      empty.textContent = 'No images yet. Add images with the button above, then drag them onto the timeline.';
+      el.assetGrid.appendChild(empty);
+      return;
+    }
+    imgs.forEach(function (a) {
+      var tile = document.createElement('div');
+      tile.className = 'asset';
+      tile.title = 'Drag onto the timeline to place a keyframe';
+      var img = document.createElement('img');
+      img.src = a.img;
+      img.alt = a.name || 'asset';
+      tile.appendChild(img);
+      var name = document.createElement('span');
+      name.className = 'asset-name';
+      name.textContent = a.name || 'image';
+      name.title = a.name || 'image';
+      tile.appendChild(name);
+      tile.addEventListener('pointerdown', function (e) { startAssetPointerDrag(e, a); });
+      el.assetGrid.appendChild(tile);
+    });
+  }
+
+  function selectGap(id) {
+    state.selectedGapId = id || null;
+    state.selectedId = null;
+    renderSelectedPanel();
+    renderLane();
+  }
+
+  // Set the interpolation type of one gap. The gap's frames are dropped (the
+  // stamp includes the mode, so they would be stale anyway) and it is
+  // regenerated with the new mode; 'none' gaps have no inbetweens at all.
+  function setGapType(id, type) {
+    if (['ai', 'squash', 'none'].indexOf(type) === -1) return;
+    state.gapType[id] = type;
+    delete state.generated[id];
+    delete state.gapMeta[id];
+    refreshDirty();
+    renderAll();
+    save();
+    scheduleGenerate(50);
+  }
+
+  function applySquashChange(patch) {
+    var id = state.selectedGapId;
+    if (!id) return;
+    setGapSquash(id, patch);
+    delete state.generated[id];
+    delete state.gapMeta[id];
+    refreshDirty();
+    renderSelectedPanel();
+    renderLane();
+    save();
+    scheduleGenerate(50);
   }
 
   function updateTransport() {
@@ -760,6 +1486,8 @@
     renderFilmstrip();
     renderPreview();
     renderSelectedPanel();
+    renderLayerPanel();
+    renderAssets();
     updateTransport();
     updateEstimate();
     el.btnKeysOnly.classList.toggle('active', state.keysOnly);
@@ -767,7 +1495,7 @@
 
   function updateEstimate() {
     var total = 0, gapCount = 0;
-    computeGaps().forEach(function (g) {
+    allGaps().forEach(function (g) {
       if (g.genCount > 0 && !gapComplete(g)) { total += computeMissing(g).length; gapCount++; }
     });
     if (!state.keyframes.length) {
@@ -779,9 +1507,6 @@
     }
   }
 
-  // ------------------------------------------------------------------
-  // Playback
-  // ------------------------------------------------------------------
   function setFrameByIndex(idx) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { state.curIndex = 0; state.playhead = 0; }
@@ -889,9 +1614,6 @@
     setFrameByIndex(state.curIndex + delta);
   }
 
-  // ------------------------------------------------------------------
-  // Keyframe add / move / delete / replace
-  // ------------------------------------------------------------------
   function readImageFile(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
@@ -913,39 +1635,69 @@
     });
   }
 
-  function addKeyframes(files, atTime) {
-    if (!files || !files.length) return Promise.resolve();
-    var sortedKeys = sortedKeyframes();
-    var baseTime = atTime !== undefined
-      ? atTime
-      : (sortedKeys.length ? sortedKeys[sortedKeys.length - 1].time + 1 : 0);
+  // Insert time for new keyframes: the playhead (button/paste) or the exact
+  // drop position. Snap rounds it to a frame boundary. Falls back to the
+  // playhead when no time is given, so frames never silently land at the end
+  // of the timeline.
+  function insertTime(t) {
+    if (t === undefined) t = state.playhead;
+    t = Math.max(0, t);
+    if (state.snap) t = Math.round(t * state.fps) / state.fps;
+    return t;
+  }
+
+  // Add files to the image library only — nothing is placed on the timeline.
+  // Keyframes are created by dragging an asset from the panel onto the
+  // timeline (see addAssetKeyframe).
+  function addImageFiles(files) {
+    if (!files || !files.length) return Promise.resolve(0);
     var chain = Promise.resolve();
-    Array.prototype.forEach.call(files, function (file, i) {
+    var added = 0;
+    Array.prototype.forEach.call(files, function (file) {
       chain = chain.then(function () {
         return readImageFile(file).then(function (data) {
-          state.keyframes.push({
-            id: 'k' + (idSeq++),
-            time: Math.max(0, baseTime + i),
-            img: data.img,
-            name: data.name,
-            w: data.w,
-            h: data.h
-          });
+          if (state.assets.some(function (a) { return a.img === data.img; })) return;
+          state.assets.push({ img: data.img, name: data.name, w: data.w, h: data.h });
+          added++;
         });
       });
     });
     return chain.then(function () {
-      applyWorkSize();
-      invalidateAll();
-      renderAll();
+      renderAssets();
       save();
-      scheduleGenerate();
+      return added;
     });
+  }
+  // Place a keyframe reusing an image already in the library (asset drag & drop).
+  // The image is already decoded, so unlike addImageFiles there is no file read.
+  function addAssetKeyframe(imgSrc, atTime) {
+    var meta = null;
+    for (var i = 0; i < assetCache.length; i++) {
+      if (assetCache[i].img === imgSrc) { meta = assetCache[i]; break; }
+    }
+    state.keyframes.push({
+      id: 'k' + (idSeq++),
+      layer: state.activeLayerId || state.layers[0].id,
+      time: insertTime(atTime),
+      img: imgSrc,
+      name: meta ? meta.name : 'asset',
+      w: meta ? meta.w : workW,
+      h: meta ? meta.h : workH
+    });
+    applyWorkSize();
+    invalidateAll();
+    renderAll();
+    save();
+    scheduleGenerate();
   }
 
   function selectKeyframe(id) {
     state.selectedId = id;
+    state.selectedGapId = null;
+    var kf = state.keyframes.find(function (k) { return k.id === id; });
+    if (kf && kf.layer) state.activeLayerId = kf.layer;
     renderSelectedPanel();
+    renderLayerPanel();
     renderLane();
   }
 
@@ -963,6 +1715,10 @@
         kf.name = data.name;
         kf.w = data.w;
         kf.h = data.h;
+        // The replacement image is a newly loaded image: add it to the library.
+        if (!state.assets.some(function (a) { return a.img === data.img; })) {
+          state.assets.push({ img: data.img, name: data.name, w: data.w, h: data.h });
+        }
         invalidateAround(id);
         applyWorkSize();
         renderAll();
@@ -987,41 +1743,44 @@
     scheduleGenerate();
   }
 
+  // Turn a composite playback frame into a keyframe on the active layer. The
+  // gap it falls in (on that layer) is split and its generated frames re-keyed
+  // into the two new gaps, exactly like the single-layer flow.
   function promoteToKeyframe(f) {
-    // re-key the generated frames of the old gap into the two gaps created by the split
+    var layerId = state.activeLayerId || state.layers[0].id;
     var oldGap = null;
-    computeGaps().forEach(function (g) {
+    computeGaps(layerId).forEach(function (g) {
       if (f.time > g.from.time && f.time < g.to.time) oldGap = g;
     });
     var oldGen = oldGap ? state.generated[oldGap.id] : null;
     if (oldGap) delete state.generated[oldGap.id];
-    state.keyframes.push({
-      id: 'k' + (idSeq++),
-      time: f.time,
-      img: f.img,
-      name: 'promoted',
-      w: workW,
-      h: workH
-    });
-    if (oldGen) {
-      computeGaps().forEach(function (g) {
-        state.generated[g.id] = oldGen.filter(function (frame) {
-          return frame.time > g.fromTime + 1e-9 && frame.time < g.toTime - 1e-9;
-        });
+    return compositeDataURL(f.time).then(function (url) {
+      state.keyframes.push({
+        id: 'k' + (idSeq++),
+        layer: layerId,
+        time: f.time,
+        img: url,
+        name: 'promoted',
+        w: workW,
+        h: workH
       });
-    }
-    state.selectedId = state.keyframes[state.keyframes.length - 1].id;
-    applyWorkSize();
-    refreshDirty();
-    renderAll();
-    save();
-    scheduleGenerate();
-    toast('Promoted to keyframe at ' + fmtTime(f.time));
+      if (oldGen) {
+        computeGaps(layerId).forEach(function (g) {
+          state.generated[g.id] = oldGen.filter(function (frame) {
+            return frame.time > g.fromTime + 1e-9 && frame.time < g.toTime - 1e-9;
+          });
+        });
+      }
+      state.selectedId = state.keyframes[state.keyframes.length - 1].id;
+      applyWorkSize();
+      refreshDirty();
+      renderAll();
+      save();
+      scheduleGenerate();
+      toast('Promoted to keyframe at ' + fmtTime(f.time));
+    });
   }
 
-  // ------------------------------------------------------------------
-  // Generation
-  // ------------------------------------------------------------------
   function setGenStatus(kind, text) {
     el.genStatus.className = 'status ' + kind;
     el.genStatus.textContent = text || '';
@@ -1034,17 +1793,18 @@
     el.genMeta.textContent = Math.round(pct) + '%';
   }
 
-  // ------------------------------------------------------------------
   // Generation — runs in the background worker; only missing frames are
   // generated, and auto-runs (debounced) after every change.
-  // ------------------------------------------------------------------
+
   function drawImageToData(img, w, h) {
     var canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, w, h);
+    // Clear transparent instead of painting black, so keyframes that carry an
+    // alpha channel (cut-out characters, overlays) keep their transparency
+    // through interpolation and composite over lower layers.
+    ctx.clearRect(0, 0, w, h);
     drawContain(ctx, img, w, h);
     return ctx.getImageData(0, 0, w, h).data;
   }
@@ -1061,31 +1821,38 @@
   }
 
   // Generate one gap's missing frames. Dispatches to the worker when
-  // available; otherwise runs inline (mesh warp fallback path).
+  // available; otherwise runs inline (mesh warp fallback path). Color gaps
+  // dispatch one worker job per frame so the optical flow never blocks the UI.
   function generateGap(gap, missing, cbs) {
     var missingList = missing.map(function (idx) {
       return { idx: idx, t: idx / (gap.genCount + 1) };
     });
+    if (gap.mode === 'color') return generateColorGap(gap, missingList, cbs);
     return Promise.all([loadImage(gap.from.img), loadImage(gap.to.img)]).then(function (imgs) {
       if (cbs.cancelled()) return;
       var aData = drawImageToData(imgs[0], workW, workH);
       var bData = drawImageToData(imgs[1], workW, workH);
-      if (worker) {
+      if (workers.length) {
         var jobId = 'job' + (++jobSeq);
+        var wi = pickWorker();
         return new Promise(function (resolve, reject) {
           workerJobs[jobId] = {
             resolve: resolve,
             reject: reject,
             onFrame: cbs.onFrame,
-            onProgress: cbs.onProgress
+            onProgress: cbs.onProgress,
+            worker: workers[wi]
           };
+          workerBusy[wi]++;
           var aBuf = aData.buffer, bBuf = bData.buffer;
-          worker.postMessage({
+          workers[wi].postMessage({
             type: 'generate-gap',
             jobId: jobId,
             aData: aBuf, bData: bBuf,
             width: workW, height: workH,
             fromTime: gap.fromTime, toTime: gap.toTime,
+            mode: gap.mode,
+            squash: gapSquashOpts(gap.id),
             missing: missingList
           }, [aBuf, bBuf]);
         }).catch(function (err) {
@@ -1099,11 +1866,103 @@
     });
   }
 
-  // Inline fallback (no worker available). Every frame is AI-generated by the
-  // local model when it's ready, otherwise the mesh warp takes over —
-  // generation never stalls.
+  // Color-layer generation. The color keyframe's pass is a colored version of
+  // the layer directly beneath (the source) at the keyframe's time. Each
+  // generated frame warps the pass along the source layer's motion (flow from
+  // its frame at the pass time to its frame at the inbetween time), so the
+  // colors follow the line art instead of sitting still. When the source
+  // frame is unchanged the pass is reused as-is.
+  function generateColorGap(gap, missingList, cbs) {
+    var colorLayer = layerById(gap.layer);
+    var srcLayer = state.layers[state.layers.indexOf(colorLayer) + 1];
+    if (!srcLayer) return Promise.resolve();
+    var passImg = gap.from.img;
+    var passFrame = layerFrameAt(srcLayer.id, gap.from.time, false);
+    if (!passFrame) return Promise.resolve();
+    return Promise.all([loadImage(passImg), loadImage(passFrame.img)]).then(function (imgs) {
+      if (cbs.cancelled()) return;
+      var passData = drawImageToData(imgs[0], workW, workH);
+      var aData = drawImageToData(imgs[1], workW, workH);
+      var i = 0;
+      var next = function () {
+        if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
+        var m = missingList[i++];
+        var time = gap.fromTime + (gap.toTime - gap.fromTime) * m.t;
+        var srcFrame = layerFrameAt(srcLayer.id, time, false);
+        if (!srcFrame) return next();
+        var done = function (img) {
+          cbs.onFrame({ idx: m.idx, t: m.t, time: time, img: img, ai: false });
+          if (cbs.onProgress) cbs.onProgress('color frame ' + m.idx + '/' + gap.genCount, i / missingList.length);
+        };
+        if (srcFrame.img === passFrame.img) { done(passImg); return next(); }
+        return loadImage(srcFrame.img).then(function (img) {
+          if (cbs.cancelled()) return;
+          var bData = drawImageToData(img, workW, workH);
+          if (!workers.length) {
+            // Inline fallback (no worker): the flow pass blocks the main thread
+            // here, matching the mesh-warp fallback for normal gaps.
+            return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
+              if (cbs.cancelled()) return;
+              done(dataToDataURL(morph.warpFrame(passData, pair.flowAB, workW, workH, 2), workW, workH));
+            }).then(next);
+          }
+          // One worker job per frame: the worker computes the optical flow and
+          // warps the pass off the main thread, so long color spans never
+          // freeze the UI.
+          var jobId = 'job' + (++jobSeq);
+          var wi = pickWorker();
+          return new Promise(function (resolve, reject) {
+            workerJobs[jobId] = {
+              resolve: resolve,
+              reject: reject,
+              onFrame: function (fr) { done(fr.img); },
+              onProgress: cbs.onProgress,
+              worker: workers[wi]
+            };
+            workerBusy[wi]++;
+            workers[wi].postMessage({
+              type: 'color-frame',
+              jobId: jobId,
+              passData: passData, aData: aData, bData: bData,
+              width: workW, height: workH,
+              idx: m.idx, t: m.t, time: time
+            });
+          }).catch(function (err) {
+            // Worker died mid-frame: fall back to the inline warp for this
+            // frame instead of failing the whole color gap. A cancelled run
+            // is not an error — let it end.
+            if (cbs.cancelled()) throw err;
+            console.error('Color worker job failed, warping inline:', err);
+            return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
+              if (cbs.cancelled()) return;
+              done(dataToDataURL(morph.warpFrame(passData, pair.flowAB, workW, workH, 2), workW, workH));
+            });
+          }).then(next);
+        }).then(next);
+      };
+      return next();
+    });
+  }
+
   function generateGapInline(aData, bData, gap, missingList, cbs) {
     var meshes = null;
+    var flowPromise = null;
+    // Flow is only needed for the mesh fallback and the alpha warp. When the
+    // AI model works and the keyframes are fully opaque (the common case)
+    // neither is used, so compute it lazily on first actual need.
+    var opaque = morph.isOpaque(aData) && morph.isOpaque(bData);
+    var ensureMeshes = function () {
+      if (meshes) return Promise.resolve();
+      if (flowPromise) return flowPromise;
+      if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', 0);
+      flowPromise = morph.computeFlowBoth(aData, bData, workW, workH, {}, function (frac) {
+        if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', frac * 0.05);
+      }, cbs.cancelled).then(function (pair) {
+        if (cbs.cancelled()) return;
+        meshes = morph.buildMeshes(pair, workW, workH, 16);
+      });
+      return flowPromise;
+    };
     var emit = function (m) {
       if (cbs.cancelled()) return Promise.resolve();
       var t = m.t;
@@ -1111,39 +1970,55 @@
       var done = function (rgba, ai) {
         cbs.onFrame({ idx: m.idx, t: t, time: time, img: dataToDataURL(rgba, workW, workH), ai: ai });
       };
+      // Squash: affine squash-and-stretch along the detected motion
+      // direction, pivoted on the moving mass (no mesh warp, no crossfade).
+      if (gap.mode === 'squash') {
+        return ensureMeshes().then(function () {
+          done(morph.squashStretchFrame(aData, bData, meshes, workW, workH, t, gapSquashOpts(gap.id)), false);
+        });
+      }
+      // RIFE renders RGB with alpha 255; give the frame the mesh-warped alpha so
+      // transparent keyframes (cut-out characters) stay transparent in inbetweens.
+      // Fully opaque keyframes skip this entirely — the result is byte-identical
+      // and a full mesh warp per frame is avoided.
+      var applyAlpha = function (rgba) {
+        var alpha = morph.warpAlpha(aData, bData, meshes, workW, workH, t);
+        var n = workW * workH;
+        for (var p = 0, q = 0; p < n; p++, q += 4) rgba[q + 3] = alpha[p];
+      };
       if (cbs.aiReady()) {
         return model.interpolate(aData, bData, workW, workH, t).then(function (aiOut) {
-          done(aiOut, true);
+          if (cbs.cancelled()) return;
+          if (opaque) { done(aiOut, true); return; }
+          return ensureMeshes().then(function () {
+            if (cbs.cancelled()) return;
+            applyAlpha(aiOut);
+            done(aiOut, true);
+          });
         }).catch(function (err) {
           if (cbs.cancelled()) return;
           console.error('AI inbetween failed, using mesh warp:', err);
-          done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+          return ensureMeshes().then(function () {
+            done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+          });
         });
       }
-      done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
-      return Promise.resolve();
-    };
-    var first = function () {
-      if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', 0);
-      return morph.computeFlowBoth(aData, bData, workW, workH, {}, function (frac) {
-        if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', frac * 0.05);
-      }, cbs.cancelled).then(function (pair) {
-        if (cbs.cancelled()) return;
-        meshes = morph.buildMeshes(pair, workW, workH, 16);
+      return ensureMeshes().then(function () {
+        done(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
       });
     };
     var i = 0;
     var next = function () {
       if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
       var m = missingList[i];
-      var label = (cbs.aiReady() ? 'AI inbetween ' : 'mesh warp ') + m.idx + '/' + gap.genCount;
+      var label = (gap.mode === 'squash' ? 'squash frame ' : (cbs.aiReady() ? 'AI inbetween ' : 'mesh warp ')) + m.idx + '/' + gap.genCount;
       i++;
       return emit(m).then(function () {
         if (cbs.onProgress) cbs.onProgress(label, i / missingList.length);
         return new Promise(function (r) { setTimeout(r, 0); }).then(next);
       });
     };
-    return first().then(next);
+    return next();
   }
 
   var genTimer = null;
@@ -1164,15 +2039,22 @@
   function cancelRun() {
     if (state.genRun) {
       state.genRun.cancelled = true;
-      if (worker) worker.postMessage({ type: 'cancel' });
+      workers.forEach(function (w) {
+        try { w.postMessage({ type: 'cancel' }); } catch (e) {}
+      });
     }
   }
 
   function runGeneration() {
     if (state.genRun) return;
-    var gaps = computeGaps().filter(function (g) {
-      return g.genCount > 0 && !gapComplete(g);
-    });
+    // Collect gaps bottom-first so a color layer's source layer (directly under
+    // it) generates its frames before the color warp runs on top of them.
+    var gaps = [];
+    for (var li = state.layers.length - 1; li >= 0; li--) {
+      computeGaps(state.layers[li].id).forEach(function (g) {
+        if (g.genCount > 0 && !gapComplete(g)) gaps.push(g);
+      });
+    }
     var total = gaps.reduce(function (s, g) { return s + computeMissing(g).length; }, 0);
     if (!total) {
       setGenStatus('ready', 'All gaps generated ✓');
@@ -1186,48 +2068,72 @@
     setGenProgress('Preparing…', 2);
 
     var done = 0;
-    var chain = Promise.resolve();
-    gaps.forEach(function (gap, gi) {
-      chain = chain.then(function () {
-        if (run.cancelled) return;
-        var missing = computeMissing(gap);
-        if (!missing.length) return;
-        var gen = state.generated[gap.id] || (state.generated[gap.id] = []);
-        // Stamp now, so a later refresh keeps the frames we produce here even
-        // if the run is cancelled (only the tail stays dirty).
-        state.gapMeta[gap.id] = gapStamp(gap);
-        setGenStatus('downloading', 'Gap ' + (gi + 1) + '/' + gaps.length + ' (' + missing.length + ' frames)');
-        return generateGap(gap, missing, {
-          aiReady: function () { return model.isReady(); },
-          cancelled: function () { return run.cancelled; },
-          onProgress: function (label, gapFrac) {
-            setGenProgress(
-              'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + label,
-              ((done + gapFrac) / total) * 100
-            );
-          },
-          onFrame: function (frame) {
-            // Merge by index so a partially-generated gap is only topped up.
-            var found = gen.find(function (f) { return f && f.idx === frame.idx; });
-            if (found) { for (var k in found) found[k] = frame[k]; }
-            else gen.push(frame);
-            done++;
-            setGenProgress(
-              'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + (frame.ai ? 'AI frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
-              (done / total) * 100
-            );
-          }
-        }).then(function () {
-          if (!run.cancelled) {
-            gen.sort(function (a, b) { return a.idx - b.idx; });
-            refreshDirty();
-          }
-          renderLane();
-          renderFilmstrip();
-        });
+    var concurrency = Math.min(4, Math.max(1, workers.length || 1));
+    var idx = 0, active = 0, firstErr = null;
+    var generateOne = function (gap, gi) {
+      if (run.cancelled) return Promise.resolve();
+      var missing = computeMissing(gap);
+      if (!missing.length) return Promise.resolve();
+      var gen = state.generated[gap.id] || (state.generated[gap.id] = []);
+      // Stamp now, so a later refresh keeps the frames we produce here even
+      // if the run is cancelled (only the tail stays dirty).
+      state.gapMeta[gap.id] = gapStamp(gap);
+      setGenStatus('downloading', 'Gap ' + (gi + 1) + '/' + gaps.length + ' (' + missing.length + ' frames)');
+      return generateGap(gap, missing, {
+        aiReady: function () { return model.isReady(); },
+        cancelled: function () { return run.cancelled; },
+        onProgress: function (label, gapFrac) {
+          setGenProgress(
+            'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + label,
+            ((done + gapFrac) / total) * 100
+          );
+        },
+        onFrame: function (frame) {
+          // Merge by index so a partially-generated gap is only topped up.
+          var found = gen.find(function (f) { return f && f.idx === frame.idx; });
+          if (found) { for (var k in found) found[k] = frame[k]; }
+          else gen.push(frame);
+          done++;
+          setGenProgress(
+            'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + (frame.ai ? 'AI frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
+            (done / total) * 100
+          );
+        }
+      }).then(function () {
+        if (!run.cancelled) {
+          gen.sort(function (a, b) { return a.idx - b.idx; });
+          refreshDirty();
+        }
+        renderLane();
+        renderFilmstrip();
       });
+    };
+    // Run up to `concurrency` gaps at once (one per worker) instead of one big
+    // chain, so idle cores keep busy while a slow gap is generating.
+    var completion = new Promise(function (resolve, reject) {
+      function pump() {
+        if (run.cancelled || firstErr) idx = gaps.length; // stop after cancel/error
+        while (!run.cancelled && !firstErr && active < concurrency && idx < gaps.length) {
+          var gap = gaps[idx], gi = idx;
+          idx++;
+          active++;
+          generateOne(gap, gi).then(function () {
+            active--;
+            pump();
+          }, function (err) {
+            active--;
+            if (!firstErr) firstErr = err;
+            pump();
+          });
+        }
+        if (idx >= gaps.length && active === 0) {
+          if (firstErr) reject(firstErr);
+          else resolve();
+        }
+      }
+      pump();
     });
-    chain.then(function () {
+    completion.then(function () {
       if (run.cancelled) {
         setGenStatus('idle', 'Stopped. Completed frames kept; remaining gaps will auto-regenerate.');
         updateEstimate();
@@ -1254,22 +2160,6 @@
     });
   }
 
-  // ------------------------------------------------------------------
-  // Export
-  // ------------------------------------------------------------------
-  function canvasToPNGBlob(img, w, h) {
-    var canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, w, h);
-    drawContain(ctx, img, w, h);
-    return new Promise(function (resolve) {
-      canvas.toBlob(resolve, 'image/png');
-    });
-  }
-
   function downloadFrame(dataURL, name) {
     var a = document.createElement('a');
     a.href = dataURL;
@@ -1279,7 +2169,7 @@
     a.remove();
   }
 
-  // ---- minimal ZIP writer (store method, no compression) ----
+  // minimal ZIP writer (store method, no compression)
   var CRC_TABLE = (function () {
     var t = new Uint32Array(256);
     for (var n = 0; n < 256; n++) {
@@ -1371,39 +2261,246 @@
     return s;
   }
 
-  function exportPNGZip() {
+  // Export resolution + AI upscaling
+
+  // The available export resolutions: the working size itself, integer
+  // multiples of it (AI upscale when > 1x), and common fixed short-edge
+  // targets (720p/1080p/1440p/2160p/4K, matching the project's aspect).
+  // The long edge is capped at 8K so exports stay within browser memory.
+  function exportResolutionOptions() {
+    var s = workingSize();
+    var opts = [];
+    opts.push({ w: s.w, h: s.h, label: 'Working size (' + s.w + '\u00d7' + s.h + ')', ai: false });
+    [2, 4, 8].forEach(function (f) {
+      var w = s.w * f, h = s.h * f;
+      if (Math.max(w, h) > 8192) return;
+      opts.push({ w: w, h: h, label: f + '\u00d7 (' + w + '\u00d7' + h + ')', ai: f > 1 });
+    });
+    var aspect = s.w / s.h;
+    var shortEdge = Math.min(s.w, s.h);
+    [720, 1080, 1440, 2160, 3840].forEach(function (t) {
+      if (t <= shortEdge) return; // only offer sizes above the working size
+      var w, h;
+      if (aspect >= 1) { h = t; w = Math.round(t * aspect); }
+      else { w = t; h = Math.round(t / aspect); }
+      w = gridSnap(w); h = gridSnap(h);
+      if (Math.max(w, h) > 8192) return;
+      opts.push({ w: w, h: h, label: t + 'p (' + w + '\u00d7' + h + ')', ai: true });
+    });
+    return opts;
+  }
+
+  // Rebuild the resolution dropdown with the current working size. Keeps the
+  // user's previous choice when it still exists (matched by dimensions, so a
+  // working-size change that keeps the same option available keeps it picked).
+  function populateExportRes() {
+    var opts = exportResolutionOptions();
+    var prevOpt = opts[parseInt(el.exportRes.value, 10) || 0] || null;
+    el.exportRes.innerHTML = '';
+    opts.forEach(function (o, i) {
+      var opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = o.label + (o.ai ? ' \u00b7 AI upscale' : '');
+      el.exportRes.appendChild(opt);
+    });
+    var keep = -1;
+    if (prevOpt) {
+      opts.forEach(function (o, i) {
+        if (o.w === prevOpt.w && o.h === prevOpt.h) keep = i;
+      });
+    }
+    el.exportRes.selectedIndex = keep >= 0 ? keep : 0;
+  }
+
+  // Upscale one composite canvas to the target size. When the target is larger
+  // than the working size the AI upscaler (worker) runs first — a 4x ESRGAN-
+  // style model — and the result is resized to the exact target with high-
+  // quality smoothing. Falls back to a plain high-quality resize if the model
+  // can't be loaded (offline / blocked), so exports never stall.
+  var upscaleModelWarned = false;
+  function upscaleCanvasTo(canvas, tw, th) {
+    if (canvas.width === tw && canvas.height === th) return Promise.resolve(canvas);
+    var bigger = tw > canvas.width || th > canvas.height;
+    function drawScaled(src) {
+      var c = document.createElement('canvas');
+      c.width = tw; c.height = th;
+      var ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, tw, th);
+      drawContain(ctx, src, tw, th);
+      return c;
+    }
+    if (!bigger) return Promise.resolve(drawScaled(canvas));
+    // Target is larger: try the AI upscaler first.
+    if (workers.length) {
+      return upscaleViaWorker(canvas).then(function (hi) {
+        return drawScaled(hi);
+      }).catch(function (err) {
+        if (err && err.message === 'Cancelled') throw err;
+        if (!upscaleModelWarned) {
+          upscaleModelWarned = true;
+          toast('AI upscaler unavailable (' + err.message + '), using high-quality resize');
+        }
+        return drawScaled(canvas);
+      });
+    }
+    return Promise.resolve(drawScaled(canvas));
+  }
+
+  // Send one frame to the worker for AI 4x upscaling. Resolves with a canvas
+  // at 4x the input size; the upscaler model downloads+compiles on first use
+  // (progress reported through the export progress bar).
+  function upscaleViaWorker(canvas) {
+    return new Promise(function (resolve, reject) {
+      var ctx = canvas.getContext('2d');
+      var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var jobId = 'up' + (++jobSeq);
+      upscaleJobs[jobId] = {
+        resolve: function (r) { resolve(r); },
+        reject: function (e) { reject(e); },
+        onProgress: function (frac) {
+          // The first job downloads the model; later jobs resolve instantly
+          // and never report progress, so this only shows during download.
+          if (frac >= 1) setExportProgress('Upscaler ready — rendering…', 95);
+          else setExportProgress('Downloading AI upscaler ' + Math.round(frac * 100) + '%…', frac * 100);
+        }
+      };
+      try {
+        var wi = pickWorker();
+        var target = workers[wi >= 0 ? wi : 0];
+        target.postMessage({
+          type: 'upscale',
+          jobId: jobId,
+          width: canvas.width,
+          height: canvas.height,
+          rgba: img.data.buffer
+        }, [img.data.buffer]);
+      } catch (err) {
+        delete upscaleJobs[jobId];
+        reject(err);
+      }
+    }).then(function (r) {
+      // r = { data: ArrayBuffer, width, height } — build a canvas from it.
+      var c = document.createElement('canvas');
+      c.width = r.width; c.height = r.height;
+      var cctx = c.getContext('2d');
+      var id = cctx.createImageData(r.width, r.height);
+      id.data.set(new Uint8ClampedArray(r.data));
+      cctx.putImageData(id, 0, 0);
+      return c;
+    });
+  }
+
+  // Composite one playback frame and size it to the export target.
+  function exportCanvas(f, target) {
+    return compositeCanvas(f.time).then(function (c) {
+      return upscaleCanvasTo(c, target.w, target.h);
+    });
+  }
+
+  // Shared cancel state for export runs (PNG/GIF/frame chains). MP4 uses its
+  // own recorder stop; both are routed from the same Stop button.
+  function beginExport() {
+    state.exporting = true;
+    state.exportCancel = false;
+  }
+  function endExport() {
+    state.exporting = false;
+    state.exportCancel = false;
+  }
+  function cancelExport() {
+    if (!state.exporting) return;
+    state.exportCancel = true;
+    workers.forEach(function (w) {
+      try { w.postMessage({ type: 'cancel-upscale' }); } catch (e) {}
+    });
+  }
+
+  // Export progress overlay (mirrors the launch model-loading overlay)
+  function showExportOverlay(title, sub) {
+    el.exportTitle.textContent = title;
+    el.exportSub.textContent = sub || '';
+    el.exportFill.style.width = '0%';
+    el.exportLabel.textContent = '';
+    el.exportMeta.textContent = '';
+    el.exportOverlay.classList.remove('hidden');
+  }
+  function setExportProgress(label, pct) {
+    el.exportFill.style.width = clamp(pct, 0, 100) + '%';
+    el.exportLabel.textContent = label;
+    el.exportMeta.textContent = Math.round(pct) + '%';
+  }
+  function hideExportOverlay() {
+    el.exportOverlay.classList.add('hidden');
+  }
+
+  // Resolves once every generated frame is done: no active generation run, no
+  // queued regeneration, and no incomplete gaps. If frames are still missing it
+  // kicks off generation and waits, so an export never captures half-finished
+  // inbetweens. Rejects with 'Export cancelled' if the user stops the wait.
+  function waitForGeneration() {
+    return new Promise(function (resolve, reject) {
+      var tries = 0;
+      (function check() {
+        if (state.exportCancel) { reject(new Error('Export cancelled')); return; }
+        var busy = state.genRun || state.pendingRegen;
+        var incomplete = allGaps().filter(function (g) {
+          return g.genCount > 0 && !gapComplete(g);
+        }).length;
+        if (!busy && incomplete === 0) { resolve(); return; }
+        if (!busy && incomplete > 0) {
+          // Nothing running but frames missing (e.g. after a cancel): start a
+          // run so the export waits for a complete timeline.
+          scheduleGenerate(50);
+        }
+        // Safety cap (~2 min) so a stuck state can't block exports forever.
+        if (tries++ > 600) { resolve(); return; }
+        setTimeout(check, 200);
+      })();
+    });
+  }
+
+  function exportPNGZip(target) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { toast('Nothing to export.'); return; }
-    setGenStatus('downloading', 'Building PNG sequence…');
+    setExportProgress('Building PNG sequence…', 1);
     var chain = Promise.resolve();
     var files = [];
     frames.forEach(function (f, i) {
       chain = chain.then(function () {
-        return loadImage(f.img).then(function (img) {
-          return canvasToPNGBlob(img, workW, workH);
+        if (state.exportCancel) throw new Error('Export cancelled');
+        // Composite every layer at this frame's time (AI-upscaled to target).
+        return exportCanvas(f, target).then(function (canvas) {
+          return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
         }).then(function (blob) {
           return blob.arrayBuffer();
         }).then(function (buf) {
           files.push({ name: 'frame_' + pad(i + 1, 4) + '.png', data: new Uint8Array(buf) });
-          setGenProgress('Rendering ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
+          setExportProgress('Rendering ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
         });
       });
     });
     chain.then(function () {
+      if (state.exportCancel) throw new Error('Export cancelled');
       var zip = makeZip(files);
       downloadBlob(zip, 'animation-frames.zip', 'application/zip');
-      setGenStatus('ready', 'PNG sequence exported ✓');
-      el.genProgress.classList.add('hidden');
+      hideExportOverlay();
+      endExport();
+      setGenStatus('ready', 'PNG sequence exported \u2713');
     }).catch(function (err) {
+      endExport();
+      hideExportOverlay();
       setGenStatus('error', 'Export failed: ' + err.message);
     });
   }
 
-  function exportGIF() {
+  function exportGIF(target) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { toast('Nothing to export.'); return; }
     if (!gifenc) { toast('GIF encoder not available.'); return; }
-    setGenStatus('downloading', 'Encoding GIF…');
+    setExportProgress('Encoding GIF…', 1);
     var gif = gifenc.GIFEncoder();
     // Each frame holds for its real timeline duration (holds + gap spacing),
     // exactly like playback. gifenc takes delay in ms and quantizes to 10ms.
@@ -1411,44 +2508,41 @@
     var chain = Promise.resolve();
     frames.forEach(function (f, i) {
       chain = chain.then(function () {
-        return loadImage(f.img).then(function (img) {
-          var canvas = document.createElement('canvas');
-          canvas.width = workW;
-          canvas.height = workH;
-          var ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, workW, workH);
-          drawContain(ctx, img, workW, workH);
-          return ctx.getImageData(0, 0, workW, workH).data;
+        if (state.exportCancel) throw new Error('Export cancelled');
+        return exportCanvas(f, target).then(function (canvas) {
+          return canvas.getContext('2d').getImageData(0, 0, target.w, target.h).data;
         }).then(function (rgba) {
           var palette = gifenc.quantize(rgba, 256);
           var index = gifenc.applyPalette(rgba, palette);
-          gif.writeFrame(index, workW, workH, { delay: Math.round(durs[i] * 1000), palette: palette });
-          setGenProgress('Quantizing ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
+          gif.writeFrame(index, target.w, target.h, { delay: Math.round(durs[i] * 1000), palette: palette });
+          setExportProgress('Quantizing ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
         });
       });
     });
     chain.then(function () {
+      if (state.exportCancel) throw new Error('Export cancelled');
       gif.finish();
       downloadBlob(new Blob([gif.bytes()], { type: 'image/gif' }), 'animation.gif');
-      setGenStatus('ready', 'GIF exported ✓');
-      el.genProgress.classList.add('hidden');
+      hideExportOverlay();
+      endExport();
+      setGenStatus('ready', 'GIF exported \u2713');
     }).catch(function (err) {
+      endExport();
+      hideExportOverlay();
       setGenStatus('error', 'GIF export failed: ' + err.message);
     });
   }
 
-  // ---- MP4 export (records the animation with the browser's built-in encoder) ----
-  function pickVideoMime() {
+  // MP4 export (WebCodecs primary, MediaRecorder fallback)
+  // MediaRecorder H.264 is known to silently produce empty recordings for very
+  // large (4K-class) canvases, so for big targets prefer WebM/VP9, which
+  // handles large frames reliably.
+  function pickVideoMime(large) {
     if (typeof window.MediaRecorder === 'undefined') return null;
-    var candidates = [
-      'video/mp4;codecs=avc1.42E01E',
-      'video/mp4;codecs=avc1.64001f',
-      'video/mp4',
-      'video/webm;codecs=vp9',
-      'video/webm;codecs=vp8',
-      'video/webm'
-    ];
+    var candidates = large
+      ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+      : ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1.64001f', 'video/mp4',
+         'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
     for (var i = 0; i < candidates.length; i++) {
       try {
         if (window.MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
@@ -1471,53 +2565,205 @@
     return durs;
   }
 
-  function exportMP4() {
+  function exportMP4(target) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { toast('Nothing to export.'); return; }
-    var mime = pickVideoMime();
+    // WebCodecs encodes each frame as it's produced (composite → AI-upscale →
+    // encode → discard), so only one frame is in memory at a time — no matter
+    // how large the export resolution is. It also handles 4K+ frames that
+    // Chrome's MediaRecorder H.264 silently fails on. MediaRecorder is kept as
+    // a fallback for browsers without WebCodecs.
+    if (window.VideoEncoder && window.Mp4Muxer) {
+      exportMP4WebCodecs(frames, target);
+      return;
+    }
+    exportMP4Recorder(frames, target);
+  }
+
+  // Pick the first codec the browser's VideoEncoder supports at this
+  // resolution, preferring H.264 (most compatible), then VP9, then AV1 — all
+  // of which mp4-muxer can put in an MP4 container. Chrome's H.264 encoder
+  // often doesn't support 4096-wide frames, so VP9/AV1 matter for 8x exports.
+  // Resolves with { codec, muxerCodec } or null if none are supported.
+  function pickVideoCodec(w, h) {
+    var avcLevels = ['640033', '64002a', '640028', '64001f', '42001f', '42E01E'];
+    var candidates = avcLevels.map(function (l) { return { codec: 'avc1.' + l, muxerCodec: 'avc' }; })
+      .concat([
+        { codec: 'vp09.00.10.08', muxerCodec: 'vp9' },
+        { codec: 'vp09.00.41.08', muxerCodec: 'vp9' },
+        { codec: 'av01.0.04M.08', muxerCodec: 'av1' }
+      ]);
+    var i = 0;
+    function next() {
+      if (i >= candidates.length) return Promise.resolve(null);
+      var c = candidates[i++];
+      if (typeof VideoEncoder.isConfigSupported !== 'function') {
+        return Promise.resolve(c);
+      }
+      return VideoEncoder.isConfigSupported({ codec: c.codec, width: w, height: h, bitrate: 10 * 1000 * 1000 })
+        .then(function (r) { return r && r.supported ? c : next(); })
+        .catch(next);
+    }
+    return next();
+  }
+
+  // Encode the animation with WebCodecs + mp4-muxer: each frame is composited,
+  // AI-upscaled to the target size, encoded, and immediately discarded — so
+  // even 8x exports never hold more than one frame in memory. Timestamps come
+  // from each frame's real duration (holds + gap spacing), matching playback.
+  function exportMP4WebCodecs(frames, target) {
+    var durs = playbackDurations(frames);
+    var memMB = Math.round(target.w * target.h * 4 / (1024 * 1024)); // one frame at a time
+    if (memMB > 256) toast('One 4K-class frame is large; encoding may use ~' + memMB + ' MB.', 6000);
+    setExportProgress('Encoding MP4…', 1);
+    pickVideoCodec(target.w, target.h).then(function (pick) {
+      if (!pick) {
+        // No WebCodecs encoder at all for this size: last-resort MediaRecorder.
+        exportMP4Recorder(frames, target);
+        return;
+      }
+      var isAvc = pick.muxerCodec === 'avc';
+      var muxer = new window.Mp4Muxer.Muxer({
+        target: new window.Mp4Muxer.ArrayBufferTarget(),
+        video: { codec: pick.muxerCodec, width: target.w, height: target.h, frameRate: Math.max(1, state.fps) },
+        fastStart: 'in-memory'
+      });
+      var encodeError = null;
+      var encoder = new VideoEncoder({
+        output: function (chunk, meta) {
+          // mp4-muxer needs a colorSpace in the decoder config (VP9/AV1 in
+          // particular); some encoders omit it, so supply a sane default.
+          if (meta && meta.decoderConfig && !meta.decoderConfig.colorSpace) {
+            meta.decoderConfig.colorSpace = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
+          }
+          muxer.addVideoChunk(chunk, meta);
+        },
+        error: function (e) { encodeError = e; }
+      });
+      encoder.configure({ codec: pick.codec, width: target.w, height: target.h, bitrate: 10 * 1000 * 1000 });
+
+      var ts = 0; // microseconds
+      var chain = Promise.resolve();
+      frames.forEach(function (f, i) {
+        chain = chain.then(function () {
+          if (state.exportCancel) throw new Error('Export cancelled');
+          if (encodeError) throw encodeError;
+          return exportCanvas(f, target).then(function (canvas) {
+            var frame = new VideoFrame(canvas, { timestamp: ts });
+            encoder.encode(frame, { keyFrame: i % (Math.max(1, state.fps) * 2) === 0 });
+            frame.close();
+            ts += Math.round(durs[i] * 1e6);
+            setExportProgress('Encoding frame ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
+          });
+        });
+      });
+      chain.then(function () {
+        if (state.exportCancel) throw new Error('Export cancelled');
+        return encoder.flush();
+      }).then(function () {
+        if (encodeError) throw encodeError;
+        muxer.finalize();
+        var buf = muxer.target.buffer;
+        if (!buf || !buf.byteLength) throw new Error('Encoding produced no data');
+        downloadBlob(new Blob([buf], { type: 'video/mp4' }), 'animation.mp4');
+        hideExportOverlay();
+        endExport();
+        setGenStatus('ready', 'MP4 exported \u2713');
+      }).catch(function (err) {
+        try { encoder.close(); } catch (e2) {}
+        endExport();
+        hideExportOverlay();
+        if (err && err.message === 'Export cancelled') setGenStatus('error', 'Export cancelled');
+        else setGenStatus('error', 'MP4 export failed: ' + err.message);
+      });
+    }).catch(function (err) {
+      endExport();
+      hideExportOverlay();
+      setGenStatus('error', 'MP4 export failed: ' + err.message);
+    });
+  }
+
+  // Fallback: MediaRecorder canvas capture (browsers without WebCodecs).
+  function exportMP4Recorder(frames, target) {
+    var large = target.w * target.h > 1920 * 1080; // H.264 MediaRecorder is fragile at 4K+
+    var mime = pickVideoMime(large);
     if (!mime) {
+      hideExportOverlay();
+      endExport();
       setGenStatus('error', 'Video recording is not supported in this browser.');
       toast('This browser cannot record video. Use Chrome, Edge or Safari for MP4 export.');
       return;
     }
     var isMp4 = mime.indexOf('mp4') !== -1;
-    var fps = Math.max(1, state.fps);
     var canvas = document.createElement('canvas');
-    canvas.width = workW;
-    canvas.height = workH;
+    canvas.width = target.w;
+    canvas.height = target.h;
     var ctx = canvas.getContext('2d');
     if (typeof canvas.captureStream !== 'function') {
+      hideExportOverlay();
+      endExport();
       setGenStatus('error', 'This browser cannot capture canvas video.');
       toast('Canvas video capture is not supported here.');
       return;
     }
+    // High-res exports hold every frame in memory while recording; warn when
+    // that gets heavy so the user can pick a lower resolution if they want.
+    var memMB = Math.round(target.w * target.h * 4 * frames.length / (1024 * 1024));
+    if (memMB > 512) toast('This export may use ~' + memMB + ' MB of memory. A lower resolution is faster.', 7000);
 
-    setGenStatus('downloading', isMp4 ? 'Recording MP4…' : 'Recording video…');
-    setGenProgress('Preparing frames…', 2);
-    el.genProgress.classList.remove('hidden');
-    el.btnCancel.classList.remove('hidden');
+    setExportProgress(isMp4 ? 'Recording MP4…' : 'Recording video…', 1);
 
-    Promise.all(frames.map(function (f) { return loadImage(f.img); })).then(function (imgs) {
-      var stream = canvas.captureStream(fps);
+    // Composite (and AI-upscale) every layer per frame time, then record.
+    // Frames are rendered one at a time (the worker runs one upscale job at a
+    // time), so a long high-res export streams through the progress bar.
+    var rendered = null;
+    var chain = Promise.resolve();
+    var canvases = [];
+    frames.forEach(function (f, i) {
+      chain = chain.then(function () {
+        if (state.exportCancel) throw new Error('Export cancelled');
+        return exportCanvas(f, target).then(function (c) {
+          canvases.push(c);
+          setExportProgress('Upscaling frame ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 90);
+        });
+      });
+    });
+    chain.then(function () {
+      if (state.exportCancel) throw new Error('Export cancelled');
+      rendered = canvases;
+      // captureStream(0) + requestFrame() delivers each drawn frame to the
+      // recorder explicitly. The old rAF-driven approach let captureStream
+      // sample the canvas passively, which produced empty recordings when the
+      // frame loop was throttled (long upscale pre-render, background tab) or
+      // the canvas was large. With requestFrame the recording is deterministic.
+      var stream = canvas.captureStream(0);
+      var track = stream.getVideoTracks && stream.getVideoTracks()[0];
+      var useRequestFrame = !!(track && typeof track.requestFrame === 'function');
       var recorder;
       try {
         recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10 * 1000 * 1000 });
       } catch (e) {
-        el.btnCancel.classList.add('hidden');
+        endExport();
+        hideExportOverlay();
         setGenStatus('error', 'Could not start recorder: ' + e.message);
         toast('Recorder failed: ' + e.message);
         return;
       }
       var chunks = [];
       var stopped = false;
+      var aborted = false;
       recorder.ondataavailable = function (e) {
         if (e.data && e.data.size) chunks.push(e.data);
       };
       recorder.onstop = function () {
         if (stopped) return;
         stopped = true;
-        el.btnCancel.classList.add('hidden');
-        el.genProgress.classList.add('hidden');
+        endExport();
+        hideExportOverlay();
+        if (aborted) {
+          setGenStatus('error', 'Export cancelled');
+          return;
+        }
         var blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : mime });
         if (!blob.size) {
           setGenStatus('error', 'Recording produced no data. Try again.');
@@ -1525,11 +2771,12 @@
         }
         downloadBlob(blob, isMp4 ? 'animation.mp4' : 'animation.webm', blob.type);
         setGenStatus('ready', isMp4
-          ? 'MP4 exported ✓'
-          : 'Saved as WebM. This browser cannot mux MP4 (Chrome, Edge or Safari can). ✓');
+          ? 'MP4 exported \u2713'
+          : 'Saved as WebM. This browser cannot mux MP4 (Chrome, Edge or Safari can). \u2713');
       };
       recorder.onerror = function () {
-        el.btnCancel.classList.add('hidden');
+        endExport();
+        hideExportOverlay();
         setGenStatus('error', 'Recording failed.');
       };
       state.mp4Stop = function () {
@@ -1537,53 +2784,144 @@
       };
 
       var durs = playbackDurations(frames);
-      var totalDur = 0;
-      durs.forEach(function (d) { totalDur += d; });
-      var t0 = performance.now() + 300; // small delay so the recorder is ready
-      var idx = -1;
       var finished = false;
       recorder.start();
-      function draw(now) {
-        if (finished) return;
-        if (now < t0) { requestAnimationFrame(draw); return; }
-        // Advance through frames using each frame's real duration on the
-        // timeline (holds + gap spacing), matching what playback shows.
-        var elapsed = (now - t0) / 1000;
-        var next = frames.length - 1;
-        var acc = 0;
-        for (var i = 0; i < frames.length - 1; i++) {
-          if (elapsed < acc + durs[i]) { next = i; break; }
-          acc += durs[i];
-        }
-        if (next !== idx) {
-          idx = next;
+      if (useRequestFrame) {
+        // Draw each frame once, push it to the recorder with requestFrame,
+        // hold for its real duration, then free its bitmap. setTimeout keeps
+        // running even if the tab is backgrounded, so the recording always
+        // produces data instead of silently capturing nothing.
+        var cur = 0;
+        function recordNext() {
+          if (finished) return;
+          if (state.exportCancel) {
+            finished = true;
+            aborted = true;
+            state.mp4Stop();
+            state.mp4Stop = null;
+            return;
+          }
+          if (cur >= frames.length) {
+            finished = true;
+            setTimeout(function () { state.mp4Stop(); state.mp4Stop = null; }, 200);
+            return;
+          }
           ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, workW, workH);
-          drawContain(ctx, imgs[idx], workW, workH);
-          setGenProgress('Recording frame ' + (idx + 1) + '/' + frames.length, ((idx + 1) / frames.length) * 100);
+          ctx.fillRect(0, 0, target.w, target.h);
+          ctx.drawImage(rendered[cur], 0, 0, target.w, target.h);
+          track.requestFrame();
+          setExportProgress('Recording frame ' + (cur + 1) + '/' + frames.length, 90 + ((cur + 1) / frames.length) * 10);
+          rendered[cur] = null; // free the frame bitmap now that it's captured
+          var hold = Math.max(10, Math.round(durs[cur] * 1000));
+          cur++;
+          setTimeout(recordNext, hold);
         }
-        // Keep the final frame on screen for its own hold, then stop.
-        if (elapsed >= totalDur) {
-          finished = true;
-          setTimeout(function () { state.mp4Stop(); state.mp4Stop = null; }, 200);
-          return;
+        setTimeout(recordNext, 300); // small delay so the recorder is ready
+      } else {
+        // Fallback (browsers without requestFrame): paint the canvas every
+        // animation frame and let captureStream sample it at the project FPS.
+        var totalDur = 0;
+        durs.forEach(function (d) { totalDur += d; });
+        var t0 = performance.now() + 300;
+        var idx = -1;
+        function draw(now) {
+          if (finished) return;
+          if (now < t0) { requestAnimationFrame(draw); return; }
+          // Advance through frames using each frame's real duration on the
+          // timeline (holds + gap spacing), matching what playback shows.
+          var elapsed = (now - t0) / 1000;
+          var next = frames.length - 1;
+          var acc = 0;
+          for (var i = 0; i < frames.length - 1; i++) {
+            if (elapsed < acc + durs[i]) { next = i; break; }
+            acc += durs[i];
+          }
+          if (next !== idx) {
+            idx = next;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, target.w, target.h);
+            // Canvases are already at target size; draw full-bleed (aspect is
+            // preserved by the upscale pipeline, so no letterboxing needed).
+            ctx.drawImage(rendered[idx], 0, 0, target.w, target.h);
+            setExportProgress('Recording frame ' + (idx + 1) + '/' + frames.length, 90 + ((idx + 1) / frames.length) * 10);
+          }
+          // Keep the final frame on screen for its own hold, then stop.
+          if (elapsed >= totalDur) {
+            finished = true;
+            setTimeout(function () { state.mp4Stop(); state.mp4Stop = null; }, 200);
+            return;
+          }
+          requestAnimationFrame(draw);
         }
         requestAnimationFrame(draw);
       }
-      requestAnimationFrame(draw);
+      }).catch(function (err) {
+        endExport();
+        hideExportOverlay();
+        if (err && err.message === 'Export cancelled') {
+          if (state.mp4Stop) { state.mp4Stop(); state.mp4Stop = null; }
+          setGenStatus('error', 'Export cancelled');
+        } else {
+          setGenStatus('error', 'Export failed: ' + err.message);
+        }
+      });
+  }
+
+  function exportCurrentFrame(target) {
+    if (!buildPlaybackFrames().length) { toast('Nothing to export.'); return; }
+    setExportProgress('Exporting frame…', 5);
+    exportCanvas({ time: state.playhead }, target).then(function (canvas) {
+      return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+    }).then(function (blob) {
+      var url = URL.createObjectURL(blob);
+      downloadFrame(url, 'frame_' + pad(state.curIndex + 1, 4) + '.png');
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      hideExportOverlay();
+      endExport();
+      setGenStatus('ready', 'Frame exported \u2713');
     }).catch(function (err) {
-      el.btnCancel.classList.add('hidden');
-      el.genProgress.classList.add('hidden');
+      endExport();
+      hideExportOverlay();
       setGenStatus('error', 'Export failed: ' + err.message);
     });
   }
 
-  // ------------------------------------------------------------------
-  // Timeline interactions
-  // ------------------------------------------------------------------
+  // Shared entry point: run the selected format at the selected resolution.
+  // Shows the export overlay, waits for generation to finish (so the export
+  // never captures half-finished inbetweens), then dispatches.
+  function runExport() {
+    var fmt = el.exportFormat.value;
+    var opts = exportResolutionOptions();
+    var idx = parseInt(el.exportRes.value, 10) || 0;
+    var opt = opts[idx] || opts[0];
+    var target = { w: opt.w, h: opt.h };
+    // Fail fast before the overlay goes up so it can't get stuck.
+    if (!buildPlaybackFrames().length) { toast('Nothing to export.'); return; }
+    if (fmt === 'gif' && !gifenc) { toast('GIF encoder not available.'); return; }
+    closeMenus();
+    beginExport();
+    showExportOverlay(
+      fmt === 'frame' ? 'Exporting current frame' : 'Exporting ' + fmt.toUpperCase(),
+      opt.label + (opt.ai ? ' \u00b7 AI upscale' : '')
+    );
+    setExportProgress('Waiting for frames to finish generating…', 0);
+    waitForGeneration().then(function () {
+      if (state.exportCancel) throw new Error('Export cancelled');
+      if (fmt === 'png') exportPNGZip(target);
+      else if (fmt === 'gif') exportGIF(target);
+      else if (fmt === 'mp4') exportMP4(target);
+      else exportCurrentFrame(target);
+    }).catch(function (err) {
+      endExport();
+      hideExportOverlay();
+      var cancelled = err && err.message === 'Export cancelled';
+      setGenStatus('error', cancelled ? 'Export cancelled' : 'Export failed: ' + err.message);
+    });
+  }
+
   function timeFromClientX(clientX) {
     var rect = el.timeline.getBoundingClientRect();
-    var x = clientX - rect.left + el.timeline.scrollLeft;
+    var x = clientX - rect.left + el.timeline.scrollLeft - GUTTER_W;
     return x / state.zoom;
   }
 
@@ -1612,13 +2950,9 @@
     function onMove(ev) {
       var dt = (ev.clientX - startX) / state.zoom;
       var t = Math.max(0, startTime + dt);
-      // Don't drag a keyframe past the previous one's end (its time + hold).
-      var sorted = sortedKeyframes();
-      var idx = sorted.indexOf(kf);
-      if (idx > 0) {
-        var prevEnd = sorted[idx - 1].time + keyframeHold(sorted[idx - 1]);
-        if (t < prevEnd) t = prevEnd;
-      }
+      // No clamping against neighbours: a keyframe can be dragged in front of
+      // or behind other keyframes. Gaps are always derived from the time-sorted
+      // order, so crossing simply reorders the sequence and everything follows.
       if (state.snap) t = Math.round(t * state.fps) / state.fps;
       kf.time = t;
       retimeAllFrames();  // gap overlays + dots follow live
@@ -1673,8 +3007,8 @@
     function onMove(ev) {
       var dh = (ev.clientX - startX) / state.zoom;
       var h = Math.max(minHold, startHold + dh);
-      // Don't push the hold past the next keyframe's start.
-      var sorted = sortedKeyframes();
+      // Don't push the hold past the next keyframe's start (on this layer).
+      var sorted = sortedKeyframes(kf.layer);
       var idx = sorted.indexOf(kf);
       if (idx < sorted.length - 1) {
         h = Math.min(h, Math.max(minHold, sorted[idx + 1].time - kf.time));
@@ -1728,31 +3062,48 @@
     el.timeline.addEventListener('pointercancel', onUp);
   }
 
-  // ------------------------------------------------------------------
-  // Persistence
-  // ------------------------------------------------------------------
   function projectData() {
     return {
-      v: 3,
+      v: 7,
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
-        res: state.res, keysOnly: state.keysOnly
+        res: state.res, keysOnly: state.keysOnly,
+        aspect: state.aspect, customW: state.customW, customH: state.customH
       },
-      keyframes: state.keyframes.map(function (k) { return { id: k.id, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h }; }),
+      layers: state.layers.map(function (l) {
+        return { id: l.id, name: l.name, visible: l.visible, type: l.type === 'color' ? 'color' : 'normal' };
+      }),
+      activeLayerId: state.activeLayerId,
+      assets: state.assets.map(function (a) {
+        return { img: a.img, name: a.name, w: a.w, h: a.h };
+      }),
+      keyframes: state.keyframes.map(function (k) {
+        return { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h };
+      }),
       generated: state.generated,
-      gapMeta: state.gapMeta
+      gapMeta: state.gapMeta,
+      gapType: state.gapType,
+      gapSquash: state.gapSquash
     };
   }
 
+  var storageQuotaWarned = false; // one-time notice when auto-save drops frames
   function writeStorage() {
     var data = projectData();
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
     } catch (e) {
       try {
+        // Project (with its generated-frame data URLs) is too big for
+        // localStorage: save everything except the frames so the session still
+        // works, and tell the user once that frames won't survive a reload.
         delete data.generated;
         delete data.gapMeta;
         localStorage.setItem(STORE_KEY, JSON.stringify(data));
+        if (!storageQuotaWarned) {
+          storageQuotaWarned = true;
+          toast('Project too large for auto-save \u2014 generated frames won\u2019t persist across reloads. Use Save project (.ijwta) to keep them.', 8000);
+        }
       } catch (e2) { /* storage unavailable */ }
     }
   }
@@ -1766,12 +3117,54 @@
     var s = data.settings || {};
     state.fps = clamp(parseFloat(s.fps) || 12, 1, 60);
     state.snap = s.snap !== false;
-    state.zoom = clamp(parseFloat(s.zoom) || 90, 12, 400);
+    state.zoom = clamp(parseFloat(s.zoom) || 90, 12, 4000);
     state.res = [512, 448, 384, 320].indexOf(parseInt(s.res, 10)) >= 0 ? parseInt(s.res, 10) : 512;
     state.keysOnly = !!s.keysOnly;
-    state.keyframes = (data.keyframes || []).filter(function (k) { return k && k.img; });
+    state.aspect = ['auto', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom'].indexOf(s.aspect) >= 0 ? s.aspect : 'auto';
+    state.customW = clamp(parseInt(s.customW, 10) || 1920, 8, 4096);
+    state.customH = clamp(parseInt(s.customH, 10) || 1080, 8, 4096);
+    // Layers: projects saved before layers existed are wrapped in one layer.
+    var savedLayers = Array.isArray(data.layers) && data.layers.length ? data.layers : null;
+    if (savedLayers) {
+      state.layers = savedLayers.map(function (l) {
+        return {
+          id: l.id,
+          name: l.name || 'Layer',
+          visible: l.visible !== false,
+          type: l.type === 'color' ? 'color' : 'normal'
+        };
+      });
+      state.activeLayerId = state.layers.some(function (l) { return l.id === data.activeLayerId; })
+        ? data.activeLayerId : state.layers[0].id;
+    } else {
+      state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
+      state.activeLayerId = 'L1';
+    }
+    layerSeq = state.layers.reduce(function (m, l) {
+      var n = parseInt(String(l.id).replace(/\D/g, ''), 10);
+      return Math.max(m, isFinite(n) ? n + 1 : 1);
+    }, 1);
+    state.keyframes = (data.keyframes || []).filter(function (k) { return k && k.img; }).map(function (k) {
+      if (!k.layer || !state.layers.some(function (l) { return l.id === k.layer; })) k.layer = state.layers[0].id;
+      return k;
+    });
     state.generated = (data.generated && typeof data.generated === 'object') ? data.generated : {};
     state.gapMeta = (data.gapMeta && typeof data.gapMeta === 'object') ? data.gapMeta : {};
+    state.gapType = (data.gapType && typeof data.gapType === 'object') ? data.gapType : {};
+    state.gapSquash = (data.gapSquash && typeof data.gapSquash === 'object') ? data.gapSquash : {};
+    // The image library: saved with the project (v5+), otherwise derived from
+    // the keyframe images so older projects still show their images. Any
+    // keyframe image missing from the library (e.g. promoted composites) is
+    // added in keyframe order.
+    state.assets = Array.isArray(data.assets)
+      ? data.assets.filter(function (a) { return a && a.img; }).map(function (a) {
+        return { img: a.img, name: a.name, w: a.w, h: a.h };
+      })
+      : [];
+    state.keyframes.forEach(function (k) {
+      if (!k.img || state.assets.some(function (a) { return a.img === k.img; })) return;
+      state.assets.push({ img: k.img, name: k.name, w: k.w, h: k.h });
+    });
     idSeq = state.keyframes.reduce(function (m, k) {
       var n = parseInt(String(k.id).replace(/\D/g, ''), 10);
       return Math.max(m, isFinite(n) ? n + 1 : 1);
@@ -1785,8 +3178,13 @@
     var data = null;
     try { data = JSON.parse(raw); } catch (e) { return; }
     if (!data || !data.keyframes) return;
-    applyProjectData(data);
-    applyWorkSize();
+    restoringProject = true;
+    try {
+      applyProjectData(data);
+      applyWorkSize();
+    } finally {
+      restoringProject = false;
+    }
     refreshDirty();
   }
 
@@ -1804,18 +3202,24 @@
         var data = JSON.parse(reader.result);
         if (!data || !Array.isArray(data.keyframes)) throw new Error('not a project file');
         cancelRun();
-        applyProjectData(data);
-        state.selectedId = null;
-        state.playhead = 0;
-        state.curIndex = 0;
-        pause();
-        applyWorkSize();
+        restoringProject = true;
+        try {
+          applyProjectData(data);
+          state.selectedId = null;
+          state.playhead = 0;
+          state.curIndex = 0;
+          pause();
+          applyWorkSize();
+        } finally {
+          restoringProject = false;
+        }
         refreshDirty();
         renderAll();
+        syncInputs();
         save();
-        // Frames saved in the file are reused when valid (same size + stamps);
-        // anything invalidated by the load (size change, stale frames) is
-        // regenerated automatically.
+        // Frames saved in the file are reused when valid (same stamps);
+        // anything invalidated by the load (different endpoint images, a
+        // different frame count) is regenerated automatically.
         scheduleGenerate(100);
         toast('Project loaded');
       } catch (e) {
@@ -1825,15 +3229,17 @@
     reader.readAsText(file);
   }
 
-  // ------------------------------------------------------------------
-  // Wiring
-  // ------------------------------------------------------------------
   function wireEvents() {
-    el.btnAddKeyframes.addEventListener('click', function () { el.fileInput.click(); });
+    el.btnAddAssets.addEventListener('click', function () { el.fileInput.click(); });
     byId('btnEmptyAdd').addEventListener('click', function () { el.fileInput.click(); });
+    // Loading images only fills the library; place keyframes by dragging an
+    // asset from the panel onto the timeline.
+    function libraryToast(n) {
+      if (n > 0) toast(n + (n === 1 ? ' image added to your library' : ' images added to your library'));
+    }
     el.fileInput.addEventListener('change', function () {
       if (el.fileInput.files && el.fileInput.files.length) {
-        addKeyframes(el.fileInput.files).catch(function (e) { toast(e.message); });
+        addImageFiles(el.fileInput.files).then(libraryToast).catch(function (e) { toast(e.message); });
       }
       el.fileInput.value = '';
     });
@@ -1843,15 +3249,75 @@
     el.btnDelete.addEventListener('click', function () {
       if (state.selectedId) deleteKeyframe(state.selectedId);
     });
+    el.gapTypeInput.addEventListener('change', function () {
+      if (state.selectedGapId) setGapType(state.selectedGapId, el.gapTypeInput.value);
+    });
+    var squashDebounce = null;
+    el.gapSquashAmount.addEventListener('input', function () {
+      var v = parseFloat(el.gapSquashAmount.value);
+      if (!isFinite(v)) return;
+      el.gapSquashValue.textContent = Math.round(v * 100) + '%';
+      el.gapSquashValue.classList.remove('is-auto');
+      el.gapSquashAmount.title = Math.round(v * 100) + '%';
+      el.gapSquashAuto.disabled = false;
+      clearTimeout(squashDebounce);
+      squashDebounce = setTimeout(function () { applySquashChange({ amount: v }); }, 160);
+    });
+    el.gapSquashAmount.addEventListener('change', function () {
+      clearTimeout(squashDebounce);
+      var v = parseFloat(el.gapSquashAmount.value);
+      if (!isFinite(v)) return;
+      applySquashChange({ amount: v });
+    });
+    el.gapSquashCurve.addEventListener('change', function () {
+      applySquashChange({ curve: el.gapSquashCurve.value });
+    });
+    el.gapSquashPreserve.addEventListener('change', function () {
+      applySquashChange({ preserve: el.gapSquashPreserve.value });
+    });
+    el.gapSquashAuto.addEventListener('click', function () {
+      applySquashChange({ amount: null });
+    });
+
+    el.layerVisible.addEventListener('change', function () {
+      var L = layerById(state.activeLayerId);
+      if (!L) return;
+      L.visible = el.layerVisible.checked;
+      renderPreview();
+      renderLane();
+      save();
+    });
+    el.layerType.addEventListener('change', function () {
+      var L = layerById(state.activeLayerId);
+      if (!L) return;
+      var next = el.layerType.value === 'color' ? 'color' : 'normal';
+      if (L.type === next) return;
+      L.type = next;
+      // Color layers have no inbetweens; switching back to normal marks the
+      // layer's gaps dirty so they regenerate with the chosen mode.
+      refreshDirty();
+      renderAll();
+      save();
+      scheduleGenerate();
+    });
+    el.btnAddLayer.addEventListener('click', addLayer);
+    el.btnRemoveLayer.addEventListener('click', function () { removeLayer(state.activeLayerId); });
 
     // generation (automatic; regenerate button forces a full re-run)
     el.btnRegenerate.addEventListener('click', function () { invalidateAll(); scheduleGenerate(50); });
-    el.btnCancel.addEventListener('click', function () {
+    function stopCurrentTask() {
       if (state.genRun) cancelRun();
+      else if (state.exporting) cancelExport();
       else if (state.mp4Stop) { state.mp4Stop(); state.mp4Stop = null; }
+    }
+    el.btnCancel.addEventListener('click', stopCurrentTask);
+    // The export overlay's Stop always cancels the export itself (generation
+    // finishing in the background is harmless once the export is aborted).
+    el.btnExportCancelOverlay.addEventListener('click', function () {
+      if (state.exporting) cancelExport();
+      else stopCurrentTask();
     });
 
-    // playback
     el.btnPlay.addEventListener('click', togglePlay);
     el.btnLoop.addEventListener('click', function () { state.loop = !state.loop; el.btnLoop.style.opacity = state.loop ? 1 : 0.35; });
     el.btnKeysOnly.addEventListener('click', function () {
@@ -1863,7 +3329,6 @@
     el.btnStepBack.addEventListener('click', function () { pause(); step(-1); });
     el.btnStepFwd.addEventListener('click', function () { pause(); step(1); });
 
-    // settings
     el.fpsInput.addEventListener('change', function () {
       state.fps = clamp(parseInt(el.fpsInput.value, 10) || 12, 1, 60);
       el.fpsInput.value = String(state.fps);
@@ -1873,6 +3338,24 @@
       scheduleGenerate();
     });
     el.snapInput.addEventListener('change', function () { state.snap = el.snapInput.checked; save(); });
+    // Aspect ratio + custom dimensions share one path: recompute the working
+    // size, re-render, persist, and regenerate anything the size invalidates.
+    function changeSizeSetting() {
+      state.aspect = el.aspectInput.value;
+      state.customW = gridSnap(clamp(parseInt(el.customWInput.value, 10) || 1920, 8, 4096));
+      state.customH = gridSnap(clamp(parseInt(el.customHInput.value, 10) || 1080, 8, 4096));
+      var s = applyWorkSize();
+      syncInputs();
+      renderAll();
+      save();
+      scheduleGenerate();
+      if (s.w * s.h > 2 * 1024 * 1024) {
+        toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
+      }
+    }
+    el.aspectInput.addEventListener('change', changeSizeSetting);
+    el.customWInput.addEventListener('change', changeSizeSetting);
+    el.customHInput.addEventListener('change', changeSizeSetting);
     el.resInput.addEventListener('change', function () {
       state.res = parseInt(el.resInput.value, 10) || 512;
       applyWorkSize();
@@ -1902,7 +3385,6 @@
       scheduleGenerate(300);
     });
 
-    // zoom
     // (timeline zoom buttons were removed from Settings; Ctrl+wheel on the
     // timeline still zooms, and the canvas wheel/dblclick handle the viewport)
 
@@ -1934,7 +3416,15 @@
     el.previewCanvas.addEventListener('pointerup', endPan);
     el.previewCanvas.addEventListener('pointercancel', endPan);
 
-    // timeline pointer interactions
+    // Drag a layer's name gutter to reorder the stack (bottom → top). The
+    // timeline pointerdown handler below still activates the layer on click.
+    el.lane.addEventListener('pointerdown', function (e) {
+      var gutter = e.target.closest('.layer-gutter');
+      if (gutter && gutter.dataset.layer) startLayerDrag(e, gutter.dataset.layer);
+    });
+
+    // timeline pointer interactions. Clicking a layer row selects it: the
+    // name gutter, or anywhere in the layer's band (which also scrubs).
     el.timeline.addEventListener('pointerdown', function (e) {
       var chip = e.target.closest('.kf');
       if (chip) {
@@ -1942,7 +3432,16 @@
         startKfDrag(e, chip);
         return;
       }
-      if (e.target.closest('.playhead') || e.target.closest('.ruler') || e.target.closest('.lane')) startScrub(e);
+      var gapEl = e.target.closest('.gap-overlay');
+      if (gapEl) { selectGap(gapEl.dataset.gap); return; }
+      if (e.target.closest('.playhead') || e.target.closest('.ruler')) { startScrub(e); return; }
+      var row = e.target.closest('.layer-row');
+      if (row) {
+        activateLayer(row.dataset.layer);
+        if (e.target.closest('.layer-content')) startScrub(e);
+        return;
+      }
+      if (e.target.closest('.lane')) startScrub(e);
     });
     el.timeline.addEventListener('wheel', function (e) {
       if (e.ctrlKey || e.metaKey) {
@@ -1989,7 +3488,82 @@
     });
     el.timeline.addEventListener('mouseleave', hideGapTip);
 
-    // keyboard
+    // Resizable timeline: drag the divider above it to change its height.
+    function saveTimelineHeight() {
+      try { localStorage.setItem(TL_H_KEY, el.timelineCol.style.height); } catch (e) {}
+    }
+    el.tlResizer.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      el.tlResizer.classList.add('dragging');
+      document.body.classList.add('resizing-timeline');
+      try { el.tlResizer.setPointerCapture(e.pointerId); } catch (err) {}
+      var startY = e.clientY;
+      var startH = el.timelineCol.offsetHeight;
+      function onMove(ev) {
+        var h = clamp(startH - (ev.clientY - startY), TL_H_MIN, maxTimelineHeight());
+        el.timelineCol.style.height = h + 'px';
+      }
+      function onUp() {
+        el.tlResizer.classList.remove('dragging');
+        document.body.classList.remove('resizing-timeline');
+        el.tlResizer.removeEventListener('pointermove', onMove);
+        el.tlResizer.removeEventListener('pointerup', onUp);
+        el.tlResizer.removeEventListener('pointercancel', onUp);
+        saveTimelineHeight();
+        renderTimeline();
+        renderPreview(); // re-fit the viewport to the new panel size
+      }
+      el.tlResizer.addEventListener('pointermove', onMove);
+      el.tlResizer.addEventListener('pointerup', onUp);
+      el.tlResizer.addEventListener('pointercancel', onUp);
+    });
+    el.tlResizer.addEventListener('dblclick', function () {
+      el.timelineCol.style.height = TL_H_DEFAULT + 'px';
+      saveTimelineHeight();
+      renderTimeline();
+      renderPreview();
+    });
+
+    // Resizable side panels: drag the divider next to a panel to change its
+    // width, double-click to restore the default. The right panel grows leftward.
+    function saveSideWidth(key) {
+      var col = key === SIDE_W_KEY_L ? el.leftCol : el.rightCol;
+      try { localStorage.setItem(key, col.style.width); } catch (e) {}
+    }
+    function wireSideResizer(resizer, col, key, grow) {
+      resizer.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        resizer.classList.add('dragging');
+        document.body.classList.add('resizing-side');
+        try { resizer.setPointerCapture(e.pointerId); } catch (err) {}
+        var startX = e.clientX;
+        var startW = col.offsetWidth;
+        function onMove(ev) {
+          var w = clamp(startW + (ev.clientX - startX) * grow, SIDE_W_MIN, maxSideWidth());
+          col.style.width = w + 'px';
+        }
+        function onUp() {
+          resizer.classList.remove('dragging');
+          document.body.classList.remove('resizing-side');
+          resizer.removeEventListener('pointermove', onMove);
+          resizer.removeEventListener('pointerup', onUp);
+          resizer.removeEventListener('pointercancel', onUp);
+          saveSideWidth(key);
+          renderPreview(); // re-fit the viewport to the new panel size
+        }
+        resizer.addEventListener('pointermove', onMove);
+        resizer.addEventListener('pointerup', onUp);
+        resizer.addEventListener('pointercancel', onUp);
+      });
+      resizer.addEventListener('dblclick', function () {
+        col.style.width = SIDE_W_DEFAULT + 'px';
+        saveSideWidth(key);
+        renderPreview();
+      });
+    }
+    wireSideResizer(el.leftResizer, el.leftCol, SIDE_W_KEY_L, 1);   // drag right → wider
+    wireSideResizer(el.rightResizer, el.rightCol, SIDE_W_KEY_R, -1); // drag left → wider
+
     document.addEventListener('keydown', function (e) {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
@@ -1998,15 +3572,16 @@
       else if (e.key === 'ArrowLeft') { e.preventDefault(); pause(); step(-1); }
     });
 
-    // drag & drop
+    // Drag & drop files: like every other way of loading images, a drop only
+    // adds to the library (assets use the custom pointer drag in renderAssets).
     window.addEventListener('dragover', function (e) { e.preventDefault(); });
     window.addEventListener('drop', function (e) {
       e.preventDefault();
-      var files = e.dataTransfer && e.dataTransfer.files;
+      var dt = e.dataTransfer;
+      if (!dt) return;
+      var files = dt.files;
       if (!files || !files.length) return;
-      var overTimeline = e.target && e.target.closest && e.target.closest('#timeline');
-      var atTime = overTimeline ? timeFromClientX(e.clientX) : undefined;
-      addKeyframes(files, atTime).catch(function (err) { toast(err.message); });
+      addImageFiles(files).then(libraryToast).catch(function (err) { toast(err.message); });
     });
     window.addEventListener('paste', function (e) {
       var items = e.clipboardData && e.clipboardData.items;
@@ -2018,25 +3593,25 @@
           if (f) files.push(f);
         }
       }
-      if (files.length) addKeyframes(files).catch(function (err) { toast(err.message); });
+      if (files.length) addImageFiles(files).then(libraryToast).catch(function (err) { toast(err.message); });
     });
 
     // dropdown menus
-    function wireMenu(btn, menu) {
+    function wireMenu(btn, menu, onOpen) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var open = !menu.classList.contains('hidden');
         closeMenus();
-        if (!open) menu.classList.remove('hidden');
+        if (!open) {
+          menu.classList.remove('hidden');
+          if (onOpen) onOpen();
+        }
       });
       menu.addEventListener('click', function (e) { e.stopPropagation(); });
     }
-    function closeMenus() {
-      [el.settingsMenu, el.fileMenu, el.exportMenu].forEach(function (m) { m.classList.add('hidden'); });
-    }
     wireMenu(el.btnSettings, el.settingsMenu);
     wireMenu(el.btnFile, el.fileMenu);
-    wireMenu(el.btnExport, el.exportMenu);
+    wireMenu(el.btnExport, el.exportMenu, populateExportRes);
     document.addEventListener('click', closeMenus);
 
     // File menu: save / load project .ijwta files
@@ -2048,14 +3623,7 @@
       }
       el.projectInput.value = '';
     });
-    byId('btnExportPNG').addEventListener('click', exportPNGZip);
-    byId('btnExportGIF').addEventListener('click', exportGIF);
-    byId('btnExportMP4').addEventListener('click', exportMP4);
-    byId('btnExportFrame').addEventListener('click', function () {
-      var f = currentFrame();
-      if (!f) { toast('No frame to export.'); return; }
-      downloadFrame(f.img, 'frame_' + pad(state.curIndex + 1, 4) + '.png');
-    });
+    el.btnExportGo.addEventListener('click', runExport);
 
     window.addEventListener('beforeunload', writeStorage);
     document.addEventListener('visibilitychange', function () {
@@ -2063,10 +3631,13 @@
     });
   }
 
-  // ------------------------------------------------------------------
   // Model auto-load (used by boot + retry button; works via the worker or
   // inline when no worker is available)
-  // ------------------------------------------------------------------
+
+  function closeMenus() {
+    [el.settingsMenu, el.fileMenu, el.exportMenu].forEach(function (m) { m.classList.add('hidden'); });
+  }
+
   function setLoadingProgress(label, pct) {
     el.loadingFill.style.width = clamp(pct, 0, 100) + '%';
     el.loadingLabel.textContent = label;
@@ -2107,9 +3678,13 @@
     setLoadingProgress('Preparing…', 0);
     el.loadingSub.textContent = 'Fetching the local AI engine + model (one-time, ~21 MB)…';
     modelGate = new Promise(function (resolve) { modelGateResolve = resolve; });
-    if (worker) {
-      // The worker downloads + compiles the model and reports progress back.
-      worker.postMessage({ type: 'load-model' });
+    if (workers.length) {
+      // Every pool worker downloads + compiles its own copy of the model (the
+      // browser HTTP cache makes the repeated download cheap); the launch
+      // overlay hides once all of them report ready, so generation starts with
+      // the full pool available.
+      workersReady = 0;
+      workers.forEach(function (w) { w.postMessage({ type: 'load-model' }); });
       return;
     }
     model.loadModel(onModelProgress).then(onModelReady).catch(onModelError);
@@ -2120,12 +3695,31 @@
     syncInputs();
     applyWorkSize();
     refreshDirty();
+    // Restore the timeline height the user last dragged it to.
+    var savedH = 0;
+    try { savedH = parseInt(localStorage.getItem(TL_H_KEY) || '', 10) || 0; } catch (e) {}
+    if (savedH) el.timelineCol.style.height = clamp(savedH, TL_H_MIN, maxTimelineHeight()) + 'px';
+    // Restore the side panel widths the user last dragged them to.
+    [[SIDE_W_KEY_L, el.leftCol], [SIDE_W_KEY_R, el.rightCol]].forEach(function (pair) {
+      var savedW = 0;
+      try { savedW = parseInt(localStorage.getItem(pair[0]) || '', 10) || 0; } catch (e) {}
+      if (savedW) pair[1].style.width = clamp(savedW, SIDE_W_MIN, maxSideWidth()) + 'px';
+    });
     renderAll();
     wireEvents();
     initWorker();
     loadModelWithOverlay(); // download + compile the AI model on launch
     scheduleGenerate(400);  // auto-fill any dirty gaps shortly after launch
     window.addEventListener('resize', function () {
+      // If the window shrinks, keep the timeline inside the clamped range so
+      // the preview never gets crushed to nothing.
+      var h = parseInt(el.timelineCol.style.height || TL_H_DEFAULT, 10) || TL_H_DEFAULT;
+      el.timelineCol.style.height = clamp(h, TL_H_MIN, maxTimelineHeight()) + 'px';
+      // Same clamp for the side panels so the preview keeps usable width.
+      [el.leftCol, el.rightCol].forEach(function (col) {
+        var w = parseInt(col.style.width || SIDE_W_DEFAULT, 10) || SIDE_W_DEFAULT;
+        col.style.width = clamp(w, SIDE_W_MIN, maxSideWidth()) + 'px';
+      });
       renderTimeline();
       renderPreview(); // re-fit the viewport to the new panel size
     });
@@ -2135,6 +3729,12 @@
     el.fpsInput.value = String(state.fps);
     el.snapInput.checked = state.snap;
     el.resInput.value = String(state.res);
+    el.aspectInput.value = state.aspect;
+    el.customWInput.value = String(state.customW);
+    el.customHInput.value = String(state.customH);
+    var custom = state.aspect === 'custom';
+    el.customSizeRow.classList.toggle('hidden', !custom);
+    el.resInput.disabled = custom;
     el.btnLoop.style.opacity = state.loop ? 1 : 0.35;
     el.btnKeysOnly.classList.toggle('active', state.keysOnly);
     updateViewportLabel();

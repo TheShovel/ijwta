@@ -35,7 +35,22 @@
         <div class="menu hidden" id="settingsMenu">
           <label class="field">FPS <input id="fpsInput" type="number" min="1" max="60" step="1" value="12"></label>
           <label class="field check">Snap to frames <input id="snapInput" type="checkbox" checked></label>
-          <label class="field">Working size
+          <label class="field">Aspect ratio
+            <select id="aspectInput">
+              <option value="auto">Follow first frame</option>
+              <option value="16:9">16:9</option>
+              <option value="9:16">9:16</option>
+              <option value="4:3">4:3</option>
+              <option value="3:4">3:4</option>
+              <option value="1:1">1:1</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </label>
+          <div class="field-row hidden" id="customSizeRow">
+            <label class="field">Width <input id="customWInput" type="number" min="8" max="4096" step="8" value="1920"></label>
+            <label class="field">Height <input id="customHInput" type="number" min="8" max="4096" step="8" value="1080"></label>
+          </div>
+          <label class="field">Working size (long edge)
             <select id="resInput">
               <option value="512">512px (max)</option>
               <option value="448">448px</option>
@@ -57,21 +72,21 @@
           <span>Export</span>
         </button>
         <div class="menu hidden" id="exportMenu">
-          <button id="btnExportPNG">
+          <label class="field">Format
+            <select id="exportFormat">
+              <option value="png">PNG sequence (.zip)</option>
+              <option value="gif">Animated GIF</option>
+              <option value="mp4">MP4 video</option>
+              <option value="frame">Current frame (PNG)</option>
+            </select>
+          </label>
+          <label class="field">Resolution
+            <select id="exportRes"></select>
+          </label>
+          <div class="menu-sep"></div>
+          <button id="btnExportGo" class="btn primary">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            <span>PNG sequence (.zip)</span>
-          </button>
-          <button id="btnExportGIF">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            <span>Animated GIF</span>
-          </button>
-          <button id="btnExportMP4">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            <span>MP4 video</span>
-          </button>
-          <button id="btnExportFrame">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            <span>Current frame (PNG)</span>
+            <span>Export</span>
           </button>
         </div>
       </div>
@@ -79,31 +94,21 @@
   </header>
 
   <main class="stage">
-    <aside class="side-col">
-      <div class="side-title">Keyframe</div>
-      <div class="kf-card hidden" id="kfCard">
-        <div class="kf-card-thumb"><img id="kfThumb" alt=""></div>
-        <div class="kf-card-meta">
-          <div class="kf-card-name" id="kfName"></div>
-          <div class="kf-card-time" id="kfTime"></div>
-        </div>
-      </div>
-      <div class="kf-empty" id="kfEmpty">No keyframe selected. Click a frame chip on the timeline.</div>
-      <label class="field">Time (s)
-        <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
-      </label>
-      <button id="btnReplace" class="btn">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        <span>Replace image</span>
+    <aside class="side-col" id="leftCol">
+      <div class="side-title">Assets</div>
+      <button id="btnAddAssets" class="btn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Add images…</span>
       </button>
-      <button id="btnDelete" class="btn danger">Delete keyframe</button>
+      <div class="asset-grid" id="assetGrid"></div>
     </aside>
+    <div class="side-resizer" id="leftResizer" title="Drag to resize; double-click to reset"></div>
     <section class="preview-col">
       <div class="preview-wrap" id="previewWrap">
         <canvas id="previewCanvas" width="512" height="512"></canvas>
         <div id="previewEmpty" class="empty-overlay">
           <div class="empty-box">
-            <div class="empty-title">Drop your animation frames here</div>
+            <div class="empty-title">Add images to your library, then drag them onto the timeline</div>
             <button class="btn primary" id="btnEmptyAdd">Choose images…</button>
           </div>
         </div>
@@ -122,15 +127,69 @@
       </div>
       <div class="filmstrip" id="filmstrip"></div>
     </section>
+    <div class="side-resizer" id="rightResizer" title="Drag to resize; double-click to reset"></div>
+    <aside class="side-col right" id="rightCol">
+      <div class="gap-panel hidden" id="gapPanel">
+        <div class="side-title">Gap</div>
+        <div class="kf-card-name" id="gapName"></div>
+        <div class="kf-card-time" id="gapTime"></div>
+        <label class="field">Interpolation
+          <select id="gapTypeInput">
+            <option value="ai">AI</option>
+            <option value="squash">Squash</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <div id="gapSquashGroup" class="hidden squash-group">
+          <label class="field">Squash amount — <span id="gapSquashValue" class="mono">auto</span>
+            <input id="gapSquashAmount" type="range" min="-0.8" max="0.8" step="0.04" value="0">
+          </label>
+          <div class="squash-row">
+            <button id="gapSquashAuto" class="btn mini" title="Use distance-based amount">Auto</button>
+            <span class="squash-hint mono">drag to set · Auto = distance based</span>
+          </div>
+          <label class="field">Curve
+            <select id="gapSquashCurve">
+              <option value="peak">Anticipation (peak mid-gap)</option>
+              <option value="impact">Impact (builds to end)</option>
+              <option value="ease">Ease (smooth)</option>
+              <option value="linear">Linear</option>
+            </select>
+          </label>
+          <label class="field">Preserve
+            <select id="gapSquashPreserve">
+              <option value="area">Area</option>
+              <option value="volume">Volume</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div id="kfSection">
+        <div class="side-title">Keyframe</div>
+        <div class="kf-card hidden" id="kfCard">
+          <div class="kf-card-thumb"><img id="kfThumb" alt=""></div>
+          <div class="kf-card-meta">
+            <div class="kf-card-name" id="kfName"></div>
+            <div class="kf-card-time" id="kfTime"></div>
+          </div>
+        </div>
+        <div class="kf-empty" id="kfEmpty">No keyframe selected. Click a frame chip on the timeline.</div>
+        <label class="field">Time (s)
+          <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
+        </label>
+        <button id="btnReplace" class="btn">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <span>Replace image</span>
+        </button>
+        <button id="btnDelete" class="btn danger">Delete keyframe</button>
+      </div>
+    </aside>
   </main>
 
-  <footer class="timeline-col">
+  <div class="tl-resizer" id="tlResizer" title="Drag to resize; double-click to reset"></div>
+
+  <footer class="timeline-col" id="timelineCol">
     <div class="tl-transport">
-      <button id="btnAddKeyframes" class="btn" title="Add keyframe images (also drag & drop anywhere)">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Keyframes</span>
-      </button>
-      <span class="vsep"></span>
       <button id="btnStepBack" class="btn icon" title="Previous frame">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14"/><path d="M18 6l-9 6 9 6z"/></svg>
       </button>
@@ -146,6 +205,19 @@
       <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide interpolated frames)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
       </button>
+      <span class="vsep"></span>
+      <div class="layer-bar">
+        <span class="layer-bar-label">Layer <b id="layerNameLabel">Layer 1</b></span>
+        <label class="field check" title="Show or hide the active layer">Visible <input id="layerVisible" type="checkbox" checked></label>
+        <label class="field" title="Color layers tint the layers beneath them (multiply) and stretch their keyframes across time instead of interpolating">Type
+          <select id="layerType">
+            <option value="normal">Normal</option>
+            <option value="color">Color</option>
+          </select>
+        </label>
+        <button id="btnAddLayer" class="btn" title="Add a new layer above the others">Add layer</button>
+        <button id="btnRemoveLayer" class="btn danger" title="Remove the active layer">Remove</button>
+      </div>
     </div>
     <div class="timeline-scroll" id="timeline">
       <div class="track" id="track">
@@ -180,10 +252,30 @@
     </div>
   </div>
 
+  <!-- Export overlay: shown while an export runs (waits for generation first) -->
+  <div id="exportOverlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="logo big">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      </div>
+      <div class="loading-title" id="exportTitle">Exporting</div>
+      <div class="loading-sub" id="exportSub"></div>
+      <div class="progress">
+        <div class="bar"><div class="fill" id="exportFill"></div></div>
+        <div class="bar-meta"><span id="exportLabel"></span><span id="exportMeta"></span></div>
+      </div>
+      <button id="btnExportCancelOverlay" class="btn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+        <span>Stop</span>
+      </button>
+    </div>
+  </div>
+
   <input type="file" id="fileInput" accept="image/*" multiple hidden>
   <input type="file" id="projectInput" accept=".ijwta,application/json" hidden>
 
   <script src="vendor/gifenc.js"></script>
+  <script src="vendor/mp4-muxer.js"></script>
   <script src="morph.js"></script>
   <script src="model.js"></script>
   <script src="app.js"></script>

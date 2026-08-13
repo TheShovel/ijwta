@@ -21,14 +21,17 @@
 (typeof self !== 'undefined' ? self : window).IJWTA_MORPH = (function () {
   'use strict';
 
-  // ------------------------------------------------------------------
   // Image helpers (single-channel Float32Array luma)
-  // ------------------------------------------------------------------
+
+  // Premultiply luma by alpha so transparent pixels (e.g. a cut-out character)
+  // don't drag the optical flow around with invisible content; for fully opaque
+  // frames this is identical to the plain luma.
   function grayscale(rgba, w, h) {
     var n = w * h;
     var out = new Float32Array(n);
     for (var p = 0, i = 0; p < n; p++, i += 4) {
-      out[p] = 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+      var lum = 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+      out[p] = lum * (rgba[i + 3] / 255);
     }
     return out;
   }
@@ -173,9 +176,8 @@
     }
   }
 
-  // ------------------------------------------------------------------
   // Dense flow via coarse-to-fine block matching
-  // ------------------------------------------------------------------
+
   function ssdAt(a, b, wa, ha, x, y, offx, offy, r) {
     var sum = 0, count = 0;
     for (var dy = -r; dy <= r; dy++) {
@@ -354,9 +356,6 @@
     });
   }
 
-  // ------------------------------------------------------------------
-  // Rendering one intermediate frame
-  // ------------------------------------------------------------------
   function bilinearSampleRGBA(src, w, h, fx, fy) {
     if (fx < 0) fx = 0; else if (fx > w - 1) fx = w - 1;
     if (fy < 0) fy = 0; else if (fy > h - 1) fy = h - 1;
@@ -366,8 +365,8 @@
     var ax = fx - x0, ay = fy - y0;
     var i00 = (y0 * w + x0) * 4, i01 = (y0 * w + x1) * 4;
     var i10 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
-    var out = [0, 0, 0];
-    for (var c = 0; c < 3; c++) {
+    var out = [0, 0, 0, 0];
+    for (var c = 0; c < 4; c++) {
       var v0 = src[i00 + c] * (1 - ax) * (1 - ay) + src[i01 + c] * ax * (1 - ay);
       var v1 = src[i10 + c] * (1 - ax) * ay + src[i11 + c] * ax * ay;
       out[c] = v0 + v1;
@@ -376,6 +375,62 @@
   }
 
   // t in [0,1]: 0 = exactly frame A, 1 = exactly frame B.
+  // Separable box blur on all four channels (including alpha). Softens the
+  // warped color pass: hard silhouette edges feather out instead of aliasing
+  // against the sharp line art beneath, and noisy flow at object edges stops
+  // producing single-pixel color speckles.
+  function smoothRGBA(rgba, w, h, r) {
+    var n = w * h;
+    var tmp = new Uint8ClampedArray(rgba.length);
+    var out = new Uint8ClampedArray(rgba.length);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var x0 = x - r, x1 = x + r;
+        if (x0 < 0) x0 = 0; if (x1 >= w) x1 = w - 1;
+        var a0 = 0, a1 = 0, a2 = 0, a3 = 0, cnt = 0;
+        for (var xx = x0; xx <= x1; xx++) {
+          var q = (y * w + xx) * 4;
+          a0 += rgba[q]; a1 += rgba[q + 1]; a2 += rgba[q + 2]; a3 += rgba[q + 3];
+          cnt++;
+        }
+        var p = (y * w + x) * 4;
+        tmp[p] = a0 / cnt; tmp[p + 1] = a1 / cnt; tmp[p + 2] = a2 / cnt; tmp[p + 3] = a3 / cnt;
+      }
+    }
+    for (var yy = 0; yy < h; yy++) {
+      for (var xx2 = 0; xx2 < w; xx2++) {
+        var y0 = yy - r, y1 = yy + r;
+        if (y0 < 0) y0 = 0; if (y1 >= h) y1 = h - 1;
+        var b0 = 0, b1 = 0, b2 = 0, b3 = 0, cnt2 = 0;
+        for (var qy = y0; qy <= y1; qy++) {
+          var q2 = (qy * w + xx2) * 4;
+          b0 += tmp[q2]; b1 += tmp[q2 + 1]; b2 += tmp[q2 + 2]; b3 += tmp[q2 + 3];
+          cnt2++;
+        }
+        var p2 = (yy * w + xx2) * 4;
+        out[p2] = b0 / cnt2; out[p2 + 1] = b1 / cnt2; out[p2 + 2] = b2 / cnt2; out[p2 + 3] = b3 / cnt2;
+      }
+    }
+    return out;
+  }
+
+  // Warp one image fully along a flow field (the A→B flow from computeFlowBoth).
+  // Used by color layers: the colored pass of one frame is warped to follow
+  // the line-art frame it colors, so colors track the animation. A positive
+  // radius smooths the result (feathered edges) to avoid jagged color edges.
+  function warpFrame(src, flowAB, width, height, radius) {
+    var u = flowAB.u, v = flowAB.v;
+    var out = new Uint8ClampedArray(src.length);
+    var n = width * height;
+    for (var p = 0, q = 0; p < n; p++, q += 4) {
+      var x = p % width, y = (p / width) | 0;
+      var samp = bilinearSampleRGBA(src, width, height, x - u[p], y - v[p]);
+      out[q] = samp[0]; out[q + 1] = samp[1]; out[q + 2] = samp[2]; out[q + 3] = samp[3];
+    }
+    if (radius > 0) return smoothRGBA(out, width, height, radius);
+    return out;
+  }
+
   function morphFrame(aData, bData, flowAB, flowBA, width, height, t) {
     var n = width * height;
     var out = new Uint8ClampedArray(n * 4);
@@ -417,7 +472,7 @@
         for (var c = 0; c < 3; c++) {
           out[q + c] = Math.round((wa * sa[c] + wb * sb[c] + eps * (inv * aData[q + c] + t * bData[q + c])) / denom);
         }
-        out[q + 3] = 255;
+        out[q + 3] = Math.round((wa * sa[3] + wb * sb[3] + eps * (inv * aData[q + 3] + t * bData[q + 3])) / denom);
       }
     }
     return out;
@@ -437,9 +492,8 @@
     return out;
   }
 
-  // ------------------------------------------------------------------
   // Mesh-based warping
-  // ------------------------------------------------------------------
+
   // Each vertex of a coarse grid samples the (already edge-aware-median-smoothed)
   // dense flow bilinearly; bilinear interpolation between vertices makes the warp
   // behave like deforming a mesh — nearby pixels always move coherently and
@@ -504,6 +558,17 @@
     return rendered.out;
   }
 
+  // Interpolate ONLY the alpha channel with the same mesh warp, so an AI frame
+  // (RGB model, alpha 255) can borrow the layer's transparency: the silhouette
+  // moves with the warp instead of dissolving, and clear areas stay clear.
+  function warpAlpha(aData, bData, meshes, width, height, t) {
+    var rendered = renderMeshWarps(aData, bData, meshes, width, height, t);
+    var n = width * height;
+    var alpha = new Uint8Array(n);
+    for (var p = 0, q = 0; p < n; p++, q += 4) alpha[p] = rendered.out[q + 3];
+    return alpha;
+  }
+
   function renderMeshWarps(aData, bData, meshes, width, height, t) {
     var meshAB = meshes.meshAB, meshBA = meshes.meshBA;
     var n = width * height;
@@ -557,6 +622,7 @@
           for (var c = 0; c < 3; c++) {
             out[q + c] = Math.round(inv * sa[c] + t * sb[c]);
           }
+          out[q + 3] = Math.round(inv * sa[3] + t * sb[3]);
         } else if (uRaw) {
           var fu = bilinearField(uRaw, width, height, x, y);
           var fv = bilinearField(vRaw, width, height, x, y);
@@ -564,22 +630,22 @@
           out[q] = Math.round(sb2[0]);
           out[q + 1] = Math.round(sb2[1]);
           out[q + 2] = Math.round(sb2[2]);
+          out[q + 3] = sb2[3];
         } else {
           // No raw flow available: fall back to B at rest.
           var sb3 = bilinearSampleRGBA(bData, width, height, x, y);
           out[q] = Math.round(sb3[0]);
           out[q + 1] = Math.round(sb3[1]);
           out[q + 2] = Math.round(sb3[2]);
+          out[q + 3] = sb3[3];
         }
-        out[q + 3] = 255;
       }
     }
     return { out: out, covered: covered };
   }
 
-  // ------------------------------------------------------------------
   // Local recognition + generation pass
-  // ------------------------------------------------------------------
+
   // This is intentionally not a downloaded ML model: a static/offline site cannot
   // ship meaningful pretrained image generation without a large bundled model. This
   // pass is a tiny deterministic "image model" for drawings: recognize foreground
@@ -768,13 +834,107 @@
     return out;
   }
 
+  function motionStats(meshes, width, height) {
+    var mesh = meshes.meshAB;
+    var cols = mesh.cols, rows = mesh.rows, cell = mesh.cell;
+    var sumU = 0, sumV = 0, sumMag = 0, count = 0;
+    var sumX = 0, sumY = 0;
+    for (var j = 0; j < rows; j++) {
+      for (var i = 0; i < cols; i++) {
+        var idx = j * cols + i;
+        var u = mesh.u[idx], v = mesh.v[idx];
+        var mag = Math.sqrt(u * u + v * v);
+        if (mag < 1.5) continue;
+        sumU += u * mag; sumV += v * mag; sumMag += mag; count++;
+        sumX += (i * cell) * mag; sumY += (j * cell) * mag;
+      }
+    }
+    if (!count || sumMag < 1e-6) return null;
+    var ux = sumU / sumMag, uy = sumV / sumMag;
+    var len = Math.sqrt(ux * ux + uy * uy);
+    if (len < 1e-6) return null;
+    var cx = sumX / sumMag, cy = sumY / sumMag;
+    if (cx < 0) cx = 0; else if (cx > width - 1) cx = width - 1;
+    if (cy < 0) cy = 0; else if (cy > height - 1) cy = height - 1;
+    return {
+      ux: ux / len, uy: uy / len,
+      avgU: ux, avgV: uy,
+      cx: cx, cy: cy,
+      mag: len
+    };
+  }
+
+  function squashStretchFrame(aData, bData, meshes, width, height, t, opts) {
+    var stats = motionStats(meshes, width, height);
+    if (!stats) return aData.slice();
+    opts = opts || {};
+    var dist = Math.sqrt(stats.avgU * stats.avgU + stats.avgV * stats.avgV);
+    var autoK = Math.min(0.35, Math.max(0.06, dist / 100));
+    var amount = opts.amount != null && isFinite(opts.amount) ? opts.amount : autoK;
+    amount = Math.max(-0.8, Math.min(0.8, amount));
+    var curve = opts.curve || 'peak';
+    var p;
+    if (curve === 'peak') p = Math.sin(Math.PI * t);
+    else if (curve === 'impact') p = t;
+    else if (curve === 'ease') p = 0.5 * (1 - Math.cos(Math.PI * t));
+    else p = t;
+    var kEff = amount * p;
+    var s = 1 - kEff;
+    if (s < 0.4) s = 0.4; else if (s > 1.8) s = 1.8;
+    var preserve = opts.preserve || 'area';
+    var perp = preserve === 'volume' ? 1 / Math.sqrt(s) : 1 / s;
+    var px = opts.px != null && isFinite(opts.px) ? opts.px : stats.cx;
+    var py = opts.py != null && isFinite(opts.py) ? opts.py : stats.cy;
+    if (px < 0) px = 0; else if (px > width - 1) px = width - 1;
+    if (py < 0) py = 0; else if (py > height - 1) py = height - 1;
+    return affineScale(aData, width, height, stats.ux, stats.uy, s, perp, px, py);
+  }
+
+  function affineScale(src, width, height, ux, uy, s, inv, px, py) {
+    var n = width * height;
+    var out = new Uint8ClampedArray(n * 4);
+    var cx = px != null && isFinite(px) ? px : width / 2;
+    var cy = py != null && isFinite(py) ? py : height / 2;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        var dx = x - cx, dy = y - cy;
+        var along = dx * ux + dy * uy;
+        var perp = dx * -uy + dy * ux;
+        var samp = bilinearSampleRGBA(src, width, height,
+          cx + (along / s) * ux - (perp / inv) * uy,
+          cy + (along / s) * uy + (perp / inv) * ux);
+        var q = (y * width + x) * 4;
+        out[q] = Math.round(samp[0]);
+        out[q + 1] = Math.round(samp[1]);
+        out[q + 2] = Math.round(samp[2]);
+        out[q + 3] = Math.round(samp[3]);
+      }
+    }
+    return out;
+  }
+
+  // True when every pixel's alpha channel is 255 (no transparency). Lets the AI
+  // path skip the mesh-warped alpha pass entirely — RIFE already renders alpha
+  // 255, so the result is byte-identical while saving a full mesh warp per frame.
+  function isOpaque(rgba) {
+    for (var i = 3; i < rgba.length; i += 4) {
+      if (rgba[i] !== 255) return false;
+    }
+    return true;
+  }
+
   return {
     computeFlow: computeFlow,
     computeFlowBoth: computeFlowBoth,
+    warpFrame: warpFrame,
+    smoothRGBA: smoothRGBA,
     morphFrame: morphFrame,
     morphFrameMesh: morphFrameMesh,
+    squashStretchFrame: squashStretchFrame,
+    warpAlpha: warpAlpha,
     synthesizeInbetweenFrame: synthesizeInbetweenFrame,
     buildMeshes: buildMeshes,
-    blendFrame: blendFrame
+    blendFrame: blendFrame,
+    isOpaque: isOpaque
   };
 })();
