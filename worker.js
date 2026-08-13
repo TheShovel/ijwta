@@ -57,6 +57,7 @@ function colorFrame(msg) {
   morph.computeFlowBoth(a, b, width, height, {}, null, function () { return cancelled; }).then(function (pair) {
     if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
     var warped = morph.warpFrame(pass, pair.flowAB, width, height, 2);
+    morph.gateFill(warped, b, width, height);
     var buf = warped.buffer;
     post({ type: 'frame', jobId: jobId, idx: msg.idx, t: msg.t, time: msg.time, ai: false, width: width, height: height, rgba: buf }, [buf]);
     post({ type: 'gap-done', jobId: jobId });

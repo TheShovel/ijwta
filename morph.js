@@ -414,6 +414,20 @@
     return out;
   }
 
+  // Limit a warped color pass's alpha to the source frame's silhouette: the
+  // fill only shows where the source layer is opaque, so colors never bleed
+  // outside the drawing — no matter the line art's style or color. What is
+  // "line" vs "paper" inside the silhouette is left to the multiply blend
+  // (dark stays dark, light gets tinted), so fluffy soft edges and any-color
+  // line art both work.
+  function gateFill(warped, line, w, h) {
+    var n = w * h;
+    for (var p = 0, q = 0; p < n; p++, q += 4) {
+      warped[q + 3] = warped[q + 3] * (line[q + 3] / 255);
+    }
+    return warped;
+  }
+
   // Warp one image fully along a flow field (the A→B flow from computeFlowBoth).
   // Used by color layers: the colored pass of one frame is warped to follow
   // the line-art frame it colors, so colors track the animation. A positive
@@ -928,6 +942,7 @@
     computeFlowBoth: computeFlowBoth,
     warpFrame: warpFrame,
     smoothRGBA: smoothRGBA,
+    gateFill: gateFill,
     morphFrame: morphFrame,
     morphFrameMesh: morphFrameMesh,
     squashStretchFrame: squashStretchFrame,

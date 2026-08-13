@@ -453,6 +453,33 @@
     return 1 / state.fps;
   }
 
+  // The times a color gap generates frames: every source layer keyframe time
+  // and every source inbetween time inside the gap. Color frames line up 1:1
+  // with the frames actually displayed, and nowhere else.
+  function colorFrameTimes(gap) {
+    var srcLayer = state.layers[state.layers.indexOf(layerById(gap.layer)) + 1];
+    if (!srcLayer) return [];
+    var fromT = gap.fromTime, toT = gap.toTime;
+    var inclusive = gap.isTail; // the tail gap also covers a change exactly at its end
+    var inRange = function (t) { return t > fromT && (inclusive ? t <= toT : t < toT); };
+    var times = [];
+    sortedKeyframes(srcLayer.id).forEach(function (k) {
+      if (inRange(k.time)) times.push(k.time);
+    });
+    computeGaps(srcLayer.id).forEach(function (g) {
+      if (g.toTime <= fromT || g.fromTime >= toT) return;
+      var n = g.genCount;
+      for (var idx = 1; idx <= n; idx++) {
+        var t = g.fromTime + (g.toTime - g.fromTime) * (idx / (n + 1));
+        if (inRange(t)) times.push(t);
+      }
+    });
+    times.sort(function (a, b) { return a - b; });
+    var out = [];
+    times.forEach(function (t) { if (!out.length || out[out.length - 1] !== t) out.push(t); });
+    return out;
+  }
+
   // Gaps of one layer (or all layers when layerId is omitted). gapId is unique
   // across layers because keyframe ids are globally unique.
   function computeGaps(layerId) {
@@ -481,6 +508,11 @@
         genCount: genCount,
         mode: mode
       });
+      // Color layers generate only where the source actually changes content,
+      // so stretched/held source frames don't produce redundant color frames.
+      if (isColor && colorable) {
+        gaps[gaps.length - 1].genCount = colorFrameTimes(gaps[gaps.length - 1]).length;
+      }
     }
     // Color layers also color the time after their last keyframe: a synthetic
     // tail gap runs to the latest keyframe of any layer, so a single color
@@ -494,17 +526,22 @@
       var tailSec = Math.max(0, end - lastEnd);
       var tailSrc = state.layers[state.layers.indexOf(L) + 1];
       var tailColorable = !!(tailSrc && sortedKeyframes(tailSrc.id).length);
-      var tailGen = tailColorable ? Math.max(0, Math.round(tailSec * state.fps) - 1) : 0;
-      if (tailSec > 0 && tailGen > 0) {
+      if (tailSec > 0) {
         gaps.push({
           id: gapId(last.id, last.id + 'end'),
           layer: layerId,
           from: last, to: { id: last.id + 'end', time: end, img: last.img },
           fromTime: lastEnd, toTime: end,
           sec: tailSec,
-          genCount: tailGen,
-          mode: 'color'
+          genCount: 0,
+          mode: 'color',
+          isTail: true
         });
+        // Same change-based frame count as the between-keyframe gaps: the tail
+        // colors only the source's actual content changes, and holds otherwise.
+        if (tailColorable) {
+          gaps[gaps.length - 1].genCount = colorFrameTimes(gaps[gaps.length - 1]).length;
+        }
       }
     }
     return gaps;
@@ -564,6 +601,21 @@
     return stampMatches(g, state.gapMeta[g.id]) && computeMissing(g).length === 0;
   }
 
+  // Re-derive one generated frame's timestamp for its current gap. Normal gaps
+  // space frames evenly by index; color frames sit at the source layer's frame
+  // times (colorFrameTimes), so they must NOT be re-spaced evenly — that would
+  // move them off the line art and desync the colors.
+  function retimeGapFrame(g, f) {
+    if (!f.idx) return;
+    if (g.mode === 'color') {
+      var ct = colorFrameTimes(g);
+      var t = ct[f.idx - 1];
+      if (t != null) f.time = t;
+      return;
+    }
+    f.time = g.fromTime + (g.toTime - g.fromTime) * (f.idx / (g.genCount + 1));
+  }
+
   function refreshDirty() {
     var gaps = allGaps();
     var ids = {};
@@ -577,7 +629,7 @@
         // Same endpoint images + count: frames stay valid; only their
         // timestamps change when gap boundaries move.
         (state.generated[g.id] || []).forEach(function (f) {
-          if (f.idx) f.time = g.fromTime + (g.toTime - g.fromTime) * (f.idx / (g.genCount + 1));
+          retimeGapFrame(g, f);
         });
       } else if (g.genCount > 0) {
         // Images or count changed: drop stale frames so they don't linger.
@@ -616,7 +668,7 @@
   function retimeAllFrames() {
     allGaps().forEach(function (g) {
       (state.generated[g.id] || []).forEach(function (f) {
-        if (f.idx) f.time = g.fromTime + (g.toTime - g.fromTime) * (f.idx / (g.genCount + 1));
+        retimeGapFrame(g, f);
       });
     });
   }
@@ -1879,6 +1931,9 @@
     var passImg = gap.from.img;
     var passFrame = layerFrameAt(srcLayer.id, gap.from.time, false);
     if (!passFrame) return Promise.resolve();
+    // Frame times are the source layer's content changes inside the gap, not
+    // even spacing — a held source yields no frames at all.
+    var times = colorFrameTimes(gap);
     return Promise.all([loadImage(passImg), loadImage(passFrame.img)]).then(function (imgs) {
       if (cbs.cancelled()) return;
       var passData = drawImageToData(imgs[0], workW, workH);
@@ -1887,7 +1942,7 @@
       var next = function () {
         if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
         var m = missingList[i++];
-        var time = gap.fromTime + (gap.toTime - gap.fromTime) * m.t;
+        var time = (m.idx >= 1 && m.idx <= times.length) ? times[m.idx - 1] : gap.toTime;
         var srcFrame = layerFrameAt(srcLayer.id, time, false);
         if (!srcFrame) return next();
         var done = function (img) {
@@ -1903,7 +1958,9 @@
             // here, matching the mesh-warp fallback for normal gaps.
             return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
               if (cbs.cancelled()) return;
-              done(dataToDataURL(morph.warpFrame(passData, pair.flowAB, workW, workH, 2), workW, workH));
+              var warped = morph.warpFrame(passData, pair.flowAB, workW, workH, 2);
+              morph.gateFill(warped, bData, workW, workH);
+              done(dataToDataURL(warped, workW, workH));
             }).then(next);
           }
           // One worker job per frame: the worker computes the optical flow and
@@ -1935,7 +1992,9 @@
             console.error('Color worker job failed, warping inline:', err);
             return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
               if (cbs.cancelled()) return;
-              done(dataToDataURL(morph.warpFrame(passData, pair.flowAB, workW, workH, 2), workW, workH));
+              var warped = morph.warpFrame(passData, pair.flowAB, workW, workH, 2);
+              morph.gateFill(warped, bData, workW, workH);
+              done(dataToDataURL(warped, workW, workH));
             });
           }).then(next);
         }).then(next);
