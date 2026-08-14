@@ -69,6 +69,30 @@
     return frame;
   }
 
+  // Same as applyGrayAlpha but reads the model's RAW [1,3,H,W] float output
+  // (r=g=b planes for a gray input) instead of a converted RGBA buffer — skips
+  // the intermediate per-channel conversion of the alpha pass entirely. The
+  // current RGBA path also only ever reads the R channel, so this is
+  // byte-identical. `tensor` is the raw Float32Array output data.
+  function applyGrayAlphaRaw(frame, tensor, n, K) {
+    var k0 = K[0], k1 = K[1], k2 = K[2];
+    var t = tensor.subarray ? tensor.subarray(0, n) : tensor.slice(0, n);
+    for (var p = 0, q = 0; p < n; p++, q += 4) {
+      var a = t[p];
+      if (a < 0) a = 0; else if (a > 1) a = 1;
+      // Round to 8-bit FIRST and derive the strip factor from the rounded
+      // value — identical to the RGBA path (which rounds in the tensor→RGBA
+      // conversion, then divides by 255) so output is byte-for-byte the same.
+      var a8 = Math.round(a * 255);
+      var inv = 1 - a8 / 255;
+      frame[q] = frame[q] - k0 * inv;
+      frame[q + 1] = frame[q + 1] - k1 * inv;
+      frame[q + 2] = frame[q + 2] - k2 * inv;
+      frame[q + 3] = a8;
+    }
+    return frame;
+  }
+
   // Separable box blur (edges clamped). radius 1 -> 3x3, radius 2 -> 5x5.
   function boxBlur(src, dst, w, h, radius) {
     var n = w * h;
@@ -440,9 +464,20 @@
   function computeFlowGray(grayA0, grayB0, width, height, opts, onStep, isCancelled) {
     opts = opts || {};
     var maxLevels = opts.maxLevels || 5;
+    return computeFlowGrayLevels(
+      buildPyramid(grayA0, width, height, maxLevels),
+      buildPyramid(grayB0, width, height, maxLevels),
+      opts, onStep, isCancelled
+    );
+  }
+
+  // Level-walking core of computeFlowGray, given prebuilt pyramids. Both
+  // directions of a flow pair build the SAME two pyramids (swapped), so
+  // computeFlowBoth builds them once and reuses them here — identical output,
+  // two fewer pyramid builds per pair.
+  function computeFlowGrayLevels(levelsA, levelsB, opts, onStep, isCancelled) {
+    opts = opts || {};
     var maxSearchR = opts.maxSearchR || 4;
-    var levelsA = buildPyramid(grayA0, width, height, maxLevels);
-    var levelsB = buildPyramid(grayB0, width, height, maxLevels);
     var levels = levelsA.length;
     var u = null, v = null;
 
@@ -484,12 +519,16 @@
   // Both directions + mutual repair. Returns { flowAB, flowBA, flowBARaw }.
   function computeFlowBoth(rgbaA, rgbaB, width, height, opts, onStep, isCancelled) {
     opts = opts || {};
+    var maxLevels = opts.maxLevels || 5;
     var grayA = grayscale(rgbaA, width, height);
     var grayB = grayscale(rgbaB, width, height);
-    return computeFlowGray(grayA, grayB, width, height, opts, function (frac, label) {
+    // Pyramids are identical for both directions (just swapped), so build once.
+    var levelsA = buildPyramid(grayA, width, height, maxLevels);
+    var levelsB = buildPyramid(grayB, width, height, maxLevels);
+    return computeFlowGrayLevels(levelsA, levelsB, opts, function (frac, label) {
       if (onStep) onStep(frac * 0.45, label);
     }, isCancelled).then(function (ab) {
-      return computeFlowGray(grayB, grayA, width, height, opts, function (frac, label) {
+      return computeFlowGrayLevels(levelsB, levelsA, opts, function (frac, label) {
         if (onStep) onStep(0.45 + frac * 0.45, label);
       }, isCancelled).then(function (ba) {
         if (isCancelled && isCancelled()) throw new Error('Cancelled');
@@ -1451,6 +1490,23 @@
     return true;
   }
 
+  // Byte equality of two RGBA buffers (fast-fail on length). Used to detect
+  // duplicate keyframes — every inbetween of such a gap is the keyframe itself.
+  function buffersEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  // Whether two keyframes share the same alpha mask (silhouette didn't move or
+  // reshape) — then the interpolated alpha is that static mask and the second
+  // (alpha) model pass can be skipped. Only every 4th byte is compared.
+  function sameAlpha(a, b, n) {
+    if (!a || !b) return false;
+    for (var p = 0, i = 3; p < n; p++, i += 4) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
   // ---- chroma-key matte (transparent-image interpolation) ----
   // Transparent keyframes are encoded as OPAQUE images: transparent pixels are
   // painted a key color K that does not occur in the frame, and semi-transparent
@@ -1525,6 +1581,8 @@
     buildMeshes: buildMeshes,
     blendFrame: blendFrame,
     isOpaque: isOpaque,
+    buffersEqual: buffersEqual,
+    sameAlpha: sameAlpha,
     pickKeyColor: pickKeyColor,
     encodeMatte: encodeMatte,
     removeKey: removeKey,
@@ -1532,6 +1590,7 @@
     flowBgColor: flowBgColor,
     warpAlphaDense: warpAlphaDense,
     alphaToGray: alphaToGray,
-    applyGrayAlpha: applyGrayAlpha
+    applyGrayAlpha: applyGrayAlpha,
+    applyGrayAlphaRaw: applyGrayAlphaRaw
   };
 })();

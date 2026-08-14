@@ -209,7 +209,9 @@
   // inference scales near-linearly across cores, with zero quality change.
   var workers = [];          // active Worker instances
   var workerBusy = [];       // parallel to workers: active gap jobs per worker
+  var workerModelBroken = []; // parallel: true when a worker's model load failed
   var workersReady = 0;      // workers that reported model-ready
+  var workersFailed = 0;     // workers that settled by failing or dying
   var workerJobs = {};       // jobId -> { resolve, reject, onFrame, onProgress, worker }
   var jobSeq = 0;
   var upscaleJobs = {};      // jobId -> { resolve, reject } (export upscaling)
@@ -218,8 +220,13 @@
     try {
       if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated) return 1;
       var hw = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 1;
-      // Leave one core for the UI; cap at 4 workers (diminishing returns + RAM).
-      return Math.max(1, Math.min(3, hw - 1));
+      // Each non-COI worker is single-threaded, so more workers = more parallel
+      // frames (chunking spreads one gap across the pool). Cap at 6: every
+      // worker holds its own copy of the model, so RAM scales with the pool.
+      // Chrome's deviceMemory lets us dial back on low-RAM machines.
+      var cap = 6;
+      if (typeof navigator !== 'undefined' && navigator.deviceMemory && navigator.deviceMemory <= 4) cap = 3;
+      return Math.max(1, Math.min(cap, hw - 1));
     } catch (e) { return 1; }
   }
 
@@ -238,12 +245,17 @@
       return;
     }
     workerBusy.push(0);
+    workerModelBroken.push(false);
     w.onmessage = function (e) { onWorkerMessage(e, w); };
     w.onerror = function (e) {
       console.error('Worker error, dropping worker:', e && e.message);
       try { w.terminate(); } catch (err) {}
       var idx = workers.indexOf(w);
-      if (idx !== -1) { workers.splice(idx, 1); workerBusy.splice(idx, 1); }
+      if (idx !== -1) { workers.splice(idx, 1); workerBusy.splice(idx, 1); workerModelBroken.splice(idx, 1); }
+      // A worker that dies mid-load has settled by dying — count it so the
+      // launch-overlay gate can resolve even when not every worker reports back.
+      workersFailed++;
+      settleModelGate();
       // Reject the jobs that were running on this worker so the generation
       // chain falls back to inline for them.
       Object.keys(workerJobs).forEach(function (id) {
@@ -262,12 +274,20 @@
     workers.push(w);
   }
 
-  // Index of the worker with the fewest active gap jobs (round-robin-ish).
+  // Index of the worker with the fewest active gap jobs, preferring workers
+  // whose model loaded — chunks of one gap must all use the same method (AI or
+  // mesh) or the quality would visibly differ at chunk boundaries. Falls back
+  // to any worker when every one is broken.
   function pickWorker() {
     if (!workers.length) return -1;
-    var best = 0;
-    for (var i = 1; i < workers.length; i++) {
-      if (workerBusy[i] < workerBusy[best]) best = i;
+    var best = -1;
+    for (var i = 0; i < workers.length; i++) {
+      if (workerModelBroken[i]) continue;
+      if (best === -1 || workerBusy[i] < workerBusy[best]) best = i;
+    }
+    if (best === -1) {
+      best = 0;
+      for (var j = 1; j < workers.length; j++) if (workerBusy[j] < workerBusy[best]) best = j;
     }
     return best;
   }
@@ -277,19 +297,34 @@
     if (idx !== -1) workerBusy[idx] = Math.max(0, workerBusy[idx] - 1);
   }
 
+  // The launch overlay waits for every worker's model load to SETTLE (ready or
+  // failed) — a single stuck worker must not hang generation forever. If any
+  // worker has the model, the app proceeds (broken workers are skipped by
+  // pickWorker); only when ALL fail does it fall back to the mesh warp message.
+  function settleModelGate() {
+    if (state.modelReady || !modelGate || !workers.length) return;
+    if (workersReady + workersFailed >= workers.length) {
+      if (workersReady === 0) onModelError(new Error('All workers failed to load the AI model'));
+      else onModelReady();
+    }
+  }
+
   function onWorkerMessage(e, w) {
     var m = e.data;
     if (!m) return;
     if (m.type === 'model-progress') { onModelProgress(m); }
     else if (m.type === 'model-ready') {
       workersReady++;
-      if (!state.modelReady && workers.length && workersReady >= workers.length) onModelReady();
+      settleModelGate();
     }
     else if (m.type === 'model-error') {
       // A pool worker failing to load its own copy of the model shouldn't fail
-      // the app (the other workers still work); only surface it when no worker
-      // is left at all.
-      if (workers.length === 0) onModelError(new Error(m.message));
+      // the app (the other workers still work); mark it broken so pickWorker
+      // never hands it a chunk (keeps per-gap quality uniform).
+      var wi = workers.indexOf(w);
+      if (wi !== -1) workerModelBroken[wi] = true;
+      workersFailed++;
+      settleModelGate();
     }
     else if (m.type === 'gap-progress') {
       var jp = workerJobs[m.jobId];
@@ -860,6 +895,38 @@
     });
   }
 
+  // Filmstrip thumbs are displayed at ~66×74 px, but were composited at FULL
+  // work resolution — a full-res canvas render + toDataURL per thumb, per
+  // refresh, on the MAIN thread during generation (canvas.toDataURL is the
+  // exact Firefox-slow op the worker encode path avoids). Composite at thumb
+  // scale instead (2× for retina, capped): visually identical on a 66×74 img,
+  // ~20× less canvas work and a far cheaper PNG encode.
+  var THUMB_MAX_W = 160;
+  function compositeThumb(t) {
+    var frames = framesAt(t, false);
+    var tw = workW, th = workH;
+    if (tw > THUMB_MAX_W) {
+      var s = THUMB_MAX_W / tw;
+      tw = Math.round(tw * s);
+      th = Math.round(th * s);
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = tw;
+    canvas.height = th;
+    var ctx = canvas.getContext('2d');
+    return Promise.all(frames.map(function (f) {
+      return loadImage(f.img).catch(function () { return null; });
+    })).then(function (imgs) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, tw, th);
+      for (var i = 0; i < frames.length; i++) {
+        if (!imgs[i]) continue;
+        drawContain(ctx, imgs[i], tw, th);
+      }
+      return canvas.toDataURL('image/png');
+    });
+  }
+
   function compositeDataURL(t) {
     return compositeCanvas(t).then(function (c) { return c.toDataURL('image/png'); });
   }
@@ -1067,13 +1134,15 @@
 
   // Composite thumbnails are expensive (full canvas render + toDataURL per
   // frame); cache by the composite's identity so re-rendering the filmstrip
-  // during generation doesn't recompute frames that haven't changed.
+  // during generation doesn't recompute frames that haven't changed. The
+  // composite itself renders at THUMB scale, not work resolution (see
+  // compositeThumb) — the filmstrip only ever shows ~66×74 thumbs.
   var thumbCache = {};
   var thumbCacheOrder = [];
   function thumbURL(t) {
     var key = compositeKey(t, false);
     if (thumbCache[key]) return Promise.resolve(thumbCache[key]);
-    return compositeDataURL(t).then(function (url) {
+    return compositeThumb(t).then(function (url) {
       thumbCache[key] = url;
       thumbCacheOrder.push(key);
       // Bound the cache so long editing sessions don't leak every composite.
@@ -1875,7 +1944,23 @@
     el.genStatus.textContent = text || '';
   }
 
+  // Progress bar updates are throttled: they write three DOM properties per
+  // frame and generation can complete hundreds of frames, so pushing every
+  // frame would thrash layout on the main thread during a run.
+  var genProgTimer = null;
+  var genProgLabel = null;
+  var genProgPct = 0;
   function setGenProgress(label, pct) {
+    genProgLabel = label;
+    genProgPct = pct;
+    if (genProgTimer) return;
+    genProgTimer = setTimeout(flushGenProgress, 80);
+  }
+  function flushGenProgress() {
+    if (genProgTimer) { clearTimeout(genProgTimer); genProgTimer = null; }
+    if (genProgLabel == null) return;
+    var label = genProgLabel, pct = genProgPct;
+    genProgLabel = null;
     el.genProgress.classList.remove('hidden');
     el.genFill.style.width = clamp(pct, 0, 100) + '%';
     el.genLabel.textContent = label;
@@ -1906,14 +1991,38 @@
 
   // Rasterize one keyframe image to a raw RGBA buffer at working size (clear
   // transparent so cut-out characters keep their alpha through interpolation).
+  // Buffers are cached by (image src, size): with gap chunking the same
+  // keyframe pair is rasterized once per chunk, so without this a 4-chunk gap
+  // redraws both canvases 4×. Capped small — each entry is a full frame's RGBA.
+  var drawCache = new Map();
   function drawImageToData(img, w, h) {
+    var key = (img.src || img) + '|' + w + 'x' + h;
+    if (drawCache.has(key)) return drawCache.get(key);
     var canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, w, h);
     drawContain(ctx, img, w, h);
-    return ctx.getImageData(0, 0, w, h).data;
+    var data = ctx.getImageData(0, 0, w, h).data;
+    if (drawCache.size > 16) drawCache.clear();
+    drawCache.set(key, data);
+    return data;
+  }
+
+  // matteK / opacity decision is a property of the keyframe PAIR, not the
+  // chunk: memoize it per (endpoint images, size) so chunked jobs don't each
+  // re-run isOpaque + pickKeyColor over the full frame.
+  var matteMemo = new Map();
+  function matteFor(gap, aData, bData) {
+    var key = gap.from.img + '>' + gap.to.img + '|' + workW + 'x' + workH;
+    if (matteMemo.has(key)) return matteMemo.get(key);
+    var n = workW * workH;
+    var m = { opaque: morph.isOpaque(aData) && morph.isOpaque(bData), K: null };
+    if (!m.opaque) m.K = morph.pickKeyColor(aData, bData, n);
+    if (matteMemo.size > 64) matteMemo.clear();
+    matteMemo.set(key, m);
+    return m;
   }
 
   // Generate one gap's missing frames. The endpoints are the layer's own two
@@ -1934,11 +2043,8 @@
       if (cbs.cancelled()) return;
       var aData = drawImageToData(imgs[0], workW, workH);
       var bData = drawImageToData(imgs[1], workW, workH);
-      var n = workW * workH;
-      var matteK = null;
-      if (!(morph.isOpaque(aData) && morph.isOpaque(bData))) {
-        matteK = morph.pickKeyColor(aData, bData, n);
-      }
+      var m = matteFor(gap, aData, bData);
+      var matteK = m.K;
       if (workers.length) {
         var jobId = 'job' + (++jobSeq);
         var wi = pickWorker();
@@ -1951,17 +2057,18 @@
             worker: workers[wi]
           };
           workerBusy[wi]++;
-          var aBuf = aData.buffer, bBuf = bData.buffer;
+          // Cached buffers must be copied before transfer (transfer detaches).
+          var aBuf = aData.slice().buffer, bBuf = bData.slice().buffer;
           var extra = {};
           var transfer = [aBuf, bBuf];
+          // The matte memo already computed opacity; pass it so the worker
+          // skips its own isOpaque scan of both buffers.
+          extra.opaque = !!m.opaque;
           if (matteK) {
-            // Encode matte copies for the model/flow input (opaque).
-            var aMatte = morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK);
-            var bMatte = morph.encodeMatte(new Uint8ClampedArray(bData), n, matteK);
-            extra.aMatte = aMatte.buffer;
-            extra.bMatte = bMatte.buffer;
+            // Only the key color is sent: the worker re-encodes the matte from
+            // the originals itself (it needs them anyway for the alpha warp),
+            // so no duplicated matte buffers are transferred per job.
             extra.matteK = matteK;
-            transfer.push(aMatte.buffer, bMatte.buffer);
           }
           workers[wi].postMessage(Object.assign({
             type: 'generate-gap',
@@ -2004,12 +2111,33 @@
     // Model-driven opacity: alpha channel as grayscale for a second model pass.
     var aGray = matteK ? morph.alphaToGray(aData, workW, workH) : null;
     var bGray = matteK ? morph.alphaToGray(bData, workW, workH) : null;
-    var aFlowTex = opaque ? aData : morph.extendTexture(aData, workW, workH, 10, morph.flowBgColor(aData, bData, n));
-    var bFlowTex = opaque ? bData : morph.extendTexture(bData, workW, workH, 10, morph.flowBgColor(aData, bData, n));
+    // Same static-gap shortcuts as the worker: duplicate keyframes skip both
+    // model passes; identical alpha masks skip the alpha pass (removeKey stamps
+    // the static mask with the same math the model would produce).
+    var framesIdentical = morph.buffersEqual(aData, bData);
+    var staticAlpha = null;
+    if (!framesIdentical && matteK && morph.sameAlpha(aData, bData, n)) {
+      // removeKey takes a per-pixel alpha array (0..255), not an RGBA buffer.
+      var sa = new Uint8Array(n);
+      for (var p = 0, i = 3; p < n; p++, i += 4) sa[p] = aData[i];
+      staticAlpha = sa;
+    }
+    // Textured flow inputs built lazily inside ensureMeshes — the AI path never
+    // needs the flow and extendTexture is an expensive distance transform.
+    var flowBg = null;
+    var aFlowTex = null, bFlowTex = null;
     var flowOpts = { maxSearchR: 8 };
     var ensureMeshes = function () {
       if (meshes) return Promise.resolve();
       if (flowPromise) return flowPromise;
+      if (!aFlowTex) {
+        if (opaque) { aFlowTex = aData; bFlowTex = bData; }
+        else {
+          flowBg = morph.flowBgColor(aData, bData, n);
+          aFlowTex = morph.extendTexture(aData, workW, workH, 10, flowBg);
+          bFlowTex = morph.extendTexture(bData, workW, workH, 10, flowBg);
+        }
+      }
       if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', 0);
       flowPromise = morph.computeFlowBoth(aFlowTex, bFlowTex, workW, workH, flowOpts, function (frac) {
         if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', frac * 0.05);
@@ -2066,14 +2194,26 @@
         return morph.morphFrame(aFlow, bFlow, meshes.flowAB, meshes.flowBA, workW, workH, t);
       };
       if (cbs.aiReady()) {
+        // Duplicate keyframes: every inbetween IS the keyframe — ship a copy
+        // and skip both model passes.
+        if (framesIdentical) {
+          return finish(new Uint8ClampedArray(aData), true);
+        }
         return model.interpolate(aFlow, bFlow, workW, workH, t).then(function (aiOut) {
           if (cbs.cancelled()) return;
           if (opaque) return finish(aiOut, true);
+          // Static silhouette: stamp the shared mask with removeKey and skip
+          // the alpha model pass entirely.
+          if (staticAlpha) {
+            morph.removeKey(aiOut, n, matteK, staticAlpha);
+            return finish(aiOut, true);
+          }
           if (aGray) {
             // Model-driven alpha: interpolate the alpha channel as grayscale.
-            return model.interpolate(aGray, bGray, workW, workH, t).then(function (alphaOut) {
+            // Output consumed raw (channel 0) — no RGBA conversion needed.
+            return model.interpolate(aGray, bGray, workW, workH, t, true).then(function (alphaTensor) {
               if (cbs.cancelled()) return;
-              morph.applyGrayAlpha(aiOut, alphaOut, n, matteK);
+              morph.applyGrayAlphaRaw(aiOut, alphaTensor, n, matteK);
               return finish(aiOut, true);
             }, function () {
               if (cbs.cancelled()) return;
@@ -2190,7 +2330,25 @@
         if (g.genCount > 0 && !gapComplete(g)) gaps.push(g);
       });
     });
-    var total = gaps.reduce(function (s, g) { return s + computeMissing(g).length; }, 0);
+    // A gap's missing frames are split across the worker pool: each chunk runs
+    // as its own job on a different worker, so a timeline with one big gap (the
+    // common case) renders on every core instead of a single worker. Chunks of
+    // the same gap recompute the same deterministic optical flow — flow is a
+    // small share of a gap's cost and the rendered frames are byte-identical.
+    var tasks = [];
+    var total = 0;
+    gaps.forEach(function (gap, gi) {
+      var missing = computeMissing(gap);
+      if (!missing.length) return;
+      var parts = Math.max(1, Math.min(workers.length || 1, missing.length));
+      var per = Math.ceil(missing.length / parts);
+      for (var ci = 0; ci < parts; ci++) {
+        var chunk = missing.slice(ci * per, (ci + 1) * per);
+        if (!chunk.length) break;
+        tasks.push({ gap: gap, missing: chunk, gi: gi, ci: ci, parts: parts });
+        total += chunk.length;
+      }
+    });
     if (!total) {
       setGenStatus('ready', 'All gaps generated ✓');
       updateEstimate();
@@ -2203,34 +2361,37 @@
     setGenProgress('Preparing…', 2);
 
     var done = 0;
-    var concurrency = Math.min(4, Math.max(1, workers.length || 1));
+    var concurrency = Math.min(6, Math.max(1, workers.length || 1));
     var idx = 0, active = 0, firstErr = null;
-    var generateOne = function (gap, gi) {
+    var generateOne = function (task) {
       if (run.cancelled) return Promise.resolve();
-      var missing = computeMissing(gap);
+      var gap = task.gap;
+      var missing = task.missing;
       if (!missing.length) return Promise.resolve();
       var gen = state.generated[gap.id] || (state.generated[gap.id] = []);
+      // Index by frame idx so concurrent chunks of one gap merge in O(1)
+      // instead of a linear find per frame.
+      var genIndex = {};
+      gen.forEach(function (f) { if (f) genIndex[f.idx] = f; });
       // Stamp now, so a later refresh keeps the frames we produce here even
       // if the run is cancelled (only the tail stays dirty).
       state.gapMeta[gap.id] = gapStamp(gap);
-      setGenStatus('downloading', 'Gap ' + (gi + 1) + '/' + gaps.length + ' (' + missing.length + ' frames)');
+      var label = 'Gap ' + (task.gi + 1) + '/' + gaps.length + (task.parts > 1 ? ' · part ' + (task.ci + 1) + '/' + task.parts : '');
+      setGenStatus('downloading', label + ' (' + missing.length + ' frames)');
       return generateGap(gap, missing, {
         aiReady: function () { return model.isReady(); },
         cancelled: function () { return run.cancelled; },
-        onProgress: function (label, gapFrac) {
-          setGenProgress(
-            'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + label,
-            ((done + gapFrac) / total) * 100
-          );
+        onProgress: function (l, gapFrac) {
+          setGenProgress(label + ' · ' + l, ((done + gapFrac) / total) * 100);
         },
         onFrame: function (frame) {
           // Merge by index so a partially-generated gap is only topped up.
-          var found = gen.find(function (f) { return f && f.idx === frame.idx; });
+          var found = genIndex[frame.idx];
           if (found) { for (var k in found) found[k] = frame[k]; }
-          else gen.push(frame);
+          else { gen.push(frame); genIndex[frame.idx] = frame; }
           done++;
           setGenProgress(
-            'Gap ' + (gi + 1) + '/' + gaps.length + ' · ' + (frame.ai ? 'AI frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
+            label + ' · ' + (frame.ai ? 'AI frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
             (done / total) * 100
           );
         }
@@ -2242,16 +2403,16 @@
         scheduleGenView();
       });
     };
-    // Run up to `concurrency` gaps at once (one per worker) instead of one big
-    // chain, so idle cores keep busy while a slow gap is generating.
+    // Run up to `concurrency` chunk jobs at once (one per worker) instead of
+    // one big chain, so idle cores stay busy while a slow gap is generating.
     var completion = new Promise(function (resolve, reject) {
       function pump() {
-        if (run.cancelled || firstErr) idx = gaps.length; // stop after cancel/error
-        while (!run.cancelled && !firstErr && active < concurrency && idx < gaps.length) {
-          var gap = gaps[idx], gi = idx;
+        if (run.cancelled || firstErr) idx = tasks.length; // stop after cancel/error
+        while (!run.cancelled && !firstErr && active < concurrency && idx < tasks.length) {
+          var task = tasks[idx];
           idx++;
           active++;
-          generateOne(gap, gi).then(function () {
+          generateOne(task).then(function () {
             active--;
             pump();
           }, function (err) {
@@ -2260,7 +2421,7 @@
             pump();
           });
         }
-        if (idx >= gaps.length && active === 0) {
+        if (idx >= tasks.length && active === 0) {
           if (firstErr) reject(firstErr);
           else resolve();
         }
@@ -2285,6 +2446,7 @@
     }).finally(function () {
       state.genRun = null;
       el.btnCancel.classList.add('hidden');
+      flushGenProgress();
       el.genProgress.classList.add('hidden');
       save();
       flushGenView();
@@ -3922,7 +4084,8 @@
       // overlay hides once all of them report ready, so generation starts with
       // the full pool available.
       workersReady = 0;
-      workers.forEach(function (w) { w.postMessage({ type: 'load-model' }); });
+      workersFailed = 0;
+      workers.forEach(function (w, i) { workerModelBroken[i] = false; w.postMessage({ type: 'load-model' }); });
       return;
     }
     model.loadModel(onModelProgress).then(onModelReady).catch(onModelError);

@@ -13,6 +13,23 @@
 
 importScripts('morph.js', 'model.js');
 
+// Cheap macrotask yield between frames so a cancel message can be processed
+// (setTimeout(0) is clamped to ~1-4ms in Firefox workers; a MessageChannel
+// post is ~0.2ms). Falls back to setTimeout where MessageChannel is missing.
+var yieldToEventLoop = (typeof MessageChannel !== 'undefined')
+  ? (function () {
+      var mc = new MessageChannel();
+      var queue = [];
+      mc.port1.onmessage = function () {
+        var fn = queue.shift();
+        if (fn) fn();
+      };
+      return function () {
+        return new Promise(function (r) { queue.push(r); mc.port2.postMessage(0); });
+      };
+    })()
+  : function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+
 var morph = self.IJWTA_MORPH;
 var model = self.IJWTA_MODEL;
 var cancelled = false;
@@ -45,15 +62,22 @@ function loadModel() {
 // Encode a finished frame to a PNG data URL inside the worker (OffscreenCanvas),
 // so the main thread never runs the (Firefox-slow) canvas.toDataURL per frame.
 // Falls back to null when unsupported — the caller then ships the raw RGBA.
-function encodePNG(rgba, width, height) {
+// Each encode SLOT owns one [canvas, ctx, imageData] triple, pooled across
+// frames of the same size: the slot's previous encode has fully resolved
+// before it is reused (the encode queue in generateGap guarantees it), so this
+// is safe and avoids per-frame canvas/ImageData allocation (GC churn is a
+// Firefox jank source).
+function encodePNG(rgba, width, height, slot) {
   if (typeof OffscreenCanvas === 'undefined' || typeof FileReaderSync === 'undefined') return null;
   try {
-    var c = new OffscreenCanvas(width, height);
-    var ctx = c.getContext('2d');
-    var img = ctx.createImageData(width, height);
-    img.data.set(rgba);
-    ctx.putImageData(img, 0, 0);
-    return c.convertToBlob({ type: 'image/png' }).then(function (blob) {
+    if (!slot.c) {
+      slot.c = new OffscreenCanvas(width, height);
+      slot.ctx = slot.c.getContext('2d');
+      slot.img = slot.ctx.createImageData(width, height);
+    }
+    slot.img.data.set(rgba);
+    slot.ctx.putImageData(slot.img, 0, 0);
+    return slot.c.convertToBlob({ type: 'image/png' }).then(function (blob) {
       return new FileReaderSync().readAsDataURL(blob);
     });
   } catch (e) { return null; }
@@ -62,8 +86,8 @@ function encodePNG(rgba, width, height) {
 // Post a finished frame, encoding to a PNG data URL in the worker when
 // possible. Any encode failure (unsupported codec, memory pressure) falls back
 // to shipping the raw RGBA buffer — generation never stalls on encoding.
-function postFrame(jobId, frame, rgba, width, height) {
-  var enc = encodePNG(rgba, width, height);
+function postFrame(jobId, frame, rgba, width, height, slot) {
+  var enc = encodePNG(rgba, width, height, slot);
   if (!enc) {
     var buf = rgba.buffer;
     post({ type: 'frame', jobId: jobId, idx: frame.idx, t: frame.t, time: frame.time, ai: frame.ai, width: width, height: height, rgba: buf }, [buf]);
@@ -98,13 +122,40 @@ function generateGap(msg) {
   var meshes = null;
   var flowPromise = null;
   var isCancelled = function () { return cancelled; };
+  // PNG encoding runs off the critical path: up to ENCODE_LIMIT frames encode
+  // concurrently while the next inference runs (encodePNG copies the RGBA into
+  // the slot's own ImageData synchronously, so the caller's buffer is safe to
+  // reuse). emit() resolves when an encode SLOT frees, not when the encode
+  // finishes, so the next frame's model call overlaps the previous frame's PNG
+  // encode. Each slot owns its canvas (see encodePNG).
+  var ENCODE_LIMIT = 3;
+  var encodeSlots = [];
+  var inflightPosts = [];
+  for (var ei = 0; ei < ENCODE_LIMIT; ei++) {
+    encodeSlots.push({ tail: Promise.resolve(), c: null, ctx: null, img: null });
+  }
+  function queuePost(jobId, frame, rgba, width, height) {
+    var slot = encodeSlots.shift();
+    var free = slot.tail; // resolves when this slot's previous encode finished
+    var p = free.then(function () {
+      if (cancelled) return;
+      return postFrame(jobId, frame, rgba, width, height, slot);
+    });
+    slot.tail = p;
+    encodeSlots.push(slot);
+    inflightPosts.push(p);
+    return free;
+  }
   // Matte gaps: the model runs on the opaque matte input (aFlow/bFlow) so
   // transparent pixels never feed the model; the ORIGINAL buffers feed the alpha
   // warp. The OPTICAL FLOW runs on texture-extended originals (extendTexture):
   // thin line art on a uniform background starves block matching, and the flow
   // comes back ~0 → the morph crossfades into a double-exposed ghost. `opaque`
   // reflects the ORIGINAL keyframes: a matte gap still needs the alpha pass.
-  var opaque = morph.isOpaque(aData) && morph.isOpaque(bData);
+  // The main thread already computed this (its matte memo) — pass it through so
+  // the worker doesn't re-scan both buffers; tests that send raw messages get
+  // the fallback scan.
+  var opaque = msg.opaque !== undefined ? msg.opaque : (morph.isOpaque(aData) && morph.isOpaque(bData));
   var aFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK) : aData;
   var bFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(bData), n, matteK) : bData;
   // Model-driven opacity: run the model on the alpha channel as grayscale so
@@ -112,14 +163,41 @@ function generateGap(msg) {
   // mesh warp is still below).
   var aGray = matteK ? morph.alphaToGray(aData, width, height) : null;
   var bGray = matteK ? morph.alphaToGray(bData, width, height) : null;
+  // Skip-the-model shortcuts for static gaps:
+  //  - byte-identical keyframes: every inbetween IS the keyframe (0 model calls)
+  //  - identical alpha masks: the interpolated alpha is the static mask, so the
+  //    second (alpha) model pass is skipped and removeKey stamps it (the same
+  //    math applyGrayAlphaRaw would do). Both are byte-equivalent to the model
+  //    path (RIFE returns the input for identical inputs, and round() recovers
+  //    the exact mask values).
+  var framesIdentical = morph.buffersEqual(aData, bData);
+  var staticAlpha = null;
+  if (!framesIdentical && matteK && morph.sameAlpha(aData, bData, n)) {
+    // removeKey takes a per-pixel alpha array (0..255), not an RGBA buffer.
+    var sa = new Uint8Array(n);
+    for (var p = 0, i = 3; p < n; p++, i += 4) sa[p] = aData[i];
+    staticAlpha = sa;
+  }
   // Textured, opaque flow inputs (extended originals) so large/thin motion is
   // tracked; the flow opts widen the coarsest search radius for big gaps.
-  var aFlowTex = opaque ? aData : morph.extendTexture(aData, width, height, 10, morph.flowBgColor(aData, bData, n));
-  var bFlowTex = opaque ? bData : morph.extendTexture(bData, width, height, 10, morph.flowBgColor(aData, bData, n));
+  // Built lazily inside ensureMeshes: the AI path never needs the flow (the
+  // model handles motion + alpha), and extendTexture is an expensive distance
+  // transform — running it eagerly on every transparent gap is wasted work
+  // when the flow never gets computed.
+  var flowBg = null;
+  var aFlowTex = null, bFlowTex = null;
   var flowOpts = { maxSearchR: 8 };
   var ensureMeshes = function () {
     if (meshes) return Promise.resolve();
     if (flowPromise) return flowPromise;
+    if (!aFlowTex) {
+      if (opaque) { aFlowTex = aData; bFlowTex = bData; }
+      else {
+        flowBg = morph.flowBgColor(aData, bData, n);
+        aFlowTex = morph.extendTexture(aData, width, height, 10, flowBg);
+        bFlowTex = morph.extendTexture(bData, width, height, 10, flowBg);
+      }
+    }
     post({ type: 'gap-progress', jobId: jobId, label: 'Preparing interpolation…', gapFrac: 0 });
     flowPromise = morph.computeFlowBoth(aFlowTex, bFlowTex, width, height, flowOpts, function (frac) {
       post({ type: 'gap-progress', jobId: jobId, label: 'Preparing interpolation…', gapFrac: frac * 0.05 });
@@ -163,7 +241,7 @@ function generateGap(msg) {
     // (OffscreenCanvas) so the main thread never runs the slow canvas.toDataURL
     // per frame. Falls back to shipping the raw RGBA buffer otherwise.
     var send = function (rgba, ai) {
-      return postFrame(jobId, { idx: m.idx, t: t, time: time, ai: ai }, rgba, width, height);
+      return queuePost(jobId, { idx: m.idx, t: t, time: time, ai: ai }, rgba, width, height);
     };
     // Motion blur needs the flow, so it forces the (lazily-computed) meshes
     // even for the opaque-AI path that would otherwise skip them entirely.
@@ -202,14 +280,27 @@ function generateGap(msg) {
       });
     }
     if (model.isReady()) {
+      // Duplicate keyframes: every inbetween IS the keyframe — ship a copy
+      // (never transfer/mutate the shared original) and skip both model passes.
+      if (framesIdentical) {
+        return finish(new Uint8ClampedArray(aData), true);
+      }
       return model.interpolate(aFlow, bFlow, width, height, t).then(function (aiOut) {
         if (cancelled) return;
         if (opaque) return finish(aiOut, true);
-        // Model-driven alpha: interpolate the alpha channel as grayscale.
+        // Static silhouette: the interpolated alpha is the keyframes' shared
+        // mask — stamp it with removeKey (identical math to applyGrayAlphaRaw)
+        // and skip the alpha model pass entirely.
+        if (staticAlpha) {
+          morph.removeKey(aiOut, n, matteK, staticAlpha);
+          return finish(aiOut, true);
+        }
+        // Model-driven alpha: interpolate the alpha channel as grayscale. The
+        // output is consumed raw (channel 0) — no RGBA conversion needed.
         if (aGray) {
-          return model.interpolate(aGray, bGray, width, height, t).then(function (alphaOut) {
+          return model.interpolate(aGray, bGray, width, height, t, true).then(function (alphaTensor) {
             if (cancelled) return;
-            morph.applyGrayAlpha(aiOut, alphaOut, n, matteK);
+            morph.applyGrayAlphaRaw(aiOut, alphaTensor, n, matteK);
             return finish(aiOut, true);
           }, function () {
             // Alpha pass failed: fall back to the mesh-union alpha warp.
@@ -253,11 +344,15 @@ function generateGap(msg) {
       if (cancelled) return;
       post({ type: 'gap-progress', jobId: jobId, label: label, gapFrac: i / missing.length });
       // Yield so a cancel message can be processed between frames.
-      return new Promise(function (r) { setTimeout(r, 0); }).then(next);
+      return yieldToEventLoop().then(next);
     });
   };
 
   first().then(next).then(function () {
+    // Wait for every in-flight encode so gap-done always follows the last
+    // frame message (cancelled chains resolve immediately via the guard).
+    return Promise.all(inflightPosts.map(function (p) { return p.catch(function () {}); }));
+  }).then(function () {
     if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
     post({ type: 'gap-done', jobId: jobId });
   }).catch(function (err) {
