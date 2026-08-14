@@ -36,6 +36,39 @@
     return out;
   }
 
+  // ---- model-driven alpha (opacity interpolation) ----
+  // There is no dedicated ONNX model for interpolating alpha; the practical
+  // equivalent is to run the SAME interpolation model on the alpha channel
+  // rendered as a grayscale image (white = opaque, black = transparent). The
+  // model's dense flow handles a moving silhouette the same way it handles a
+  // moving object, giving motion-aware, smooth opacity instead of the mesh warp.
+  // The RGB pass runs on the matte; the alpha pass runs on these grays.
+  function alphaToGray(rgba, w, h) {
+    var n = w * h;
+    var out = new Uint8ClampedArray(n * 4);
+    for (var p = 0, i = 0; p < n; p++, i += 4) {
+      var a = rgba[i + 3];
+      out[i] = a; out[i + 1] = a; out[i + 2] = a; out[i + 3] = 255;
+    }
+    return out;
+  }
+
+  // Stamp the model's interpolated alpha (from alphaToGray output) onto a matte
+  // frame: alpha = model output gray, and the key tint is removed from the RGB
+  // using that alpha (E = C·a + K·(1−a) → C·a = E − K·(1−a)).
+  function applyGrayAlpha(frame, alphaOut, n, K) {
+    var k0 = K[0], k1 = K[1], k2 = K[2];
+    for (var p = 0, q = 0; p < n; p++, q += 4) {
+      var a = alphaOut[q] / 255;
+      var inv = 1 - a;
+      frame[q] = frame[q] - k0 * inv;
+      frame[q + 1] = frame[q + 1] - k1 * inv;
+      frame[q + 2] = frame[q + 2] - k2 * inv;
+      frame[q + 3] = Math.round(a * 255);
+    }
+    return frame;
+  }
+
   // Separable box blur (edges clamped). radius 1 -> 3x3, radius 2 -> 5x5.
   function boxBlur(src, dst, w, h, radius) {
     var n = w * h;
@@ -88,6 +121,92 @@
       ch = nh;
     }
     return levels;
+  }
+
+  // Background color for the flow input: opposite of the content's mean luma,
+  // so thin dark line art stands out on white (or bright art on black). This is
+  // only for optical-flow estimation, never for rendering.
+  function flowBgColor(a, b, n) {
+    var sum = 0, cnt = 0;
+    for (var p = 0, i = 0; p < n; p++, i += 4) {
+      if (a[i + 3] > 0 || b[i + 3] > 0) {
+        sum += (a[i] + a[i + 1] + a[i + 2] + b[i] + b[i + 1] + b[i + 2]) / 6;
+        cnt++;
+      }
+    }
+    return cnt && sum / cnt > 128 ? [0, 0, 0] : [255, 255, 255];
+  }
+
+  // Extend a cut-out's pixels outward so the optical flow has texture to track.
+  // Thin line art (or a character on a uniform/transparent background) gives
+  // block matching nothing to lock onto at coarse pyramid levels, so the flow
+  // comes back ~0 and the morph degenerates into a double-exposed crossfade.
+  // Transparent pixels within `r` of the character copy the nearest opaque
+  // pixel's color (Manhattan distance transform, O(n)); everything farther away
+  // is painted the key color K, which is chosen to be rare in the content, so
+  // the character keeps high contrast against its surroundings. The result is a
+  // solid, textured, opaque blob the flow can track. Only the flow input is
+  // extended; rendering still uses the real (thin) frames.
+  function extendTexture(rgba, w, h, r, K) {
+    var n = w * h;
+    var out = new Uint8ClampedArray(rgba);
+    var src = new Int32Array(n);      // packed y*w+x of the best opaque source
+    var dist = new Int32Array(n);
+    var INF = 1 << 28;
+    var y, x, p;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        p = y * w + x;
+        if (rgba[p * 4 + 3] > 0) { src[p] = p; dist[p] = 0; }
+        else { src[p] = -1; dist[p] = INF; }
+      }
+    }
+    // Forward sweep (top-left).
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        p = y * w + x;
+        if (y > 0) {
+          var up = p - w;
+          if (dist[up] + 1 < dist[p]) { dist[p] = dist[up] + 1; src[p] = src[up]; }
+        }
+        if (x > 0) {
+          var lf = p - 1;
+          if (dist[lf] + 1 < dist[p]) { dist[p] = dist[lf] + 1; src[p] = src[lf]; }
+        }
+      }
+    }
+    // Backward sweep (bottom-right).
+    for (y = h - 1; y >= 0; y--) {
+      for (x = w - 1; x >= 0; x--) {
+        p = y * w + x;
+        if (y < h - 1) {
+          var dn = p + w;
+          if (dist[dn] + 1 < dist[p]) { dist[p] = dist[dn] + 1; src[p] = src[dn]; }
+        }
+        if (x < w - 1) {
+          var rt = p + 1;
+          if (dist[rt] + 1 < dist[p]) { dist[p] = dist[rt] + 1; src[p] = src[rt]; }
+        }
+      }
+    }
+    var k0 = K ? K[0] : 0, k1 = K ? K[1] : 0, k2 = K ? K[2] : 0;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        p = y * w + x;
+        var q = (src[p] >= 0 && dist[p] <= r) ? src[p] * 4 : -1;
+        if (q >= 0) {
+          out[p * 4] = rgba[q];
+          out[p * 4 + 1] = rgba[q + 1];
+          out[p * 4 + 2] = rgba[q + 2];
+        } else {
+          out[p * 4] = k0;
+          out[p * 4 + 1] = k1;
+          out[p * 4 + 2] = k2;
+        }
+        out[p * 4 + 3] = 255;
+      }
+    }
+    return out;
   }
 
   function bilinearField(field, pw, ph, fx, fy) {
@@ -321,6 +440,7 @@
   function computeFlowGray(grayA0, grayB0, width, height, opts, onStep, isCancelled) {
     opts = opts || {};
     var maxLevels = opts.maxLevels || 5;
+    var maxSearchR = opts.maxSearchR || 4;
     var levelsA = buildPyramid(grayA0, width, height, maxLevels);
     var levelsB = buildPyramid(grayB0, width, height, maxLevels);
     var levels = levelsA.length;
@@ -339,9 +459,11 @@
           }
           // Small patches at every level: coarse levels are small enough that
           // object interiors get median-filled there, while small patches keep
-          // the flow from dilating into flat backgrounds.
+          // the flow from dilating into flat backgrounds. The coarsest level
+          // searches a wider radius so large keyframe-to-keyframe motion is
+          // caught; finer levels refine within ±1.
           var patchR = 1;
-          var searchR = level === levels - 1 ? 4 : 2;
+          var searchR = level === levels - 1 ? maxSearchR : 2;
           var matched = blockMatch(levelsA[level].data, levelsB[level].data, wa, ha, u, v, searchR, patchR, isCancelled);
           // Edge-aware smoothing (radius 2) fills flat object interiors from
           // their edges while keeping flat backgrounds still, then refine.
@@ -676,7 +798,12 @@
     return {
       meshAB: buildMesh(pair.flowAB.u, pair.flowAB.v, width, height, cell),
       meshBA: buildMesh(pair.flowBA.u, pair.flowBA.v, width, height, cell),
-      flowBARaw: pair.flowBARaw
+      flowBARaw: pair.flowBARaw,
+      // Dense flows retained so per-pixel morphFrame can be used for thin
+      // line-art layers (the mesh averages thin strokes' motion to ~0 and the
+      // morph degenerates into a double-exposed crossfade).
+      flowAB: pair.flowAB,
+      flowBA: pair.flowBA
     };
   }
 
@@ -768,6 +895,25 @@
     var top = data[q00 + 3] * (1 - ax) + data[q01 + 3] * ax;
     var bot = data[q10 + 3] * (1 - ax) + data[q11 + 3] * ax;
     return top * (1 - ay) + bot * ay;
+  }
+
+  // Union of the two DENSE-flow-warped alpha channels (used for thin line art,
+  // where the coarse mesh dilutes strokes' motion to ~0 and the silhouette
+  // double-exposes). Same crisp silhouette idea as warpAlpha, but sampled
+  // directly from the dense flow fields.
+  function warpAlphaDense(aData, bData, flowAB, flowBA, width, height, t) {
+    var n = width * height;
+    var w1 = width - 1, h1 = height - 1;
+    var uA = flowAB.u, vA = flowAB.v;
+    var uB = flowBA.u, vB = flowBA.v;
+    var inv = 1 - t;
+    var alpha = new Uint8Array(n);
+    for (var p = 0; p < n; p++) {
+      var aA = sampleAlpha(aData, width, height, p % width - t * uA[p], (p / width) | 0 - t * vA[p], w1, h1);
+      var aB = sampleAlpha(bData, width, height, p % width - inv * uB[p], (p / width) | 0 - inv * vB[p], w1, h1);
+      alpha[p] = aA > aB ? aA : aB;
+    }
+    return alpha;
   }
 
   function renderMeshWarps(aData, bData, meshes, width, height, t) {
@@ -1304,6 +1450,66 @@
     }
     return true;
   }
+
+  // ---- chroma-key matte (transparent-image interpolation) ----
+  // Transparent keyframes are encoded as OPAQUE images: transparent pixels are
+  // painted a key color K that does not occur in the frame, and semi-transparent
+  // pixels are composited over K (premultiplied). The interpolation model then
+  // sees a clean opaque image (no garbage alpha), and afterwards decodeMatte
+  // strips K back out: alpha = how far the pixel is from K, RGB = the original
+  // premultiplied color. Only gaps with transparency pay the (cheap) encode +
+  // decode pass; fully opaque gaps skip all of it.
+
+  // Pick a key color for the matte: a general (not just pure) color that is
+  // rare in both frames' OPAQUE content. Histogram the opaque pixels at 4 bits
+  // per channel and take the least-used bucket's center — realistic frames have
+  // small palettes, so that bucket is far from almost all content and the
+  // decoder's keyness stays near zero for content (opaque) and near one for the
+  // painted background. Transparent pixels are excluded: their RGB is garbage.
+  function pickKeyColor(a, b, n) {
+    var hist = new Uint32Array(4096);
+    var p, i;
+    for (i = 0, p = 0; i < n; i++, p += 4) {
+      if (a[p + 3] > 0) hist[((a[p] >> 4) << 8) | ((a[p + 1] >> 4) << 4) | (a[p + 2] >> 4)]++;
+      if (b[p + 3] > 0) hist[((b[p] >> 4) << 8) | ((b[p + 1] >> 4) << 4) | (b[p + 2] >> 4)]++;
+    }
+    var best = 0, bestN = Infinity;
+    for (i = 0; i < 4096; i++) if (hist[i] < bestN) { bestN = hist[i]; best = i; }
+    return [(best >> 8) * 16 + 8, ((best >> 4) & 15) * 16 + 8, (best & 15) * 16 + 8];
+  }
+
+  // Encode in place: E = C·a + K·(1-a), alpha forced to 255. Fully opaque
+  // pixels are untouched (a = 1 → E = C), so an already-opaque buffer passes
+  // through byte-identically.
+  function encodeMatte(rgba, n, K) {
+    var k0 = K[0], k1 = K[1], k2 = K[2];
+    for (var p = 0, i = 0; p < n; p++, i += 4) {
+      var a = rgba[i + 3] / 255;
+      var inv = 1 - a;
+      rgba[i] = rgba[i] * a + k0 * inv;
+      rgba[i + 1] = rgba[i + 1] * a + k1 * inv;
+      rgba[i + 2] = rgba[i + 2] * a + k2 * inv;
+      rgba[i + 3] = 255;
+    }
+    return rgba;
+  }
+
+  // Decode a matte frame's RGB: remove the key's contribution so edges don't
+  // carry a key-colored fringe. `alpha` (0..255) comes from the mesh-union alpha
+  // warp, which is reliable; keyness-based alpha decode is not (content in the
+  // positive RGB octant always projects onto any key). In place.
+  function removeKey(rgba, n, K, alpha) {
+    var k0 = K[0], k1 = K[1], k2 = K[2];
+    for (var p = 0, q = 0, i = 0; p < n; p++, q += 4, i += 4) {
+      var inv = 1 - alpha[p] / 255;
+      rgba[q] = rgba[q] - k0 * inv;
+      rgba[q + 1] = rgba[q + 1] - k1 * inv;
+      rgba[q + 2] = rgba[q + 2] - k2 * inv;
+      rgba[q + 3] = alpha[p];
+    }
+    return rgba;
+  }
+
   return {
     computeFlow: computeFlow,
     computeFlowBoth: computeFlowBoth,
@@ -1318,6 +1524,14 @@
     synthesizeInbetweenFrame: synthesizeInbetweenFrame,
     buildMeshes: buildMeshes,
     blendFrame: blendFrame,
-    isOpaque: isOpaque
+    isOpaque: isOpaque,
+    pickKeyColor: pickKeyColor,
+    encodeMatte: encodeMatte,
+    removeKey: removeKey,
+    extendTexture: extendTexture,
+    flowBgColor: flowBgColor,
+    warpAlphaDense: warpAlphaDense,
+    alphaToGray: alphaToGray,
+    applyGrayAlpha: applyGrayAlpha
   };
 })();

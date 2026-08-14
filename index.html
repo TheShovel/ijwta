@@ -43,9 +43,13 @@
               <option value="4:3">4:3</option>
               <option value="3:4">3:4</option>
               <option value="1:1">1:1</option>
-              <option value="custom">Custom…</option>
+              <option value="custom">Custom size…</option>
+              <option value="manual">Manual ratio…</option>
             </select>
           </label>
+          <div class="field-row hidden" id="manualAspectRow">
+            <label class="field">Ratio <input id="aspectRatioInput" type="text" placeholder="e.g. 2.35 or 16:9"></label>
+          </div>
           <div class="field-row hidden" id="customSizeRow">
             <label class="field">Width <input id="customWInput" type="number" min="8" max="4096" step="8" value="1920"></label>
             <label class="field">Height <input id="customHInput" type="number" min="8" max="4096" step="8" value="1080"></label>

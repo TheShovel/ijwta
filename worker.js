@@ -83,29 +83,45 @@ function postFrame(jobId, frame, rgba, width, height) {
 function generateGap(msg) {
   cancelled = false;
   var jobId = msg.jobId;
-  var aData = new Uint8ClampedArray(msg.aData);
+  var aData = new Uint8ClampedArray(msg.aData);   // original (real alpha)
   var bData = new Uint8ClampedArray(msg.bData);
   var width = msg.width, height = msg.height;
   var fromTime = msg.fromTime, toTime = msg.toTime;
   var mode = msg.mode || 'ai';
   var squash = msg.squash || null;
   var blur = msg.blur || null;
+  var matteK = msg.matteK || null;
   var missing = msg.missing; // [{idx, t}]
   var blurOn = !!(blur && blur.on && blur.intensity > 0);
+  var n = width * height;
 
   var meshes = null;
   var flowPromise = null;
   var isCancelled = function () { return cancelled; };
-  // Flow is only needed for the mesh fallback and the alpha warp. When the AI
-  // model works and the keyframes are fully opaque (the common case) neither is
-  // used, so compute it lazily on first actual need instead of up front — that
-  // skips the whole optical-flow pass (~0.5-1.5 s at working size) per gap.
+  // Matte gaps: the model runs on the opaque matte input (aFlow/bFlow) so
+  // transparent pixels never feed the model; the ORIGINAL buffers feed the alpha
+  // warp. The OPTICAL FLOW runs on texture-extended originals (extendTexture):
+  // thin line art on a uniform background starves block matching, and the flow
+  // comes back ~0 → the morph crossfades into a double-exposed ghost. `opaque`
+  // reflects the ORIGINAL keyframes: a matte gap still needs the alpha pass.
   var opaque = morph.isOpaque(aData) && morph.isOpaque(bData);
+  var aFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK) : aData;
+  var bFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(bData), n, matteK) : bData;
+  // Model-driven opacity: run the model on the alpha channel as grayscale so
+  // the silhouette interpolates with model-quality motion (fallback for the
+  // mesh warp is still below).
+  var aGray = matteK ? morph.alphaToGray(aData, width, height) : null;
+  var bGray = matteK ? morph.alphaToGray(bData, width, height) : null;
+  // Textured, opaque flow inputs (extended originals) so large/thin motion is
+  // tracked; the flow opts widen the coarsest search radius for big gaps.
+  var aFlowTex = opaque ? aData : morph.extendTexture(aData, width, height, 10, morph.flowBgColor(aData, bData, n));
+  var bFlowTex = opaque ? bData : morph.extendTexture(bData, width, height, 10, morph.flowBgColor(aData, bData, n));
+  var flowOpts = { maxSearchR: 8 };
   var ensureMeshes = function () {
     if (meshes) return Promise.resolve();
     if (flowPromise) return flowPromise;
     post({ type: 'gap-progress', jobId: jobId, label: 'Preparing interpolation…', gapFrac: 0 });
-    flowPromise = morph.computeFlowBoth(aData, bData, width, height, {}, function (frac) {
+    flowPromise = morph.computeFlowBoth(aFlowTex, bFlowTex, width, height, flowOpts, function (frac) {
       post({ type: 'gap-progress', jobId: jobId, label: 'Preparing interpolation…', gapFrac: frac * 0.05 });
     }, isCancelled).then(function (pair) {
       if (cancelled) return;
@@ -113,6 +129,10 @@ function generateGap(msg) {
     });
     return flowPromise;
   };
+
+  // Transparency for a rendered frame: mesh-union alpha of the ORIGINAL
+  // keyframes, plus (for matte gaps) stripping the key tint from the RGB.
+  // Defined inside emit (needs t).
 
   // Make sure the AI model is loaded before generating, so a worker that gets
   // a gap before its model finished downloading still AI-generates instead of
@@ -154,24 +174,53 @@ function generateGap(msg) {
         return send(morph.motionBlurFrame(rgba, meshes, width, height, t, blur.intensity), ai);
       });
     };
-    // RIFE renders RGB with alpha 255; give the frame the mesh-warped alpha so
-    // transparent keyframes (cut-out characters) stay transparent in inbetweens.
-    // Fully opaque keyframes skip this entirely — the result is byte-identical
-    // and a full mesh warp per frame is avoided.
+    // Transparency for a rendered frame: union of the two flow-warped alpha
+    // channels of the ORIGINAL keyframes (dense flow — the mesh dilutes thin
+    // strokes), plus stripping the key tint from the RGB for matte gaps.
     var applyAlpha = function (rgba) {
-      var alpha = morph.warpAlpha(aData, bData, meshes, width, height, t);
-      var n = width * height;
-      for (var p = 0, q = 0; p < n; p++, q += 4) rgba[q + 3] = alpha[p];
+      var alpha = morph.warpAlphaDense(aData, bData, meshes.flowAB, meshes.flowBA, width, height, t);
+      if (matteK) morph.removeKey(rgba, n, matteK, alpha);
+      else {
+        for (var p = 0, q = 0; p < n; p++, q += 4) rgba[q + 3] = alpha[p];
+      }
+    };
+    // The model interpolates the matte (opaque) input; transparency comes from
+    // the mesh-union alpha warp of the ORIGINAL keyframes (crisp silhouette).
+    // Fully opaque gaps skip all of it — the result is byte-identical and a
+    // full mesh warp per frame is avoided.
+    var renderMorph = function () {
+      if (opaque) return morph.morphFrameMesh(aFlow, bFlow, meshes, width, height, t);
+      // Thin line art: the coarse mesh averages strokes' motion to ~0 (ghosting).
+      // Render with the dense per-pixel morph instead.
+      return morph.morphFrame(aFlow, bFlow, meshes.flowAB, meshes.flowBA, width, height, t);
     };
     if (mode === 'squash') {
       return ensureMeshes().then(function () {
-        return finish(morph.squashStretchFrame(aData, bData, meshes, width, height, t, squash), false);
+        var frame = morph.squashStretchFrame(aFlow, bFlow, meshes, width, height, t, squash);
+        if (!opaque) applyAlpha(frame);
+        return finish(frame, false);
       });
     }
     if (model.isReady()) {
-      return model.interpolate(aData, bData, width, height, t).then(function (aiOut) {
+      return model.interpolate(aFlow, bFlow, width, height, t).then(function (aiOut) {
         if (cancelled) return;
         if (opaque) return finish(aiOut, true);
+        // Model-driven alpha: interpolate the alpha channel as grayscale.
+        if (aGray) {
+          return model.interpolate(aGray, bGray, width, height, t).then(function (alphaOut) {
+            if (cancelled) return;
+            morph.applyGrayAlpha(aiOut, alphaOut, n, matteK);
+            return finish(aiOut, true);
+          }, function () {
+            // Alpha pass failed: fall back to the mesh-union alpha warp.
+            if (cancelled) return;
+            return ensureMeshes().then(function () {
+              if (cancelled) return;
+              applyAlpha(aiOut);
+              return finish(aiOut, true);
+            });
+          });
+        }
         return ensureMeshes().then(function () {
           if (cancelled) return;
           applyAlpha(aiOut);
@@ -181,12 +230,16 @@ function generateGap(msg) {
         if (cancelled) return;
         console.error('AI inbetween failed, using mesh warp:', err);
         return ensureMeshes().then(function () {
-          return finish(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
+          var frame = renderMorph();
+          if (!opaque) applyAlpha(frame);
+          return finish(frame, false);
         });
       });
     }
     return ensureMeshes().then(function () {
-      return finish(morph.morphFrameMesh(aData, bData, meshes, width, height, t), false);
+      var frame = renderMorph();
+      if (!opaque) applyAlpha(frame);
+      return finish(frame, false);
     });
   };
 

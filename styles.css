@@ -834,20 +834,6 @@ body.resizing-timeline { cursor: row-resize; user-select: none; }
   height: 66px;
   border-bottom: 1px solid var(--border);
 }
-.composite-row {
-  position: relative;
-  display: flex;
-  height: 66px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(138, 163, 185, 0.04);
-}
-.composite-row .layer-gutter {
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.6px;
-  color: var(--muted);
-}
 .layer-row.active .layer-content { background: rgba(138, 163, 185, 0.05); }
 .layer-gutter {
   position: sticky;

@@ -28,7 +28,8 @@
     zoom: 90,             // px per second
     snap: true,
     res: 512,             // long edge for preset aspects
-    aspect: 'auto',       // 'auto' | '16:9' | '9:16' | '4:3' | '3:4' | '1:1' | 'custom'
+    aspect: 'auto',       // 'auto' | '16:9' | '9:16' | '4:3' | '3:4' | '1:1' | 'custom' | 'manual'
+    aspectRatio: null,    // width/height number when aspect is 'manual'
     customW: 1920,        // exact working width in custom aspect mode
     customH: 1080,        // exact working height in custom aspect mode
     modelReady: false,
@@ -177,6 +178,8 @@
     snapInput: byId('snapInput'),
     resInput: byId('resInput'),
     aspectInput: byId('aspectInput'),
+    manualAspectRow: byId('manualAspectRow'),
+    aspectRatioInput: byId('aspectRatioInput'),
     customWInput: byId('customWInput'),
     customHInput: byId('customHInput'),
     customSizeRow: byId('customSizeRow'),
@@ -349,6 +352,8 @@
     return Math.max(SIDE_W_MIN + 10, Math.floor(window.innerWidth * 0.4));
   }
   function fmtTime(t) { return (Math.round(t * 100) / 100).toFixed(2) + 's'; }
+  // Format a manual aspect ratio back into the text field (e.g. 1.77777 → 1.78).
+  function fmtRatio(r) { return String(Math.round(r * 100) / 100); }
   // Ruler/other labels: strip float noise like 0.35000000000000003.
   function fmtNum(n) {
     var r = Math.round(n * 100) / 100;
@@ -391,9 +396,11 @@
     state.keyframes.forEach(function (k) {
       if (k.img && !seen[k.img]) { seen[k.img] = true; srcs.push(k.img); }
     });
-    compositeGaps().forEach(function (g) {
-      (state.generated[g.id] || []).forEach(function (f) {
-        if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
+        });
       });
     });
     var idx = 0;
@@ -511,43 +518,24 @@
     return 1 / state.fps;
   }
 
-  // Composite keyframes: every time any visible layer has a keyframe, the
-  // animation shows a flattened composite of all visible layers (white
-  // background + every layer's frame at that time, bottom-to-top). The union
-  // of keyframe times — one per distinct time, sorted — is the single
-  // interpolation track; per-layer keyframes are just how the composite is
-  // authored.
-  function compositeKeyframes() {
-    var seen = {};
-    var list = [];
-    // Topmost visible layer wins the primary id/hold at a shared time.
-    for (var i = 0; i < state.layers.length; i++) {
-      var L = state.layers[i];
-      if (L.visible === false) continue;
-      sortedKeyframes(L.id).forEach(function (k) {
-        if (seen[k.time]) return;
-        seen[k.time] = true;
-        list.push({ time: k.time, id: k.id, kf: k });
-      });
-    }
-    return list.sort(function (a, b) { return a.time - b.time; });
-  }
-
-  // Gaps between consecutive composite keyframes. The from-frame holds for its
-  // keyframe's hold duration, then interpolates to the next composite keyframe.
-  function compositeGaps() {
-    var keys = compositeKeyframes();
+  // Gaps of one layer (or all layers when layerId is omitted). Each layer
+  // interpolates its own timeline; keyframes never mix between layers. gapId is
+  // unique across layers because keyframe ids are globally unique.
+  function computeGaps(layerId) {
+    var keys = sortedKeyframes(layerId);
     var gaps = [];
     for (var i = 0; i < keys.length - 1; i++) {
       var from = keys[i], to = keys[i + 1];
       var id = gapId(from.id, to.id);
-      var fromEnd = from.time + keyframeHold(from.kf);
+      var fromEnd = from.time + keyframeHold(from);
       var sec = Math.max(0, to.time - fromEnd);
       var mode = state.gapType[id] || 'ai';
+      // 'none' gaps hold the from-frame until the next keyframe: no inbetweens.
       var genCount = (mode === 'none') ? 0 : Math.max(0, Math.round(sec * state.fps) - 1);
       gaps.push({
         id: id,
-        from: from.kf, to: to.kf,
+        layer: layerId || null,
+        from: from, to: to,
         fromTime: fromEnd, toTime: to.time,
         sec: sec,
         genCount: genCount,
@@ -558,27 +546,22 @@
   }
 
   function allGaps() {
-    return compositeGaps();
+    var gaps = [];
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) { gaps.push(g); });
+    });
+    return gaps;
   }
 
-  // Hash of what a gap's frames were generated from: the flattened composite
-  // at each endpoint. Since the composite is built from every visible layer's
-  // frame at the endpoint times, the stamp hashes those constituent images —
-  // change any layer's content (or visibility) and the gap regenerates.
+  // Hash of what a gap's frames were generated from: the two endpoint images
+  // plus the frame count. If these are unchanged, existing frames stay valid
+  // (only their timestamps may need re-deriving).
   function gapStamp(g) {
     var squash = gapSquashOpts(g.id);
     var squashKey = squash.amount == null ? 'auto' : String(Math.round(squash.amount * 1000) / 1000);
     var blur = gapBlurOpts(g.id);
     var blurKey = blur.on ? 'mb' + Math.round(blur.intensity * 1000) : 'none';
-    var parts = [];
-    state.layers.forEach(function (L) {
-      if (L.visible === false) return;
-      var fa = layerFrameAt(L.id, g.from.time, false);
-      var fb = layerFrameAt(L.id, g.to.time, false);
-      if (fa) parts.push(fa.img);
-      if (fb) parts.push(fb.img);
-    });
-    var h = hashStr(parts.join('|'));
+    var h = hashStr(g.from.img + '|' + g.to.img);
     return {
       h: h,
       count: g.genCount,
@@ -629,8 +612,12 @@
   }
 
   function refreshDirty() {
-    // Single composite track: gaps run between flattened composite keyframes.
-    var gaps = compositeGaps();
+    // Every layer has its own gaps; collect them all (order irrelevant now
+    // that color layers are gone).
+    var gaps = [];
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) { gaps.push(g); });
+    });
     var ids = {};
     gaps.forEach(function (g) { ids[g.id] = true; });
     // Drop records for gaps that no longer exist (keyframes deleted/merged).
@@ -639,7 +626,7 @@
     var dirty = new Set();
     gaps.forEach(function (g) {
       if (stampMatches(g, state.gapMeta[g.id])) {
-        // Same endpoint composites + count: frames stay valid; only their
+        // Same endpoint images + count: frames stay valid; only their
         // timestamps change when gap boundaries move.
         (state.generated[g.id] || []).forEach(function (f) {
           retimeGapFrame(g, f);
@@ -694,8 +681,23 @@
 
   // The project's aspect ratio (w/h). 'auto' follows the first keyframe, as
   // before; presets give fixed ratios; 'custom' uses the manual dimensions.
+  // Parse a user-typed ratio: "2.35", "2,35", "16:9", "21/9" → number > 0.
+  function parseRatio(s) {
+    if (s == null) return null;
+    s = String(s).trim().replace(',', '.');
+    if (!s) return null;
+    var m = /^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/.exec(s);
+    if (m) {
+      var r = parseFloat(m[1]) / parseFloat(m[2]);
+      return isFinite(r) && r > 0 ? r : null;
+    }
+    var f = parseFloat(s);
+    return isFinite(f) && f > 0 ? f : null;
+  }
+
   function projectAspect() {
     if (state.aspect === 'custom') return gridSnap(state.customW) / gridSnap(state.customH);
+    if (state.aspect === 'manual') return state.aspectRatio || 1;
     if (state.aspect === '16:9') return 16 / 9;
     if (state.aspect === '9:16') return 9 / 16;
     if (state.aspect === '4:3') return 4 / 3;
@@ -753,17 +755,20 @@
     return s;
   }
 
-  // Playback frames: the composite keyframe times plus every generated
-  // inbetween time on the composite track. Each entry is a time the flattened
-  // image changes; the composite is rendered on demand (see framesAt).
+  // Playback frames: the sorted union of every layer's keyframe and generated
+  // frame times. Each entry is a time the composite image changes; the actual
+  // composite is rendered on demand (see framesAt / drawFrames).
   function buildPlaybackFrames() {
     var times = {};
-    compositeKeyframes().forEach(function (ck) {
-      times[ck.time] = { key: true };
-    });
-    compositeGaps().forEach(function (g) {
-      (state.generated[g.id] || []).forEach(function (f) {
-        times[f.time] = times[f.time] || { key: false };
+    state.layers.forEach(function (L) {
+      sortedKeyframes(L.id).forEach(function (k) {
+        var e = times[k.time] || (times[k.time] = { key: false });
+        e.key = true;
+      });
+      computeGaps(L.id).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          times[f.time] = times[f.time] || { key: false };
+        });
       });
     });
     return Object.keys(times).map(function (t) {
@@ -776,29 +781,23 @@
     return frames[state.curIndex] || null;
   }
 
-  // The generated (flattened) composite frame active at time t, if any: the
-  // last inbetween of the gap containing t. Generated frames live strictly
-  // inside their gap (fromTime, toTime), so a composite keyframe time never
-  // matches — the keyframe's own composite shows instead.
-  function generatedFrameAt(t) {
-    var best = null;
-    compositeGaps().forEach(function (g) {
-      if (!(t > g.fromTime && t < g.toTime)) return;
-      (state.generated[g.id] || []).forEach(function (f) {
-        if (f.time <= t + 1e-9 && (!best || f.time > best.time)) best = f;
-      });
-    });
-    return best;
-  }
-
-  // The frame (keyframe) of one layer that is active at time t: the last of
-  // that layer's keyframes at or before t. Generated frames are composites of
-  // every layer, so they never belong to a single layer.
+  // The frame (keyframe or generated inbetween) of one layer that is active at
+  // time t: the last of that layer's frames at or before t. With keysOnly, only
+  // keyframes count (no interpolated frames), matching the preview toggle.
   function layerFrameAt(layerId, t, keysOnly) {
-    var frames = sortedKeyframes(layerId).map(function (k) {
-      return { time: k.time, img: k.img, gen: false };
+    var frames = [];
+    sortedKeyframes(layerId).forEach(function (k) {
+      frames.push({ time: k.time, img: k.img, gen: false });
     });
+    if (!keysOnly) {
+      computeGaps(layerId).forEach(function (g) {
+        (state.generated[g.id] || []).forEach(function (f) {
+          frames.push({ time: f.time, img: f.img, gen: true });
+        });
+      });
+    }
     if (!frames.length) return null;
+    frames.sort(function (a, b) { return a.time - b.time; });
     var active = null;
     for (var i = 0; i < frames.length; i++) {
       if (frames[i].time <= t + 1e-9) active = frames[i];
@@ -807,15 +806,13 @@
     return active;
   }
 
-  // The images that make up the composite at time t, in draw order. At a
-  // generated inbetween the composite IS one flattened image (white baked in).
-  // At a keyframe (or in keysOnly mode) it is the live stack of visible layers
-  // over a white backdrop.
+  // The image each visible layer contributes to the composite at time t, in
+  // bottom-to-top draw order (the last layer is drawn first, the first layer
+  // — the topmost — last). Each image keeps its own alpha channel, so
+  // transparent keyframes (e.g. a character cut out on clear) composite over
+  // the layers below it. Undecoded images are skipped by the drawing functions
+  // (callers wait for them when needed).
   function framesAt(t, keysOnly) {
-    if (!keysOnly) {
-      var gen = generatedFrameAt(t);
-      if (gen) return [{ img: gen.img, full: true }];
-    }
     var list = [];
     for (var i = state.layers.length - 1; i >= 0; i--) {
       var L = state.layers[i];
@@ -826,8 +823,7 @@
     return list;
   }
 
-  // Draw a composite of the given frames (white backdrop; a single full frame
-  // is the flattened composite and is drawn as-is).
+  // Draw a composite of the given frames (white backdrop).
   function drawFrames(ctx, frames) {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, workW, workH);
@@ -840,7 +836,7 @@
 
   function compositeKey(t, keysOnly) {
     return framesAt(t, keysOnly).map(function (f) {
-      return (f.full ? 'F:' : '') + f.img;
+      return f.img;
     }).join('|');
   }
 
@@ -946,66 +942,6 @@
   function renderLane() {
     el.lane.innerHTML = '';
     var z = state.zoom;
-
-    // Composite track row (top): the flattened interpolation track's gaps and
-    // generated inbetween dots live here. Layer rows below show only keyframes.
-    var cRow = document.createElement('div');
-    cRow.className = 'composite-row';
-    var cGutter = document.createElement('div');
-    cGutter.className = 'layer-gutter';
-    cGutter.textContent = 'Composite';
-    var cContent = document.createElement('div');
-    cContent.className = 'layer-content';
-    var labelItems = [];
-    compositeGaps().forEach(function (g) {
-      var x1 = g.fromTime * z, x2 = g.toTime * z;
-      var gen = state.generated[g.id] || [];
-      var ok = gapComplete(g);
-      var overlay = document.createElement('div');
-      overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '') +
-        ' mode-' + g.mode + (g.id === state.selectedGapId ? ' selected' : '');
-      overlay.style.left = x1 + 'px';
-      overlay.style.width = Math.max(2, x2 - x1) + 'px';
-      overlay.dataset.gap = g.id;
-      if (g.mode === 'none') {
-        if (g.sec > 0) {
-          var noneLabel = document.createElement('div');
-          noneLabel.className = 'glabel';
-          noneLabel.textContent = 'no interpolation';
-          overlay.appendChild(noneLabel);
-          labelItems.push({ el: noneLabel, left: x1 + 4 });
-        }
-      } else if (g.genCount > 0) {
-        var label = document.createElement('div');
-        label.className = 'glabel';
-        var suffix = g.mode === 'squash' ? ' · squash' : '';
-        label.textContent = ok
-          ? g.genCount + ' frames' + suffix
-          : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' + suffix : g.genCount + ' frames needed' + suffix);
-        overlay.appendChild(label);
-        labelItems.push({ el: label, left: x1 + 4 });
-        if (g.genCount > WARN_GEN_COUNT) {
-          var warn = document.createElement('div');
-          warn.className = 'gap-warn';
-          warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
-          overlay.dataset.count = String(g.genCount);
-          overlay.appendChild(warn);
-        }
-      }
-      cContent.appendChild(overlay);
-
-      gen.forEach(function (f) {
-        var dot = document.createElement('div');
-        dot.className = 'frame-dot';
-        dot.style.left = (f.time * z) + 'px';
-        cContent.appendChild(dot);
-      });
-    });
-    stackGapLabels(labelItems);
-    cRow.appendChild(cGutter);
-    cRow.appendChild(cContent);
-    el.lane.appendChild(cRow);
-
     state.layers.forEach(function (L) {
       var row = document.createElement('div');
       row.className = 'layer-row' + (L.id === state.activeLayerId ? ' active' : '') + (L.id === layerDragId ? ' dragging' : '');
@@ -1023,6 +959,54 @@
       content.className = 'layer-content';
 
       var keys = sortedKeyframes(L.id);
+      var gaps = computeGaps(L.id);
+      var labelItems = [];
+
+      gaps.forEach(function (g) {
+        var x1 = g.fromTime * z, x2 = g.toTime * z;
+        var gen = state.generated[g.id] || [];
+        var ok = gapComplete(g);
+        var overlay = document.createElement('div');
+        overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '') +
+          ' mode-' + g.mode + (g.id === state.selectedGapId ? ' selected' : '');
+        overlay.style.left = x1 + 'px';
+        overlay.style.width = Math.max(2, x2 - x1) + 'px';
+        overlay.dataset.gap = g.id;
+        if (g.mode === 'none') {
+          if (g.sec > 0) {
+            var noneLabel = document.createElement('div');
+            noneLabel.className = 'glabel';
+            noneLabel.textContent = 'no interpolation';
+            overlay.appendChild(noneLabel);
+            labelItems.push({ el: noneLabel, left: x1 + 4 });
+          }
+        } else if (g.genCount > 0) {
+          var label = document.createElement('div');
+          label.className = 'glabel';
+          var suffix = g.mode === 'squash' ? ' · squash' : '';
+          label.textContent = ok
+            ? g.genCount + ' frames' + suffix
+            : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' + suffix : g.genCount + ' frames needed' + suffix);
+          overlay.appendChild(label);
+          labelItems.push({ el: label, left: x1 + 4 });
+          if (g.genCount > WARN_GEN_COUNT) {
+            var warn = document.createElement('div');
+            warn.className = 'gap-warn';
+            warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
+            overlay.dataset.count = String(g.genCount);
+            overlay.appendChild(warn);
+          }
+        }
+        content.appendChild(overlay);
+
+        gen.forEach(function (f) {
+          var dot = document.createElement('div');
+          dot.className = 'frame-dot';
+          dot.style.left = (f.time * z) + 'px';
+          content.appendChild(dot);
+        });
+      });
+      stackGapLabels(labelItems);
 
       keys.forEach(function (k) {
         var chip = document.createElement('div');
@@ -1081,13 +1065,33 @@
     });
   }
 
+  // Composite thumbnails are expensive (full canvas render + toDataURL per
+  // frame); cache by the composite's identity so re-rendering the filmstrip
+  // during generation doesn't recompute frames that haven't changed.
+  var thumbCache = {};
+  var thumbCacheOrder = [];
+  function thumbURL(t) {
+    var key = compositeKey(t, false);
+    if (thumbCache[key]) return Promise.resolve(thumbCache[key]);
+    return compositeDataURL(t).then(function (url) {
+      thumbCache[key] = url;
+      thumbCacheOrder.push(key);
+      // Bound the cache so long editing sessions don't leak every composite.
+      if (thumbCacheOrder.length > 400) {
+        var old = thumbCacheOrder.shift();
+        delete thumbCache[old];
+      }
+      return url;
+    });
+  }
+
   function makeThumb(f, i) {
     var div = document.createElement('div');
     div.className = 'thumb' + (f.key ? ' key' : '') + (i === state.curIndex ? ' current' : '');
     var img = document.createElement('img');
     div.appendChild(img);
-    // The thumb is the composite of every layer at this frame's time.
-    compositeDataURL(f.time).then(function (url) {
+    // The thumb is the composite of every layer at this frame's time (cached).
+    thumbURL(f.time).then(function (url) {
       if (div.parentNode) img.src = url;
     }).catch(function () {});
     if (f.key) {
@@ -1232,7 +1236,8 @@
     el.kfSection.classList.toggle('hidden', hasGap);
     if (hasGap) {
       el.gapTypeInput.disabled = false;
-      el.gapName.textContent = 'Composite · ' + (gap.from.name || 'frame') + ' → ' + (gap.to.name || 'frame');
+      var L = layerById(gap.layer);
+      el.gapName.textContent = (L ? L.name + ' · ' : '') + (gap.from.name || 'frame') + ' → ' + (gap.to.name || 'frame');
       el.gapTime.textContent = fmtTime(gap.fromTime) + ' → ' + fmtTime(gap.toTime) +
         (gap.mode === 'none' ? ' · hold' : ' · ' + gap.genCount + ' inbetweens');
       el.gapTypeInput.value = gap.mode;
@@ -1841,8 +1846,8 @@
   }
 
   // Turn a composite playback frame into a keyframe on the active layer. The
-  // flattened composite becomes a new keyframe image; the composite track
-  // splits there and regenerates the surrounding gaps.
+  // composite image becomes a new keyframe; the layer's gaps split there and
+  // regenerate.
   function promoteToKeyframe(f) {
     var layerId = state.activeLayerId || state.layers[0].id;
     return compositeDataURL(f.time).then(function (url) {
@@ -1899,47 +1904,41 @@
     return encodeCanvas.toDataURL('image/png');
   }
 
-  // Flatten every visible layer's frame at time t onto a white backdrop, as a
-  // raw RGBA buffer at working size. This is the interpolation endpoint: the
-  // composite is opaque (white background), so the AI model gets clean input
-  // and transparent per-layer images don't crossfade garbage.
-  function flattenImageData(t) {
-    var frames = [];
-    for (var i = state.layers.length - 1; i >= 0; i--) {
-      var L = state.layers[i];
-      if (L.visible === false) continue;
-      var f = layerFrameAt(L.id, t, false);
-      if (f) frames.push(f.img);
-    }
+  // Rasterize one keyframe image to a raw RGBA buffer at working size (clear
+  // transparent so cut-out characters keep their alpha through interpolation).
+  function drawImageToData(img, w, h) {
     var canvas = document.createElement('canvas');
-    canvas.width = workW;
-    canvas.height = workH;
+    canvas.width = w;
+    canvas.height = h;
     var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, workW, workH);
-    return Promise.all(frames.map(function (src) {
-      return loadImage(src).catch(function () { return null; });
-    })).then(function (imgs) {
-      if (!imgs.length) return ctx.getImageData(0, 0, workW, workH).data;
-      for (var j = 0; j < frames.length; j++) {
-        if (!imgs[j]) continue;
-        drawContain(ctx, imgs[j], workW, workH);
-      }
-      return ctx.getImageData(0, 0, workW, workH).data;
-    });
+    ctx.clearRect(0, 0, w, h);
+    drawContain(ctx, img, w, h);
+    return ctx.getImageData(0, 0, w, h).data;
   }
 
-  // Generate one gap's missing frames. The endpoints are the flattened
-  // composites at the two keyframe times, so the inbetweens are opaque frames
-  // of the whole animation. Dispatches to the worker when available; otherwise
-  // runs inline (mesh warp fallback path).
+  // Generate one gap's missing frames. The endpoints are the layer's own two
+  // keyframe images. Fully opaque gaps interpolate directly (best quality).
+  // Gaps with transparency get the chroma-key matte treatment: the transparent
+  // background is painted a key color absent from the frame (encodeMatte), the
+  // model interpolates a clean opaque image, and afterwards the frame's alpha is
+  // taken from the mesh-union alpha warp of the ORIGINAL keyframes (crisp
+  // silhouette) while the key tint is removed from the RGB (removeKey) — so
+  // cut-out characters get model-quality colors without the transparent-pixel
+  // garbage. Dispatches to the worker when available; otherwise runs inline
+  // (mesh warp fallback path).
   function generateGap(gap, missing, cbs) {
     var missingList = missing.map(function (idx) {
       return { idx: idx, t: idx / (gap.genCount + 1) };
     });
-    return Promise.all([flattenImageData(gap.from.time), flattenImageData(gap.to.time)]).then(function (datas) {
+    return Promise.all([loadImage(gap.from.img), loadImage(gap.to.img)]).then(function (imgs) {
       if (cbs.cancelled()) return;
-      var aData = datas[0], bData = datas[1];
+      var aData = drawImageToData(imgs[0], workW, workH);
+      var bData = drawImageToData(imgs[1], workW, workH);
+      var n = workW * workH;
+      var matteK = null;
+      if (!(morph.isOpaque(aData) && morph.isOpaque(bData))) {
+        matteK = morph.pickKeyColor(aData, bData, n);
+      }
       if (workers.length) {
         var jobId = 'job' + (++jobSeq);
         var wi = pickWorker();
@@ -1953,7 +1952,18 @@
           };
           workerBusy[wi]++;
           var aBuf = aData.buffer, bBuf = bData.buffer;
-          workers[wi].postMessage({
+          var extra = {};
+          var transfer = [aBuf, bBuf];
+          if (matteK) {
+            // Encode matte copies for the model/flow input (opaque).
+            var aMatte = morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK);
+            var bMatte = morph.encodeMatte(new Uint8ClampedArray(bData), n, matteK);
+            extra.aMatte = aMatte.buffer;
+            extra.bMatte = bMatte.buffer;
+            extra.matteK = matteK;
+            transfer.push(aMatte.buffer, bMatte.buffer);
+          }
+          workers[wi].postMessage(Object.assign({
             type: 'generate-gap',
             jobId: jobId,
             aData: aBuf, bData: bBuf,
@@ -1963,30 +1973,45 @@
             squash: gapSquashOpts(gap.id),
             blur: gapBlurOpts(gap.id),
             missing: missingList
-          }, [aBuf, bBuf]);
+          }, extra), transfer);
         }).catch(function (err) {
           // Worker died mid-job: run the same gap inline instead of failing.
           if (cbs.cancelled()) throw err;
           console.error('Worker job failed, running inline:', err);
-          return generateGapInline(aData, bData, gap, missingList, cbs);
+          return generateGapInline(aData, bData, gap, missingList, cbs, matteK);
         });
       }
-      return generateGapInline(aData, bData, gap, missingList, cbs);
+      return generateGapInline(aData, bData, gap, missingList, cbs, matteK);
     });
   }
 
-  function generateGapInline(aData, bData, gap, missingList, cbs) {
+  function generateGapInline(aData, bData, gap, missingList, cbs, matteK) {
     var meshes = null;
     var flowPromise = null;
-    // Flow is only needed for the mesh fallback and the alpha warp. When the
-    // AI model works and the keyframes are fully opaque (the common case)
-    // neither is used, so compute it lazily on first actual need.
+    // Flow is needed for the mesh fallback and the alpha warp. Matte-encoded
+    // inputs are opaque, so the AI path skips its own alpha handling; the frame
+    // alpha then comes from warpAlpha of the ORIGINAL keyframes. `opaque`
+    // reflects the ORIGINAL keyframes: a matte gap still needs the alpha pass.
     var opaque = morph.isOpaque(aData) && morph.isOpaque(bData);
+    var n = workW * workH;
+    // The matte (opaque) input is used for the model so it never sees
+    // transparent pixels; the original buffers feed the alpha warp. The OPTICAL
+    // FLOW runs on texture-extended originals (extendTexture) — thin line art
+    // on a uniform background starves block matching and would otherwise give
+    // ~0 flow → a double-exposed crossfade.
+    var aFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK) : aData;
+    var bFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(bData), n, matteK) : bData;
+    // Model-driven opacity: alpha channel as grayscale for a second model pass.
+    var aGray = matteK ? morph.alphaToGray(aData, workW, workH) : null;
+    var bGray = matteK ? morph.alphaToGray(bData, workW, workH) : null;
+    var aFlowTex = opaque ? aData : morph.extendTexture(aData, workW, workH, 10, morph.flowBgColor(aData, bData, n));
+    var bFlowTex = opaque ? bData : morph.extendTexture(bData, workW, workH, 10, morph.flowBgColor(aData, bData, n));
+    var flowOpts = { maxSearchR: 8 };
     var ensureMeshes = function () {
       if (meshes) return Promise.resolve();
       if (flowPromise) return flowPromise;
       if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', 0);
-      flowPromise = morph.computeFlowBoth(aData, bData, workW, workH, {}, function (frac) {
+      flowPromise = morph.computeFlowBoth(aFlowTex, bFlowTex, workW, workH, flowOpts, function (frac) {
         if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', frac * 0.05);
       }, cbs.cancelled).then(function (pair) {
         if (cbs.cancelled()) return;
@@ -2000,6 +2025,15 @@
       var time = gap.fromTime + (gap.toTime - gap.fromTime) * t;
       var done = function (rgba, ai) {
         cbs.onFrame({ idx: m.idx, t: t, time: time, img: dataToDataURL(rgba, workW, workH), ai: ai });
+      };
+      // Apply the original keyframes' mesh-warped alpha + strip the key tint.
+      // Transparent gaps always need the meshes (flow) for this.
+      var applyAlpha = function (rgba) {
+        var alpha = morph.warpAlphaDense(aData, bData, meshes.flowAB, meshes.flowBA, workW, workH, t);
+        if (matteK) morph.removeKey(rgba, n, matteK, alpha);
+        else {
+          for (var p = 0, q = 0; p < n; p++, q += 4) rgba[q + 3] = alpha[p];
+        }
       };
       // Motion blur post-process: smears the frame along its motion, easing
       // in/out over the gap. Needs the meshes, so it forces the lazy flow even
@@ -2017,22 +2051,39 @@
       // direction, pivoted on the moving mass (no mesh warp, no crossfade).
       if (gap.mode === 'squash') {
         return ensureMeshes().then(function () {
-          return finish(morph.squashStretchFrame(aData, bData, meshes, workW, workH, t, gapSquashOpts(gap.id)), false);
+          var frame = morph.squashStretchFrame(aFlow, bFlow, meshes, workW, workH, t, gapSquashOpts(gap.id));
+          if (!opaque) applyAlpha(frame);
+          return finish(frame, false);
         });
       }
-      // RIFE renders RGB with alpha 255; give the frame the mesh-warped alpha so
-      // transparent keyframes (cut-out characters) stay transparent in inbetweens.
-      // Fully opaque keyframes skip this entirely — the result is byte-identical
-      // and a full mesh warp per frame is avoided.
-      var applyAlpha = function (rgba) {
-        var alpha = morph.warpAlpha(aData, bData, meshes, workW, workH, t);
-        var n = workW * workH;
-        for (var p = 0, q = 0; p < n; p++, q += 4) rgba[q + 3] = alpha[p];
+      // The model interpolates the matte (opaque) input; transparency comes from
+      // the mesh-union alpha warp of the original keyframes (crisp silhouette).
+      // Fully opaque gaps skip all of it — the result is byte-identical and a
+      // full mesh warp per frame is avoided. Thin line art renders with the
+      // dense per-pixel morph (the coarse mesh averages strokes to ~0 → ghosting).
+      var renderMorph = function () {
+        if (opaque) return morph.morphFrameMesh(aFlow, bFlow, meshes, workW, workH, t);
+        return morph.morphFrame(aFlow, bFlow, meshes.flowAB, meshes.flowBA, workW, workH, t);
       };
       if (cbs.aiReady()) {
-        return model.interpolate(aData, bData, workW, workH, t).then(function (aiOut) {
+        return model.interpolate(aFlow, bFlow, workW, workH, t).then(function (aiOut) {
           if (cbs.cancelled()) return;
           if (opaque) return finish(aiOut, true);
+          if (aGray) {
+            // Model-driven alpha: interpolate the alpha channel as grayscale.
+            return model.interpolate(aGray, bGray, workW, workH, t).then(function (alphaOut) {
+              if (cbs.cancelled()) return;
+              morph.applyGrayAlpha(aiOut, alphaOut, n, matteK);
+              return finish(aiOut, true);
+            }, function () {
+              if (cbs.cancelled()) return;
+              return ensureMeshes().then(function () {
+                if (cbs.cancelled()) return;
+                applyAlpha(aiOut);
+                return finish(aiOut, true);
+              });
+            });
+          }
           return ensureMeshes().then(function () {
             if (cbs.cancelled()) return;
             applyAlpha(aiOut);
@@ -2042,12 +2093,16 @@
           if (cbs.cancelled()) return;
           console.error('AI inbetween failed, using mesh warp:', err);
           return ensureMeshes().then(function () {
-            return finish(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+            var frame = renderMorph();
+            if (!opaque) applyAlpha(frame);
+            return finish(frame, false);
           });
         });
       }
       return ensureMeshes().then(function () {
-        return finish(morph.morphFrameMesh(aData, bData, meshes, workW, workH, t), false);
+        var frame = renderMorph();
+        if (!opaque) applyAlpha(frame);
+        return finish(frame, false);
       });
     };
     var i = 0;
@@ -2065,14 +2120,40 @@
   }
 
   var genTimer = null;
+  var genSeq = 0;                // incremented per schedule: stale callbacks no-op
   var modelGate = null;          // promise resolving when model load settles
   var modelGateResolve = null;   // resolve() for the gate above
+  // Coalesced view refresh during generation: rebuilding the lane + filmstrip on
+  // every completed frame is O(frames²) with async thumb composites — heavy edits
+  // (many cancels/restarts) make it crawl. Updates are throttled to ~150ms and a
+  // final flush happens when the run finishes.
+  var genViewTimer = null;
+  var genViewDirty = false;
+  function scheduleGenView() {
+    genViewDirty = true;
+    if (genViewTimer) return;
+    genViewTimer = setTimeout(function () {
+      genViewTimer = null;
+      if (!genViewDirty) return;
+      genViewDirty = false;
+      renderLane();
+      renderFilmstrip();
+    }, 150);
+  }
+  function flushGenView() {
+    genViewDirty = false;
+    if (genViewTimer) { clearTimeout(genViewTimer); genViewTimer = null; }
+    renderLane();
+    renderFilmstrip();
+  }
   function scheduleGenerate(delay) {
     clearTimeout(genTimer);
+    var token = ++genSeq;
     genTimer = setTimeout(function () {
       // Wait for the model download/compile to settle so gaps are generated
       // with AI when possible (the launch overlay blocks interaction anyway).
       (modelGate || Promise.resolve()).then(function () {
+        if (token !== genSeq) return; // superseded by a newer schedule
         if (state.genRun) { state.pendingRegen = true; cancelRun(); }
         else runGeneration();
       });
@@ -2101,10 +2182,13 @@
 
   function runGeneration() {
     if (state.genRun) return;
-    // Single composite track: every gap interpolates two flattened composite
-    // images, so gaps are independent and can all run concurrently.
-    var gaps = compositeGaps().filter(function (g) {
-      return g.genCount > 0 && !gapComplete(g);
+    // Per-layer gaps: each layer interpolates its own timeline, so gaps are
+    // independent and can all run concurrently.
+    var gaps = [];
+    state.layers.forEach(function (L) {
+      computeGaps(L.id).forEach(function (g) {
+        if (g.genCount > 0 && !gapComplete(g)) gaps.push(g);
+      });
     });
     var total = gaps.reduce(function (s, g) { return s + computeMissing(g).length; }, 0);
     if (!total) {
@@ -2155,8 +2239,7 @@
           gen.sort(function (a, b) { return a.idx - b.idx; });
           refreshDirty();
         }
-        renderLane();
-        renderFilmstrip();
+        scheduleGenView();
       });
     };
     // Run up to `concurrency` gaps at once (one per worker) instead of one big
@@ -2204,6 +2287,7 @@
       el.btnCancel.classList.add('hidden');
       el.genProgress.classList.add('hidden');
       save();
+      flushGenView();
       if (state.pendingRegen) {
         state.pendingRegen = false;
         runGeneration();
@@ -3119,7 +3203,8 @@
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
         res: state.res, keysOnly: state.keysOnly,
-        aspect: state.aspect, customW: state.customW, customH: state.customH
+        aspect: state.aspect, aspectRatio: state.aspectRatio,
+        customW: state.customW, customH: state.customH
       },
       layers: state.layers.map(function (l) {
         return { id: l.id, name: l.name, visible: l.visible };
@@ -3172,7 +3257,9 @@
     state.zoom = clamp(parseFloat(s.zoom) || 90, 12, 4000);
     state.res = [512, 448, 384, 320].indexOf(parseInt(s.res, 10)) >= 0 ? parseInt(s.res, 10) : 512;
     state.keysOnly = !!s.keysOnly;
-    state.aspect = ['auto', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom'].indexOf(s.aspect) >= 0 ? s.aspect : 'auto';
+    state.aspect = ['auto', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom', 'manual'].indexOf(s.aspect) >= 0 ? s.aspect : 'auto';
+    var ar = parseRatio(s.aspectRatio);
+    state.aspectRatio = ar;
     state.customW = clamp(parseInt(s.customW, 10) || 1920, 8, 4096);
     state.customH = clamp(parseInt(s.customH, 10) || 1080, 8, 4096);
     // Layers: projects saved before layers existed are wrapped in one layer.
@@ -3314,68 +3401,18 @@
     enterApp();
   }
 
-  // Simple placeholder frames for the example project (a ball rolling across
-  // a flat scene). Replaced later with something nicer.
-  function demoFrame(right) {
-    var c = document.createElement('canvas');
-    c.width = 320;
-    c.height = 240;
-    var g = c.getContext('2d');
-    g.fillStyle = '#232a33';
-    g.fillRect(0, 0, 320, 240);
-    g.fillStyle = '#3a4552';
-    g.fillRect(0, 160, 320, 80);
-    g.fillStyle = '#c3ab7d';
-    g.beginPath();
-    g.arc(50, 55, 26, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#8fb0a2';
-    g.beginPath();
-    g.arc(right ? 235 : 85, 150, 34, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = '#6b7787';
-    g.beginPath();
-    g.arc(right ? 245 : 75, 130, 20, 0, Math.PI * 2);
-    g.fill();
-    return c.toDataURL('image/png');
-  }
-
-  // Build a small two-keyframe demo so the start screen's "Example project"
-  // actually shows off the interpolation.
+  // Load the bundled example project (example.ijwta) from the start screen's
+  // "Example project" button. It is a normal project file, so it goes through
+  // the same load path as a user-picked .ijwta.
   function openExample() {
-    cancelRun();
-    pause();
-    state.keyframes = [];
-    state.assets = [];
-    state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
-    state.activeLayerId = 'L1';
-    state.generated = {};
-    state.gapMeta = {};
-    state.gapType = {};
-    state.gapSquash = {};
-    state.gapBlur = {};
-    state.dirty = new Set();
-    state.selectedId = null;
-    state.selectedGapId = null;
-    state.playhead = 0;
-    state.curIndex = 0;
-    var imgA = demoFrame(false);
-    var imgB = demoFrame(true);
-    state.assets.push(
-      { img: imgA, name: 'Start', w: 320, h: 240 },
-      { img: imgB, name: 'End', w: 320, h: 240 }
-    );
-    var ka = { id: 'k' + (idSeq++), layer: 'L1', time: 0, img: imgA, name: 'Start', w: 320, h: 240 };
-    var kb = { id: 'k' + (idSeq++), layer: 'L1', time: 1, img: imgB, name: 'End', w: 320, h: 240 };
-    state.keyframes.push(ka, kb);
-    applyWorkSize();
-    refreshDirty();
-    renderAll();
-    syncInputs();
-    save();
-    enterApp();
-    scheduleGenerate(300);
-    toast('Example project loaded');
+    fetch('example.ijwta').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    }).then(function (blob) {
+      loadProjectFile(new File([blob], 'example.ijwta', { type: 'application/json' }));
+    }).catch(function (e) {
+      toast('Could not load the example project: ' + (e && e.message ? e.message : e));
+    });
   }
 
   function openCredits() {
@@ -3525,6 +3562,25 @@
     el.aspectInput.addEventListener('change', changeSizeSetting);
     el.customWInput.addEventListener('change', changeSizeSetting);
     el.customHInput.addEventListener('change', changeSizeSetting);
+    // Manual ratio: type "2.35", "16:9" or "21/9" and it applies directly.
+    el.aspectRatioInput.addEventListener('change', function () {
+      var r = parseRatio(el.aspectRatioInput.value);
+      if (!r) {
+        toast('Enter a ratio like 2.35 or 16:9');
+        syncInputs();
+        return;
+      }
+      state.aspect = 'manual';
+      state.aspectRatio = r;
+      var s = applyWorkSize();
+      syncInputs();
+      renderAll();
+      save();
+      scheduleGenerate();
+      if (s.w * s.h > 2 * 1024 * 1024) {
+        toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
+      }
+    });
     el.resInput.addEventListener('change', function () {
       state.res = parseInt(el.resInput.value, 10) || 512;
       applyWorkSize();
@@ -3916,9 +3972,12 @@
     el.aspectInput.value = state.aspect;
     el.customWInput.value = String(state.customW);
     el.customHInput.value = String(state.customH);
+    el.aspectRatioInput.value = state.aspectRatio ? fmtRatio(state.aspectRatio) : '';
     var custom = state.aspect === 'custom';
+    var manual = state.aspect === 'manual';
     el.customSizeRow.classList.toggle('hidden', !custom);
-    el.resInput.disabled = custom;
+    el.manualAspectRow.classList.toggle('hidden', !manual);
+    el.resInput.disabled = custom || manual;
     el.btnLoop.style.opacity = state.loop ? 1 : 0.35;
     el.btnKeysOnly.classList.toggle('active', state.keysOnly);
     updateViewportLabel();
