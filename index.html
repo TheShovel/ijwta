@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Keyframe Studio · frame interpolation</title>
+  <title>Ijwta · frame interpolation</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -59,10 +59,6 @@
             </select>
           </label>
           <div class="menu-sep"></div>
-          <button id="btnRegenerate" class="btn">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            <span>Regenerate all frames</span>
-          </button>
         </div>
       </div>
 
@@ -218,15 +214,14 @@
       <div class="layer-bar">
         <span class="layer-bar-label">Layer <b id="layerNameLabel">Layer 1</b></span>
         <label class="field check" title="Show or hide the active layer">Visible <input id="layerVisible" type="checkbox" checked></label>
-        <label class="field" title="Color layers tint the layers beneath them (multiply) and stretch their keyframes across time instead of interpolating">Type
-          <select id="layerType">
-            <option value="normal">Normal</option>
-            <option value="color">Color</option>
-          </select>
-        </label>
         <button id="btnAddLayer" class="btn" title="Add a new layer above the others">Add layer</button>
         <button id="btnRemoveLayer" class="btn danger" title="Remove the active layer">Remove</button>
       </div>
+      <span class="vsep"></span>
+      <button id="btnRegenerate" class="btn" title="Force all gaps to regenerate">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span>Regenerate</span>
+      </button>
     </div>
     <div class="timeline-scroll" id="timeline">
       <div class="track" id="track">
@@ -241,6 +236,40 @@
   </footer>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- Start screen: shown on launch until the user starts or loads a project.
+       The mascot banner sits on the left, scaled to the full window height; the
+       menu panel is on the right. -->
+  <div id="startScreen" class="start-screen">
+    <div class="start-art">
+      <img src="mascot.png" alt="Ijwta mascot" width="500" height="1000">
+    </div>
+    <div class="start-panel">
+      <div class="start-name">Ijwta</div>
+      <div class="start-tagline">I just want to animate.</div>
+      <div class="start-menu">
+        <button id="btnStartNew" class="btn primary start-btn">New project</button>
+        <button id="btnStartLoad" class="btn start-btn">Load project</button>
+        <button id="btnStartExample" class="btn start-btn">Example project</button>
+        <div class="start-sep"></div>
+        <button id="btnStartDocs" class="btn start-btn">Docs</button>
+        <button id="btnStartCredits" class="btn start-btn">Credits</button>
+        <button id="btnStartGithub" class="btn start-btn">GitHub</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credits overlay -->
+  <div id="creditsOverlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="logo big">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      </div>
+      <div class="loading-title">Ijwta</div>
+      <div class="loading-sub" id="creditsText"></div>
+      <button id="btnCreditsClose" class="btn primary">Close</button>
+    </div>
+  </div>
 
   <!-- Model loading overlay: shown while the AI model downloads+compiles on launch -->
   <div id="loadingOverlay" class="loading-overlay">

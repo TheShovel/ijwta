@@ -22,9 +22,6 @@ self.onmessage = function (e) {
   var msg = e.data;
   if (msg.type === 'load-model') loadModel();
   else if (msg.type === 'generate-gap') generateGap(msg);
-  else if (msg.type === 'color-pass') colorPass(msg);
-  else if (msg.type === 'color-pass-free') colorPassFree(msg);
-  else if (msg.type === 'color-frame') colorFrame(msg);
   else if (msg.type === 'cancel') cancelled = true;
   else if (msg.type === 'upscale') upscaleFrame(msg);
   else if (msg.type === 'cancel-upscale') upscaleCancelled = true;
@@ -43,25 +40,6 @@ function loadModel() {
   }).catch(function (err) {
     post({ type: 'model-error', message: err && err.message ? err.message : String(err) });
   });
-}
-
-// Cached color passes: the same colored pass + source frame (aData) are used
-// for every frame of a color gap, so they are sent once per gap and reused by
-// passId — instead of structured-cloning 16 MB into the worker per frame.
-var colorPasses = {};
-
-function colorPass(msg) {
-  colorPasses[msg.passId] = {
-    pass: new Uint8ClampedArray(msg.passData),
-    a: new Uint8ClampedArray(msg.aData),
-    width: msg.width, height: msg.height
-  };
-  var keys = Object.keys(colorPasses);
-  if (keys.length > 8) delete colorPasses[keys[0]]; // LRU-ish cap
-}
-
-function colorPassFree(msg) {
-  if (colorPasses[msg.passId]) delete colorPasses[msg.passId];
 }
 
 // Encode a finished frame to a PNG data URL inside the worker (OffscreenCanvas),
@@ -99,36 +77,8 @@ function postFrame(jobId, frame, rgba, width, height) {
   });
 }
 
-// Color-layer frame: warp the colored pass along the source layer's motion
-// (flow from the pass's line-art frame to the current line-art frame), so the
-// colors follow the animation. The pass + source frame arrive once per gap via
-// 'color-pass' (or inline for direct callers); bData is transferred per frame.
-function colorFrame(msg) {
-  cancelled = false;
-  var jobId = msg.jobId;
-  var rec = msg.passId ? colorPasses[msg.passId] : null;
-  var pass, a, width, height;
-  if (rec) {
-    pass = rec.pass; a = rec.a; width = rec.width; height = rec.height;
-  } else {
-    pass = new Uint8ClampedArray(msg.passData);
-    a = new Uint8ClampedArray(msg.aData);
-    width = msg.width; height = msg.height;
-  }
-  var b = new Uint8ClampedArray(msg.bData);
-  morph.computeFlowBoth(a, b, width, height, {}, null, function () { return cancelled; }).then(function (pair) {
-    if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
-    var warped = morph.warpFrame(pass, pair.flowAB, width, height, 2);
-    morph.gateFill(warped, b, width, height);
-    return postFrame(jobId, { idx: msg.idx, t: msg.t, time: msg.time, ai: false }, warped, width, height);
-  }).then(function () {
-    if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
-    post({ type: 'gap-done', jobId: jobId });
-  }).catch(function (err) {
-    if (cancelled) { post({ type: 'gap-cancelled', jobId: jobId }); return; }
-    post({ type: 'gap-error', jobId: jobId, message: err && err.message ? err.message : String(err) });
-  });
-}
+// Color layers are gone (flattened-composite interpolation), so the color
+// pass / color frame worker messages were removed.
 
 function generateGap(msg) {
   cancelled = false;

@@ -206,22 +206,28 @@
 
   // Single frame -> [1,3,H,W] float32 in 0..1 (channel-first R,G,B planes),
   // written into a preallocated buffer so no per-call allocation happens.
+  // RGB is premultiplied by alpha: transparent pixels (RGB is undefined/garbage
+  // in PNGs) contribute 0 so RIFE interpolates only the visible painted pixels.
+  // For fully opaque images this is exactly rgb/255 — byte-identical behaviour.
   function rgbaToRifefloatInto(out, rgba, n) {
     for (var p = 0, i = 0; p < n; p++, i += 4) {
-      out[p] = rgba[i] / 255;
-      out[n + p] = rgba[i + 1] / 255;
-      out[2 * n + p] = rgba[i + 2] / 255;
+      var a = rgba[i + 3] / 255;
+      out[p] = rgba[i] * a / 255;
+      out[n + p] = rgba[i + 1] * a / 255;
+      out[2 * n + p] = rgba[i + 2] * a / 255;
     }
   }
 
   function concatFramesInto(out, aData, bData, n) {
     for (var p = 0, i = 0; p < n; p++, i += 4) {
-      out[p] = aData[i] / 255;
-      out[n + p] = aData[i + 1] / 255;
-      out[2 * n + p] = aData[i + 2] / 255;
-      out[3 * n + p] = bData[i] / 255;
-      out[4 * n + p] = bData[i + 1] / 255;
-      out[5 * n + p] = bData[i + 2] / 255;
+      var aa = aData[i + 3] / 255;
+      var ba = bData[i + 3] / 255;
+      out[p] = aData[i] * aa / 255;
+      out[n + p] = aData[i + 1] * aa / 255;
+      out[2 * n + p] = aData[i + 2] * aa / 255;
+      out[3 * n + p] = bData[i] * ba / 255;
+      out[4 * n + p] = bData[i + 1] * ba / 255;
+      out[5 * n + p] = bData[i + 2] * ba / 255;
     }
   }
 

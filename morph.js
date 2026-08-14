@@ -693,15 +693,81 @@
     return rendered.out;
   }
 
-  // Interpolate ONLY the alpha channel with the same mesh warp, so an AI frame
-  // (RGB model, alpha 255) can borrow the layer's transparency: the silhouette
-  // moves with the warp instead of dissolving, and clear areas stay clear.
+  // Interpolate ONLY the alpha channel for an AI frame (RGB model, alpha 255)
+  // so it can borrow the layer's transparency. Each endpoint's alpha is warped
+  // to time t along the mesh flow and the two are UNIONED (max): a moving
+  // silhouette stays fully opaque through its whole path — the leading edge is
+  // covered by A's warp, the trailing edge by B's — instead of cross-dissolving
+  // into a semi-transparent ghost. Revealed background stays clear.
   function warpAlpha(aData, bData, meshes, width, height, t) {
-    var rendered = renderMeshWarps(aData, bData, meshes, width, height, t);
+    var meshAB = meshes.meshAB, meshBA = meshes.meshBA;
+    var inv = 1 - t;
     var n = width * height;
+    var w1 = width - 1, h1 = height - 1;
+    var a = aData, b = bData;
+    var cols = meshAB.cols, rows = meshAB.rows, cell = meshAB.cell;
     var alpha = new Uint8Array(n);
-    for (var p = 0, q = 0; p < n; p++, q += 4) alpha[p] = rendered.out[q + 3];
+    // Hoisted per-row and per-column mesh-sample factors (same scheme as
+    // renderMeshWarps) so the per-pixel loop only combines them.
+    var fxArr = new Float32Array(width), axArr = new Float32Array(width);
+    var i0c = new Int32Array(width), i1c = new Int32Array(width);
+    var fyArr = new Float32Array(height), ayArr = new Float32Array(height);
+    var j0r = new Int32Array(height), j1r = new Int32Array(height);
+    var x, y, p;
+    for (x = 0; x < width; x++) {
+      var ffx = x / cell;
+      if (ffx < 0) ffx = 0; else if (ffx > cols - 2) ffx = cols - 2;
+      fxArr[x] = ffx;
+      i0c[x] = ffx | 0;
+      i1c[x] = (ffx | 0) + 1;
+      axArr[x] = ffx - (ffx | 0);
+    }
+    for (y = 0; y < height; y++) {
+      var ffy = y / cell;
+      if (ffy < 0) ffy = 0; else if (ffy > rows - 2) ffy = rows - 2;
+      fyArr[y] = ffy;
+      j0r[y] = ffy | 0;
+      j1r[y] = (ffy | 0) + 1;
+      ayArr[y] = ffy - (ffy | 0);
+    }
+    for (y = 0; y < height; y++) {
+      var fy0 = fyArr[y], ay0 = ayArr[y], j0 = j0r[y], j1 = j1r[y];
+      var j0c = j0 * cols, j1c = j1 * cols;
+      for (x = 0; x < width; x++) {
+        p = y * width + x;
+        var i0 = i0c[x], i1 = i1c[x], ax0 = axArr[x];
+        var omax = 1 - ax0, omay = 1 - ay0;
+        var uA = meshAB.u[j0c + i0] * omax * omay + meshAB.u[j0c + i1] * ax0 * omay
+               + meshAB.u[j1c + i0] * omax * ay0 + meshAB.u[j1c + i1] * ax0 * ay0;
+        var vA = meshAB.v[j0c + i0] * omax * omay + meshAB.v[j0c + i1] * ax0 * omay
+               + meshAB.v[j1c + i0] * omax * ay0 + meshAB.v[j1c + i1] * ax0 * ay0;
+        var uB = meshBA.u[j0c + i0] * omax * omay + meshBA.u[j0c + i1] * ax0 * omay
+               + meshBA.u[j1c + i0] * omax * ay0 + meshBA.u[j1c + i1] * ax0 * ay0;
+        var vB = meshBA.v[j0c + i0] * omax * omay + meshBA.v[j0c + i1] * ax0 * omay
+               + meshBA.v[j1c + i0] * omax * ay0 + meshBA.v[j1c + i1] * ax0 * ay0;
+        var fx = x - t * uA, fy = y - t * vA;
+        var aA = sampleAlpha(a, width, height, fx, fy, w1, h1);
+        var gx = x - inv * uB, gy = y - inv * vB;
+        var aB = sampleAlpha(b, width, height, gx, gy, w1, h1);
+        alpha[p] = aA > aB ? aA : aB;
+      }
+    }
     return alpha;
+  }
+
+  // Bilinear sample of a buffer's alpha channel at (fx, fy) with clamping.
+  function sampleAlpha(data, w, h, fx, fy, w1, h1) {
+    if (fx < 0) fx = 0; else if (fx > w1) fx = w1;
+    if (fy < 0) fy = 0; else if (fy > h1) fy = h1;
+    var x0 = fx | 0, y0 = fy | 0;
+    var x1 = x0 < w1 ? x0 + 1 : x0;
+    var y1 = y0 < h1 ? y0 + 1 : y0;
+    var ax = fx - x0, ay = fy - y0;
+    var q00 = (y0 * w + x0) * 4, q01 = (y0 * w + x1) * 4;
+    var q10 = (y1 * w + x0) * 4, q11 = (y1 * w + x1) * 4;
+    var top = data[q00 + 3] * (1 - ax) + data[q01 + 3] * ax;
+    var bot = data[q10 + 3] * (1 - ax) + data[q11 + 3] * ax;
+    return top * (1 - ay) + bot * ay;
   }
 
   function renderMeshWarps(aData, bData, meshes, width, height, t) {

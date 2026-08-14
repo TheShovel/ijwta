@@ -1,4 +1,4 @@
-/* app.js — Keyframe Studio timeline app
+/* app.js — Ijwta timeline app
  *
  * Places keyframe images on a timeline at arbitrary times; a pure-JS morph engine
  * (see morph.js) fills each gap with interpolated frames: one per tick of the gap,
@@ -94,6 +94,16 @@
   var el = {
     btnAddAssets: byId('btnAddAssets'),
     assetGrid: byId('assetGrid'),
+    startScreen: byId('startScreen'),
+    btnStartNew: byId('btnStartNew'),
+    btnStartLoad: byId('btnStartLoad'),
+    btnStartExample: byId('btnStartExample'),
+    btnStartDocs: byId('btnStartDocs'),
+    btnStartCredits: byId('btnStartCredits'),
+    btnStartGithub: byId('btnStartGithub'),
+    creditsOverlay: byId('creditsOverlay'),
+    creditsText: byId('creditsText'),
+    btnCreditsClose: byId('btnCreditsClose'),
     btnPlay: byId('btnPlay'),
     btnStepBack: byId('btnStepBack'),
     btnStepFwd: byId('btnStepFwd'),
@@ -137,7 +147,6 @@
     gapBlurValue: byId('gapBlurValue'),
     layerNameLabel: byId('layerNameLabel'),
     layerVisible: byId('layerVisible'),
-    layerType: byId('layerType'),
     btnAddLayer: byId('btnAddLayer'),
     btnRemoveLayer: byId('btnRemoveLayer'),
     previewCanvas: byId('previewCanvas'),
@@ -382,11 +391,9 @@
     state.keyframes.forEach(function (k) {
       if (k.img && !seen[k.img]) { seen[k.img] = true; srcs.push(k.img); }
     });
-    state.layers.forEach(function (L) {
-      computeGaps(L.id).forEach(function (g) {
-        (state.generated[g.id] || []).forEach(function (f) {
-          if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
-        });
+    compositeGaps().forEach(function (g) {
+      (state.generated[g.id] || []).forEach(function (f) {
+        if (f.img && !seen[f.img]) { seen[f.img] = true; srcs.push(f.img); }
       });
     });
     var idx = 0;
@@ -504,135 +511,74 @@
     return 1 / state.fps;
   }
 
-  // The times a color gap generates frames: every source layer keyframe time
-  // and every source inbetween time inside the gap. Color frames line up 1:1
-  // with the frames actually displayed, and nowhere else.
-  function colorFrameTimes(gap) {
-    var srcLayer = state.layers[state.layers.indexOf(layerById(gap.layer)) + 1];
-    if (!srcLayer) return [];
-    var fromT = gap.fromTime, toT = gap.toTime;
-    var inclusive = gap.isTail; // the tail gap also covers a change exactly at its end
-    var inRange = function (t) { return t > fromT && (inclusive ? t <= toT : t < toT); };
-    var times = [];
-    sortedKeyframes(srcLayer.id).forEach(function (k) {
-      if (inRange(k.time)) times.push(k.time);
-    });
-    computeGaps(srcLayer.id).forEach(function (g) {
-      if (g.toTime <= fromT || g.fromTime >= toT) return;
-      var n = g.genCount;
-      for (var idx = 1; idx <= n; idx++) {
-        var t = g.fromTime + (g.toTime - g.fromTime) * (idx / (n + 1));
-        if (inRange(t)) times.push(t);
-      }
-    });
-    times.sort(function (a, b) { return a - b; });
-    var out = [];
-    times.forEach(function (t) { if (!out.length || out[out.length - 1] !== t) out.push(t); });
-    return out;
+  // Composite keyframes: every time any visible layer has a keyframe, the
+  // animation shows a flattened composite of all visible layers (white
+  // background + every layer's frame at that time, bottom-to-top). The union
+  // of keyframe times — one per distinct time, sorted — is the single
+  // interpolation track; per-layer keyframes are just how the composite is
+  // authored.
+  function compositeKeyframes() {
+    var seen = {};
+    var list = [];
+    // Topmost visible layer wins the primary id/hold at a shared time.
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = state.layers[i];
+      if (L.visible === false) continue;
+      sortedKeyframes(L.id).forEach(function (k) {
+        if (seen[k.time]) return;
+        seen[k.time] = true;
+        list.push({ time: k.time, id: k.id, kf: k });
+      });
+    }
+    return list.sort(function (a, b) { return a.time - b.time; });
   }
 
-  // Gaps of one layer (or all layers when layerId is omitted). gapId is unique
-  // across layers because keyframe ids are globally unique.
-  function computeGaps(layerId) {
-    var keys = sortedKeyframes(layerId);
+  // Gaps between consecutive composite keyframes. The from-frame holds for its
+  // keyframe's hold duration, then interpolates to the next composite keyframe.
+  function compositeGaps() {
+    var keys = compositeKeyframes();
     var gaps = [];
     for (var i = 0; i < keys.length - 1; i++) {
       var from = keys[i], to = keys[i + 1];
       var id = gapId(from.id, to.id);
-      var fromEnd = from.time + keyframeHold(from);
+      var fromEnd = from.time + keyframeHold(from.kf);
       var sec = Math.max(0, to.time - fromEnd);
-      // Color layers generate colored frames: the pass is warped to follow the
-      // layer directly beneath it. A color layer with nothing under it (or a
-      // source layer with no frames) just holds its pass with zero frames.
-      var isColor = layerById(layerId).type === 'color';
-      var srcBelow = state.layers[state.layers.indexOf(layerById(layerId)) + 1];
-      var colorable = !!(srcBelow && sortedKeyframes(srcBelow.id).length);
-      var mode = isColor ? 'color' : (state.gapType[id] || 'ai');
-      // 'none' gaps hold the from-frame until the next keyframe: no inbetweens.
-      var genCount = (mode === 'none' || (isColor && !colorable)) ? 0 : Math.max(0, Math.round(sec * state.fps) - 1);
+      var mode = state.gapType[id] || 'ai';
+      var genCount = (mode === 'none') ? 0 : Math.max(0, Math.round(sec * state.fps) - 1);
       gaps.push({
         id: id,
-        layer: layerId || null,
-        from: from, to: to,
+        from: from.kf, to: to.kf,
         fromTime: fromEnd, toTime: to.time,
         sec: sec,
         genCount: genCount,
         mode: mode
       });
-      // Color layers generate only where the source actually changes content,
-      // so stretched/held source frames don't produce redundant color frames.
-      if (isColor && colorable) {
-        gaps[gaps.length - 1].genCount = colorFrameTimes(gaps[gaps.length - 1]).length;
-      }
-    }
-    // Color layers also color the time after their last keyframe: a synthetic
-    // tail gap runs to the latest keyframe of any layer, so a single color
-    // pass stretches across the whole animation and warps with the line art.
-    var L = layerById(layerId);
-    if (L && L.type === 'color' && keys.length) {
-      var last = keys[keys.length - 1];
-      var end = 0;
-      state.keyframes.forEach(function (k) { if (k.time > end) end = k.time; });
-      var lastEnd = last.time + keyframeHold(last);
-      var tailSec = Math.max(0, end - lastEnd);
-      var tailSrc = state.layers[state.layers.indexOf(L) + 1];
-      var tailColorable = !!(tailSrc && sortedKeyframes(tailSrc.id).length);
-      if (tailSec > 0) {
-        gaps.push({
-          id: gapId(last.id, last.id + 'end'),
-          layer: layerId,
-          from: last, to: { id: last.id + 'end', time: end, img: last.img },
-          fromTime: lastEnd, toTime: end,
-          sec: tailSec,
-          genCount: 0,
-          mode: 'color',
-          isTail: true
-        });
-        // Same change-based frame count as the between-keyframe gaps: the tail
-        // colors only the source's actual content changes, and holds otherwise.
-        if (tailColorable) {
-          gaps[gaps.length - 1].genCount = colorFrameTimes(gaps[gaps.length - 1]).length;
-        }
-      }
     }
     return gaps;
   }
 
-  // Every layer's gaps in one flat list. Never mix keyframes from different
-  // layers into a gap — each layer interpolates its own timeline.
   function allGaps() {
-    var gaps = [];
-    state.layers.forEach(function (L) {
-      computeGaps(L.id).forEach(function (g) { gaps.push(g); });
-    });
-    return gaps;
+    return compositeGaps();
   }
 
-  // Hash of what a gap's frames were generated from: the two endpoint images
-  // plus the frame count. If these are unchanged, existing frames stay valid
-  // (only their timestamps may need re-deriving). Color gaps also hash the
-  // source layer's frames at the color frame times — the pass is warped along
-  // that motion, so when the line art beneath changes (e.g. motion blur toggled)
-  // the color frames must regenerate too.
+  // Hash of what a gap's frames were generated from: the flattened composite
+  // at each endpoint. Since the composite is built from every visible layer's
+  // frame at the endpoint times, the stamp hashes those constituent images —
+  // change any layer's content (or visibility) and the gap regenerates.
   function gapStamp(g) {
     var squash = gapSquashOpts(g.id);
     var squashKey = squash.amount == null ? 'auto' : String(Math.round(squash.amount * 1000) / 1000);
     var blur = gapBlurOpts(g.id);
     var blurKey = blur.on ? 'mb' + Math.round(blur.intensity * 1000) : 'none';
-    var h;
-    if (g.mode === 'color') {
-      var srcLayer = state.layers[state.layers.indexOf(layerById(g.layer)) + 1];
-      var srcParts = [];
-      if (srcLayer) {
-        colorFrameTimes(g).forEach(function (t) {
-          var fr = layerFrameAt(srcLayer.id, t, false);
-          srcParts.push(fr ? fr.img : '');
-        });
-      }
-      h = hashStr(g.from.img + '|' + g.to.img + '|' + srcParts.join('|'));
-    } else {
-      h = hashStr(g.from.img + '|' + g.to.img);
-    }
+    var parts = [];
+    state.layers.forEach(function (L) {
+      if (L.visible === false) return;
+      var fa = layerFrameAt(L.id, g.from.time, false);
+      var fb = layerFrameAt(L.id, g.to.time, false);
+      if (fa) parts.push(fa.img);
+      if (fb) parts.push(fb.img);
+    });
+    var h = hashStr(parts.join('|'));
     return {
       h: h,
       count: g.genCount,
@@ -675,31 +621,16 @@
     return stampMatches(g, state.gapMeta[g.id]) && computeMissing(g).length === 0;
   }
 
-  // Re-derive one generated frame's timestamp for its current gap. Normal gaps
-  // space frames evenly by index; color frames sit at the source layer's frame
-  // times (colorFrameTimes), so they must NOT be re-spaced evenly — that would
-  // move them off the line art and desync the colors.
+  // Re-derive one generated frame's timestamp for its current gap. Frames
+  // space evenly by index between the hold end and the next keyframe.
   function retimeGapFrame(g, f) {
     if (!f.idx) return;
-    if (g.mode === 'color') {
-      var ct = colorFrameTimes(g);
-      var t = ct[f.idx - 1];
-      if (t != null) f.time = t;
-      return;
-    }
     f.time = g.fromTime + (g.toTime - g.fromTime) * (f.idx / (g.genCount + 1));
   }
 
   function refreshDirty() {
-    // Iterate bottom-up (source layers before the color layers above them): a
-    // color gap's stamp hashes its source layer's frames, so the source's
-    // frames must be invalidated/cleared BEFORE the color gap's stamp is
-    // re-evaluated — otherwise the color gap still sees the old frames and
-    // never regenerates when the line art beneath changes.
-    var gaps = [];
-    for (var li = state.layers.length - 1; li >= 0; li--) {
-      computeGaps(state.layers[li].id).forEach(function (g) { gaps.push(g); });
-    }
+    // Single composite track: gaps run between flattened composite keyframes.
+    var gaps = compositeGaps();
     var ids = {};
     gaps.forEach(function (g) { ids[g.id] = true; });
     // Drop records for gaps that no longer exist (keyframes deleted/merged).
@@ -708,13 +639,13 @@
     var dirty = new Set();
     gaps.forEach(function (g) {
       if (stampMatches(g, state.gapMeta[g.id])) {
-        // Same endpoint images + count: frames stay valid; only their
+        // Same endpoint composites + count: frames stay valid; only their
         // timestamps change when gap boundaries move.
         (state.generated[g.id] || []).forEach(function (f) {
           retimeGapFrame(g, f);
         });
       } else if (g.genCount > 0) {
-        // Images or count changed: drop stale frames so they don't linger.
+        // Content or count changed: drop stale frames so they don't linger.
         if (state.generated[g.id] && state.generated[g.id].length) state.generated[g.id] = [];
       }
       if (g.genCount <= 0 && state.generated[g.id] && state.generated[g.id].length) {
@@ -822,20 +753,17 @@
     return s;
   }
 
-  // Playback frames: the sorted union of every layer's keyframe and generated
-  // frame times. Each entry is a time the composite image changes; the actual
-  // composite is rendered on demand (see framesAt / drawFrames).
+  // Playback frames: the composite keyframe times plus every generated
+  // inbetween time on the composite track. Each entry is a time the flattened
+  // image changes; the composite is rendered on demand (see framesAt).
   function buildPlaybackFrames() {
     var times = {};
-    state.layers.forEach(function (L) {
-      sortedKeyframes(L.id).forEach(function (k) {
-        var e = times[k.time] || (times[k.time] = { key: false });
-        e.key = true;
-      });
-      computeGaps(L.id).forEach(function (g) {
-        (state.generated[g.id] || []).forEach(function (f) {
-          times[f.time] = times[f.time] || { key: false };
-        });
+    compositeKeyframes().forEach(function (ck) {
+      times[ck.time] = { key: true };
+    });
+    compositeGaps().forEach(function (g) {
+      (state.generated[g.id] || []).forEach(function (f) {
+        times[f.time] = times[f.time] || { key: false };
       });
     });
     return Object.keys(times).map(function (t) {
@@ -848,23 +776,29 @@
     return frames[state.curIndex] || null;
   }
 
-  // The frame (keyframe or generated inbetween) of one layer that is active at
-  // time t: the last of that layer's frames at or before t. With keysOnly, only
-  // keyframes count (no interpolated frames), matching the preview toggle.
-  function layerFrameAt(layerId, t, keysOnly) {
-    var frames = [];
-    sortedKeyframes(layerId).forEach(function (k) {
-      frames.push({ time: k.time, img: k.img, gen: false });
-    });
-    if (!keysOnly) {
-      computeGaps(layerId).forEach(function (g) {
-        (state.generated[g.id] || []).forEach(function (f) {
-          frames.push({ time: f.time, img: f.img, gen: true });
-        });
+  // The generated (flattened) composite frame active at time t, if any: the
+  // last inbetween of the gap containing t. Generated frames live strictly
+  // inside their gap (fromTime, toTime), so a composite keyframe time never
+  // matches — the keyframe's own composite shows instead.
+  function generatedFrameAt(t) {
+    var best = null;
+    compositeGaps().forEach(function (g) {
+      if (!(t > g.fromTime && t < g.toTime)) return;
+      (state.generated[g.id] || []).forEach(function (f) {
+        if (f.time <= t + 1e-9 && (!best || f.time > best.time)) best = f;
       });
-    }
+    });
+    return best;
+  }
+
+  // The frame (keyframe) of one layer that is active at time t: the last of
+  // that layer's keyframes at or before t. Generated frames are composites of
+  // every layer, so they never belong to a single layer.
+  function layerFrameAt(layerId, t, keysOnly) {
+    var frames = sortedKeyframes(layerId).map(function (k) {
+      return { time: k.time, img: k.img, gen: false };
+    });
     if (!frames.length) return null;
-    frames.sort(function (a, b) { return a.time - b.time; });
     var active = null;
     for (var i = 0; i < frames.length; i++) {
       if (frames[i].time <= t + 1e-9) active = frames[i];
@@ -873,44 +807,40 @@
     return active;
   }
 
-  // The image each visible layer contributes to the composite at time t, in
-  // bottom-to-top draw order (the last layer is drawn first, the first layer
-  // — the topmost — last). Each image keeps its own alpha channel, so
-  // transparent keyframes (e.g. a character cut out on clear) composite over
-  // the layers below it. Undecoded images are skipped by the drawing functions
-  // (callers wait for them when needed). Color layers color only the layer
-  // directly beneath them and always blend by multiply (the pass and its
-  // generated warped frames), so the line art's lines stay visible.
+  // The images that make up the composite at time t, in draw order. At a
+  // generated inbetween the composite IS one flattened image (white baked in).
+  // At a keyframe (or in keysOnly mode) it is the live stack of visible layers
+  // over a white backdrop.
   function framesAt(t, keysOnly) {
+    if (!keysOnly) {
+      var gen = generatedFrameAt(t);
+      if (gen) return [{ img: gen.img, full: true }];
+    }
     var list = [];
     for (var i = state.layers.length - 1; i >= 0; i--) {
       var L = state.layers[i];
       if (L.visible === false) continue;
       var f = layerFrameAt(L.id, t, keysOnly);
-      if (f) list.push({ img: f.img, color: L.type === 'color', gen: !!f.gen });
+      if (f) list.push({ img: f.img });
     }
     return list;
   }
 
-  // Draw a bottom-to-top composite of the given layer frames (black backdrop).
+  // Draw a composite of the given frames (white backdrop; a single full frame
+  // is the flattened composite and is drawn as-is).
   function drawFrames(ctx, frames) {
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, workW, workH);
     for (var i = 0; i < frames.length; i++) {
       var img = imgCache.get(frames[i].img);
       if (!img) continue;
-      // Color layers always blend by multiply (generated warped frames and the
-      // raw pass alike): the line art's paper stays white, its dark lines stay
-      // visible, and the pass's colors tint the drawing beneath it.
-      if (frames[i].color) ctx.globalCompositeOperation = 'multiply';
       drawContain(ctx, img, workW, workH);
-      if (frames[i].color) ctx.globalCompositeOperation = 'source-over';
     }
   }
 
   function compositeKey(t, keysOnly) {
     return framesAt(t, keysOnly).map(function (f) {
-      return (f.color ? 'c:' : '') + (f.gen ? 'g:' : '') + f.img;
+      return (f.full ? 'F:' : '') + f.img;
     }).join('|');
   }
 
@@ -924,13 +854,11 @@
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
     })).then(function (imgs) {
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, workW, workH);
       for (var i = 0; i < frames.length; i++) {
         if (!imgs[i]) continue;
-        if (frames[i].color) ctx.globalCompositeOperation = 'multiply';
         drawContain(ctx, imgs[i], workW, workH);
-        if (frames[i].color) ctx.globalCompositeOperation = 'source-over';
       }
       return canvas;
     });
@@ -1018,6 +946,66 @@
   function renderLane() {
     el.lane.innerHTML = '';
     var z = state.zoom;
+
+    // Composite track row (top): the flattened interpolation track's gaps and
+    // generated inbetween dots live here. Layer rows below show only keyframes.
+    var cRow = document.createElement('div');
+    cRow.className = 'composite-row';
+    var cGutter = document.createElement('div');
+    cGutter.className = 'layer-gutter';
+    cGutter.textContent = 'Composite';
+    var cContent = document.createElement('div');
+    cContent.className = 'layer-content';
+    var labelItems = [];
+    compositeGaps().forEach(function (g) {
+      var x1 = g.fromTime * z, x2 = g.toTime * z;
+      var gen = state.generated[g.id] || [];
+      var ok = gapComplete(g);
+      var overlay = document.createElement('div');
+      overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '') +
+        ' mode-' + g.mode + (g.id === state.selectedGapId ? ' selected' : '');
+      overlay.style.left = x1 + 'px';
+      overlay.style.width = Math.max(2, x2 - x1) + 'px';
+      overlay.dataset.gap = g.id;
+      if (g.mode === 'none') {
+        if (g.sec > 0) {
+          var noneLabel = document.createElement('div');
+          noneLabel.className = 'glabel';
+          noneLabel.textContent = 'no interpolation';
+          overlay.appendChild(noneLabel);
+          labelItems.push({ el: noneLabel, left: x1 + 4 });
+        }
+      } else if (g.genCount > 0) {
+        var label = document.createElement('div');
+        label.className = 'glabel';
+        var suffix = g.mode === 'squash' ? ' · squash' : '';
+        label.textContent = ok
+          ? g.genCount + ' frames' + suffix
+          : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' + suffix : g.genCount + ' frames needed' + suffix);
+        overlay.appendChild(label);
+        labelItems.push({ el: label, left: x1 + 4 });
+        if (g.genCount > WARN_GEN_COUNT) {
+          var warn = document.createElement('div');
+          warn.className = 'gap-warn';
+          warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
+          overlay.dataset.count = String(g.genCount);
+          overlay.appendChild(warn);
+        }
+      }
+      cContent.appendChild(overlay);
+
+      gen.forEach(function (f) {
+        var dot = document.createElement('div');
+        dot.className = 'frame-dot';
+        dot.style.left = (f.time * z) + 'px';
+        cContent.appendChild(dot);
+      });
+    });
+    stackGapLabels(labelItems);
+    cRow.appendChild(cGutter);
+    cRow.appendChild(cContent);
+    el.lane.appendChild(cRow);
+
     state.layers.forEach(function (L) {
       var row = document.createElement('div');
       row.className = 'layer-row' + (L.id === state.activeLayerId ? ' active' : '') + (L.id === layerDragId ? ' dragging' : '');
@@ -1031,72 +1019,10 @@
       grip.className = 'layer-grip';
       grip.setAttribute('aria-hidden', 'true');
       gutter.appendChild(grip);
-      if (L.type === 'color') {
-        var typeBadge = document.createElement('span');
-        typeBadge.className = 'layer-type-badge';
-        typeBadge.textContent = 'color';
-        gutter.appendChild(typeBadge);
-      }
       var content = document.createElement('div');
       content.className = 'layer-content';
 
       var keys = sortedKeyframes(L.id);
-      var gaps = computeGaps(L.id);
-      var labelItems = [];
-
-      gaps.forEach(function (g) {
-        var x1 = g.fromTime * z, x2 = g.toTime * z;
-        var gen = state.generated[g.id] || [];
-        var ok = gapComplete(g);
-        var overlay = document.createElement('div');
-        overlay.className = 'gap-overlay ' + (ok ? 'ok' : 'dirty') + (g.genCount > WARN_GEN_COUNT ? ' warn' : '') +
-          ' mode-' + g.mode + (L.type === 'color' ? ' layer-color' : '') + (g.id === state.selectedGapId ? ' selected' : '');
-        overlay.style.left = x1 + 'px';
-        overlay.style.width = Math.max(2, x2 - x1) + 'px';
-        overlay.dataset.gap = g.id;
-        if (g.mode === 'none') {
-          if (g.sec > 0) {
-            var noneLabel = document.createElement('div');
-            noneLabel.className = 'glabel';
-            noneLabel.textContent = 'no interpolation';
-            overlay.appendChild(noneLabel);
-            labelItems.push({ el: noneLabel, left: x1 + 4 });
-          }
-        } else if (g.mode === 'color' && g.genCount <= 0) {
-          if (g.sec > 0) {
-            var colorHold = document.createElement('div');
-            colorHold.className = 'glabel';
-            colorHold.textContent = 'color hold · stretch';
-            overlay.appendChild(colorHold);
-            labelItems.push({ el: colorHold, left: x1 + 4 });
-          }
-        } else if (g.genCount > 0) {
-          var label = document.createElement('div');
-          label.className = 'glabel';
-          var suffix = g.mode === 'squash' ? ' · squash' : (g.mode === 'color' ? ' · color' : '');
-          label.textContent = ok
-            ? g.genCount + ' frames' + suffix
-            : (gen.length > 0 ? gen.length + '/' + g.genCount + ' frames · regenerate' + suffix : g.genCount + ' frames needed' + suffix);
-          overlay.appendChild(label);
-          labelItems.push({ el: label, left: x1 + 4 });
-          if (g.genCount > WARN_GEN_COUNT) {
-            var warn = document.createElement('div');
-            warn.className = 'gap-warn';
-            warn.textContent = '⚠ ' + g.genCount + ' inbetweens. Add a real frame here or the output will look bad.';
-            overlay.dataset.count = String(g.genCount);
-            overlay.appendChild(warn);
-          }
-        }
-        content.appendChild(overlay);
-
-        gen.forEach(function (f) {
-          var dot = document.createElement('div');
-          dot.className = 'frame-dot';
-          dot.style.left = (f.time * z) + 'px';
-          content.appendChild(dot);
-        });
-      });
-      stackGapLabels(labelItems);
 
       keys.forEach(function (k) {
         var chip = document.createElement('div');
@@ -1305,12 +1231,10 @@
     el.gapPanel.classList.toggle('hidden', !hasGap);
     el.kfSection.classList.toggle('hidden', hasGap);
     if (hasGap) {
-      var L = layerById(gap.layer);
-      // Color layers always stretch (hold) — their interpolation is fixed.
-      el.gapTypeInput.disabled = !!(L && L.type === 'color');
-      el.gapName.textContent = (L ? L.name + ' · ' : '') + (gap.from.name || 'frame') + ' → ' + (gap.to.name || 'frame');
+      el.gapTypeInput.disabled = false;
+      el.gapName.textContent = 'Composite · ' + (gap.from.name || 'frame') + ' → ' + (gap.to.name || 'frame');
       el.gapTime.textContent = fmtTime(gap.fromTime) + ' → ' + fmtTime(gap.toTime) +
-        (gap.mode === 'none' ? ' · hold' : gap.mode === 'color' ? ' · ' + gap.genCount + ' colored frames' : ' · ' + gap.genCount + ' inbetweens');
+        (gap.mode === 'none' ? ' · hold' : ' · ' + gap.genCount + ' inbetweens');
       el.gapTypeInput.value = gap.mode;
       var squash = gapSquashOpts(gap.id);
       var isSquash = gap.mode === 'squash';
@@ -1327,7 +1251,7 @@
         el.gapSquashPreserve.value = squash.preserve;
       }
       // Motion blur applies to any gap that actually generates inbetweens
-      // (AI or squash); 'none' gaps hold and color layers are handled elsewhere.
+      // (AI or squash).
       var isBlurable = gap.mode === 'ai' || gap.mode === 'squash';
       var blur = gapBlurOpts(gap.id);
       el.gapBlurGroup.classList.toggle('hidden', !isBlurable);
@@ -1386,11 +1310,6 @@
     if (state.layers.length <= 1) { toast('Keep at least one layer.'); return; }
     var idx = state.layers.findIndex(function (l) { return l.id === id; });
     if (idx === -1) return;
-    // Drop the layer's keyframes and any generated frames for its gaps.
-    computeGaps(id).forEach(function (g) {
-      delete state.generated[g.id];
-      delete state.gapMeta[g.id];
-    });
     state.keyframes = state.keyframes.filter(function (k) { return k.layer !== id; });
     state.layers.splice(idx, 1);
     if (state.activeLayerId === id) state.activeLayerId = state.layers[0].id;
@@ -1409,7 +1328,6 @@
     var L = layerById(state.activeLayerId);
     el.layerNameLabel.textContent = L ? L.name : '';
     el.layerVisible.checked = L ? L.visible !== false : true;
-    el.layerType.value = L && L.type === 'color' ? 'color' : 'normal';
     el.btnRemoveLayer.disabled = state.layers.length <= 1;
   }
 
@@ -1556,10 +1474,11 @@
 
   function renderAssets() {
     var imgs = state.assets;
-    // Skip the DOM rebuild when the library is unchanged.
-    if (imgs.length === assetCache.length && imgs.every(function (a) { return assetImgs.has(a.img); })) return;
-    assetCache = imgs.slice();
+    // Skip the DOM rebuild when the panel already matches: same tile count
+    // (an empty panel shows one placeholder) and the same image set.
     assetImgs = new Set(imgs.map(function (a) { return a.img; }));
+    if (el.assetGrid.childElementCount === (imgs.length || 1)) return;
+    assetCache = imgs.slice();
     el.assetGrid.innerHTML = '';
     if (!imgs.length) {
       var empty = document.createElement('div');
@@ -1913,7 +1832,6 @@
     if (idx === -1) return;
     invalidateAround(id);
     state.keyframes.splice(idx, 1);
-    delete state.generated[gapId(id, '')];
     if (state.selectedId === id) state.selectedId = null;
     applyWorkSize();
     refreshDirty();
@@ -1923,16 +1841,10 @@
   }
 
   // Turn a composite playback frame into a keyframe on the active layer. The
-  // gap it falls in (on that layer) is split and its generated frames re-keyed
-  // into the two new gaps, exactly like the single-layer flow.
+  // flattened composite becomes a new keyframe image; the composite track
+  // splits there and regenerates the surrounding gaps.
   function promoteToKeyframe(f) {
     var layerId = state.activeLayerId || state.layers[0].id;
-    var oldGap = null;
-    computeGaps(layerId).forEach(function (g) {
-      if (f.time > g.from.time && f.time < g.to.time) oldGap = g;
-    });
-    var oldGen = oldGap ? state.generated[oldGap.id] : null;
-    if (oldGap) delete state.generated[oldGap.id];
     return compositeDataURL(f.time).then(function (url) {
       state.keyframes.push({
         id: 'k' + (idSeq++),
@@ -1943,13 +1855,6 @@
         w: workW,
         h: workH
       });
-      if (oldGen) {
-        computeGaps(layerId).forEach(function (g) {
-          state.generated[g.id] = oldGen.filter(function (frame) {
-            return frame.time > g.fromTime + 1e-9 && frame.time < g.toTime - 1e-9;
-          });
-        });
-      }
       state.selectedId = state.keyframes[state.keyframes.length - 1].id;
       applyWorkSize();
       refreshDirty();
@@ -1975,19 +1880,6 @@
   // Generation — runs in the background worker; only missing frames are
   // generated, and auto-runs (debounced) after every change.
 
-  function drawImageToData(img, w, h) {
-    var canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    var ctx = canvas.getContext('2d');
-    // Clear transparent instead of painting black, so keyframes that carry an
-    // alpha channel (cut-out characters, overlays) keep their transparency
-    // through interpolation and composite over lower layers.
-    ctx.clearRect(0, 0, w, h);
-    drawContain(ctx, img, w, h);
-    return ctx.getImageData(0, 0, w, h).data;
-  }
-
   // Reused rasterization canvas — allocating one per frame is GC churn during
   // generation (dataToDataURL runs once per generated frame).
   var encodeCanvas = null;
@@ -2007,18 +1899,47 @@
     return encodeCanvas.toDataURL('image/png');
   }
 
-  // Generate one gap's missing frames. Dispatches to the worker when
-  // available; otherwise runs inline (mesh warp fallback path). Color gaps
-  // dispatch one worker job per frame so the optical flow never blocks the UI.
+  // Flatten every visible layer's frame at time t onto a white backdrop, as a
+  // raw RGBA buffer at working size. This is the interpolation endpoint: the
+  // composite is opaque (white background), so the AI model gets clean input
+  // and transparent per-layer images don't crossfade garbage.
+  function flattenImageData(t) {
+    var frames = [];
+    for (var i = state.layers.length - 1; i >= 0; i--) {
+      var L = state.layers[i];
+      if (L.visible === false) continue;
+      var f = layerFrameAt(L.id, t, false);
+      if (f) frames.push(f.img);
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = workW;
+    canvas.height = workH;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, workW, workH);
+    return Promise.all(frames.map(function (src) {
+      return loadImage(src).catch(function () { return null; });
+    })).then(function (imgs) {
+      if (!imgs.length) return ctx.getImageData(0, 0, workW, workH).data;
+      for (var j = 0; j < frames.length; j++) {
+        if (!imgs[j]) continue;
+        drawContain(ctx, imgs[j], workW, workH);
+      }
+      return ctx.getImageData(0, 0, workW, workH).data;
+    });
+  }
+
+  // Generate one gap's missing frames. The endpoints are the flattened
+  // composites at the two keyframe times, so the inbetweens are opaque frames
+  // of the whole animation. Dispatches to the worker when available; otherwise
+  // runs inline (mesh warp fallback path).
   function generateGap(gap, missing, cbs) {
     var missingList = missing.map(function (idx) {
       return { idx: idx, t: idx / (gap.genCount + 1) };
     });
-    if (gap.mode === 'color') return generateColorGap(gap, missingList, cbs);
-    return Promise.all([loadImage(gap.from.img), loadImage(gap.to.img)]).then(function (imgs) {
+    return Promise.all([flattenImageData(gap.from.time), flattenImageData(gap.to.time)]).then(function (datas) {
       if (cbs.cancelled()) return;
-      var aData = drawImageToData(imgs[0], workW, workH);
-      var bData = drawImageToData(imgs[1], workW, workH);
+      var aData = datas[0], bData = datas[1];
       if (workers.length) {
         var jobId = 'job' + (++jobSeq);
         var wi = pickWorker();
@@ -2051,118 +1972,6 @@
         });
       }
       return generateGapInline(aData, bData, gap, missingList, cbs);
-    });
-  }
-
-  // Color-layer generation. The color keyframe's pass is a colored version of
-  // the layer directly beneath (the source) at the keyframe's time. Each
-  // generated frame warps the pass along the source layer's motion (flow from
-  // its frame at the pass time to its frame at the inbetween time), so the
-  // colors follow the line art instead of sitting still. When the source
-  // frame is unchanged the pass is reused as-is.
-  function generateColorGap(gap, missingList, cbs) {
-    var colorLayer = layerById(gap.layer);
-    var srcLayer = state.layers[state.layers.indexOf(colorLayer) + 1];
-    if (!srcLayer) return Promise.resolve();
-    var passImg = gap.from.img;
-    var passFrame = layerFrameAt(srcLayer.id, gap.from.time, false);
-    if (!passFrame) return Promise.resolve();
-    // Frame times are the source layer's content changes inside the gap, not
-    // even spacing — a held source yields no frames at all.
-    var times = colorFrameTimes(gap);
-    return Promise.all([loadImage(passImg), loadImage(passFrame.img)]).then(function (imgs) {
-      if (cbs.cancelled()) return;
-      var passData = drawImageToData(imgs[0], workW, workH);
-      var aData = drawImageToData(imgs[1], workW, workH);
-      // Pin this gap to one worker and upload the constant pass + source frame
-      // once (color-pass). Each frame then sends only the changing bData
-      // (transferred, zero-copy) instead of cloning ~24 MB per frame.
-      var wi = pickWorker();
-      var passId = null;
-      if (workers.length) {
-        passId = gap.id + '-' + (++jobSeq);
-        try {
-          workers[wi].postMessage({
-            type: 'color-pass',
-            passId: passId,
-            passData: passData, aData: aData,
-            width: workW, height: workH
-          });
-        } catch (e) { passId = null; }
-      }
-      var freePass = function () {
-        if (passId && workers.length) {
-          try { workers[wi].postMessage({ type: 'color-pass-free', passId: passId }); } catch (e) {}
-        }
-      };
-      var i = 0;
-      var next = function () {
-        if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
-        var m = missingList[i++];
-        var time = (m.idx >= 1 && m.idx <= times.length) ? times[m.idx - 1] : gap.toTime;
-        var srcFrame = layerFrameAt(srcLayer.id, time, false);
-        if (!srcFrame) return next();
-        var done = function (img) {
-          cbs.onFrame({ idx: m.idx, t: m.t, time: time, img: img, ai: false });
-          if (cbs.onProgress) cbs.onProgress('color frame ' + m.idx + '/' + gap.genCount, i / missingList.length);
-        };
-        if (srcFrame.img === passFrame.img) { done(passImg); return next(); }
-        return loadImage(srcFrame.img).then(function (img) {
-          if (cbs.cancelled()) return;
-          var bData = drawImageToData(img, workW, workH);
-          if (!workers.length || !passId) {
-            // Inline fallback (no worker): the flow pass blocks the main thread
-            // here, matching the mesh-warp fallback for normal gaps.
-            return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
-              if (cbs.cancelled()) return;
-              var warped = morph.warpFrame(passData, pair.flowAB, workW, workH, 2);
-              morph.gateFill(warped, bData, workW, workH);
-              done(dataToDataURL(warped, workW, workH));
-            }).then(next);
-          }
-          // One worker job per frame: the worker computes the optical flow and
-          // warps the pass off the main thread, so long color spans never
-          // freeze the UI. The pass + source frame already live on the worker.
-          var jobId = 'job' + (++jobSeq);
-          return new Promise(function (resolve, reject) {
-            workerJobs[jobId] = {
-              resolve: resolve,
-              reject: reject,
-              onFrame: function (fr) { done(fr.img); },
-              onProgress: cbs.onProgress,
-              worker: workers[wi]
-            };
-            workerBusy[wi]++;
-            var bBuf = bData.buffer;
-            workers[wi].postMessage({
-              type: 'color-frame',
-              jobId: jobId,
-              passId: passId,
-              bData: bBuf,
-              width: workW, height: workH,
-              idx: m.idx, t: m.t, time: time
-            }, [bBuf]);
-          }).catch(function (err) {
-            // Worker died mid-frame: fall back to the inline warp for this
-            // frame instead of failing the whole color gap. A cancelled run
-            // is not an error — let it end.
-            if (cbs.cancelled()) throw err;
-            console.error('Color worker job failed, warping inline:', err);
-            return morph.computeFlowBoth(aData, bData, workW, workH, {}, null, cbs.cancelled).then(function (pair) {
-              if (cbs.cancelled()) return;
-              var warped = morph.warpFrame(passData, pair.flowAB, workW, workH, 2);
-              morph.gateFill(warped, bData, workW, workH);
-              done(dataToDataURL(warped, workW, workH));
-            });
-          }).then(next);
-        }).then(next);
-      };
-      return next().then(function () {
-        freePass();
-      }, function (err) {
-        freePass();
-        throw err;
-      });
     });
   }
 
@@ -2271,55 +2080,33 @@
   }
 
   function cancelRun() {
-    if (state.genRun) {
-      state.genRun.cancelled = true;
-      workers.forEach(function (w) {
-        try { w.postMessage({ type: 'cancel' }); } catch (e) {}
-      });
-    }
+    if (!state.genRun) return;
+    state.genRun.cancelled = true;
+    workers.forEach(function (w) {
+      try { w.postMessage({ type: 'cancel' }); } catch (e) {}
+    });
+    // The pump waits on outstanding worker jobs; a busy or crashed worker may
+    // never answer a cancel, which would wedge the run and block all future
+    // auto-generation (heavy editing churns cancel/restart constantly). Settle
+    // every outstanding job now so the run drains immediately; late replies are
+    // ignored because their jobIds are already gone.
+    Object.keys(workerJobs).forEach(function (id) {
+      var j = workerJobs[id];
+      if (!j) return;
+      delete workerJobs[id];
+      decBusy(j.worker);
+      j.resolve();
+    });
   }
 
   function runGeneration() {
     if (state.genRun) return;
-    // A color gap warps its pass along the source layer's motion, so it needs
-    // the source layer's generated frames to exist BEFORE it starts. Collect
-    // gaps bottom-first and defer every color gap (pending) until the layer
-    // directly beneath it has no incomplete gaps. A color gap whose source
-    // layer is regenerating in this run is also queued — its stamp includes the
-    // source frames, so it must redo after the source finishes.
-    var gaps = [];
-    var pending = [];
-    var pendingIds = {};
-    var srcDirty = {};
-    var pend = function (g) {
-      if (pendingIds[g.id]) return;
-      pendingIds[g.id] = true;
-      pending.push(g);
-    };
-    for (var li = state.layers.length - 1; li >= 0; li--) {
-      (function (L) {
-        computeGaps(L.id).forEach(function (g) {
-          if (g.genCount <= 0) return;
-          if (g.mode === 'color') {
-            if (!gapComplete(g)) pend(g);
-            return;
-          }
-          if (!gapComplete(g)) { gaps.push(g); srcDirty[L.id] = true; }
-        });
-      })(state.layers[li]);
-    }
-    // Color gaps over a regenerating source must re-run too (their frames were
-    // warped against the old line art).
-    state.layers.forEach(function (L) {
-      if (L.type !== 'color') return;
-      var srcLayer = state.layers[state.layers.indexOf(L) + 1];
-      if (!srcLayer || !srcDirty[srcLayer.id]) return;
-      computeGaps(L.id).forEach(function (g) {
-        if (g.genCount > 0) pend(g);
-      });
+    // Single composite track: every gap interpolates two flattened composite
+    // images, so gaps are independent and can all run concurrently.
+    var gaps = compositeGaps().filter(function (g) {
+      return g.genCount > 0 && !gapComplete(g);
     });
     var total = gaps.reduce(function (s, g) { return s + computeMissing(g).length; }, 0);
-    pending.forEach(function (g) { total += computeMissing(g).length; });
     if (!total) {
       setGenStatus('ready', 'All gaps generated ✓');
       updateEstimate();
@@ -2372,31 +2159,11 @@
         renderFilmstrip();
       });
     };
-    // A color gap may start once every gap of the layer directly beneath it is
-    // complete (no missing frames under its current stamp).
-    var colorSourceReady = function (g) {
-      var colorLayer = layerById(g.layer);
-      var srcLayer = state.layers[state.layers.indexOf(colorLayer) + 1];
-      if (!srcLayer) return true;
-      return computeGaps(srcLayer.id).every(function (sg) {
-        return sg.genCount <= 0 || gapComplete(sg);
-      });
-    };
     // Run up to `concurrency` gaps at once (one per worker) instead of one big
-    // chain, so idle cores keep busy while a slow gap is generating. Deferred
-    // color gaps are promoted as soon as their source layer finishes.
+    // chain, so idle cores keep busy while a slow gap is generating.
     var completion = new Promise(function (resolve, reject) {
-      function promotePending() {
-        for (var i = pending.length - 1; i >= 0; i--) {
-          if (colorSourceReady(pending[i])) {
-            gaps.push(pending[i]);
-            pending.splice(i, 1);
-          }
-        }
-      }
       function pump() {
         if (run.cancelled || firstErr) idx = gaps.length; // stop after cancel/error
-        promotePending();
         while (!run.cancelled && !firstErr && active < concurrency && idx < gaps.length) {
           var gap = gaps[idx], gi = idx;
           idx++;
@@ -2411,8 +2178,6 @@
           });
         }
         if (idx >= gaps.length && active === 0) {
-          promotePending();
-          if (idx < gaps.length) { pump(); return; }
           if (firstErr) reject(firstErr);
           else resolve();
         }
@@ -2974,9 +2739,9 @@
     var large = target.w * target.h > 1920 * 1080; // H.264 MediaRecorder is fragile at 4K+
     var mime = pickVideoMime(large);
     if (!mime) {
+      setGenStatus('error', 'Video recording is not supported in this browser.');
       hideExportOverlay();
       endExport();
-      setGenStatus('error', 'Video recording is not supported in this browser.');
       toast('This browser cannot record video. Use Chrome, Edge or Safari for MP4 export.');
       return;
     }
@@ -3357,7 +3122,7 @@
         aspect: state.aspect, customW: state.customW, customH: state.customH
       },
       layers: state.layers.map(function (l) {
-        return { id: l.id, name: l.name, visible: l.visible, type: l.type === 'color' ? 'color' : 'normal' };
+        return { id: l.id, name: l.name, visible: l.visible };
       }),
       activeLayerId: state.activeLayerId,
       assets: state.assets.map(function (a) {
@@ -3417,8 +3182,7 @@
         return {
           id: l.id,
           name: l.name || 'Layer',
-          visible: l.visible !== false,
-          type: l.type === 'color' ? 'color' : 'normal'
+          visible: l.visible !== false
         };
       });
       state.activeLayerId = state.layers.some(function (l) { return l.id === data.activeLayerId; })
@@ -3479,11 +3243,12 @@
   // File menu: export the project as an .ijwta file (Save) / import one (Load).
   function saveProjectFile() {
     var blob = new Blob([JSON.stringify(projectData(), null, 2)], { type: 'application/json' });
-    downloadBlob(blob, 'keyframe-studio-project.ijwta', 'application/json');
+    downloadBlob(blob, 'ijwta-project.ijwta', 'application/json');
     toast('Project saved (.ijwta)');
   }
 
   function loadProjectFile(file) {
+    enterApp();
     var reader = new FileReader();
     reader.onload = function () {
       try {
@@ -3515,6 +3280,110 @@
       }
     };
     reader.readAsText(file);
+  }
+
+  // ---- start screen ----
+
+  function enterApp() {
+    el.startScreen.classList.add('hidden');
+  }
+
+  // Wipe everything back to a fresh empty project.
+  function newProject() {
+    cancelRun();
+    pause();
+    state.keyframes = [];
+    state.assets = [];
+    state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
+    state.activeLayerId = 'L1';
+    state.generated = {};
+    state.gapMeta = {};
+    state.gapType = {};
+    state.gapSquash = {};
+    state.gapBlur = {};
+    state.dirty = new Set();
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.playhead = 0;
+    state.curIndex = 0;
+    applyWorkSize();
+    refreshDirty();
+    renderAll();
+    syncInputs();
+    save();
+    enterApp();
+  }
+
+  // Simple placeholder frames for the example project (a ball rolling across
+  // a flat scene). Replaced later with something nicer.
+  function demoFrame(right) {
+    var c = document.createElement('canvas');
+    c.width = 320;
+    c.height = 240;
+    var g = c.getContext('2d');
+    g.fillStyle = '#232a33';
+    g.fillRect(0, 0, 320, 240);
+    g.fillStyle = '#3a4552';
+    g.fillRect(0, 160, 320, 80);
+    g.fillStyle = '#c3ab7d';
+    g.beginPath();
+    g.arc(50, 55, 26, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#8fb0a2';
+    g.beginPath();
+    g.arc(right ? 235 : 85, 150, 34, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#6b7787';
+    g.beginPath();
+    g.arc(right ? 245 : 75, 130, 20, 0, Math.PI * 2);
+    g.fill();
+    return c.toDataURL('image/png');
+  }
+
+  // Build a small two-keyframe demo so the start screen's "Example project"
+  // actually shows off the interpolation.
+  function openExample() {
+    cancelRun();
+    pause();
+    state.keyframes = [];
+    state.assets = [];
+    state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
+    state.activeLayerId = 'L1';
+    state.generated = {};
+    state.gapMeta = {};
+    state.gapType = {};
+    state.gapSquash = {};
+    state.gapBlur = {};
+    state.dirty = new Set();
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.playhead = 0;
+    state.curIndex = 0;
+    var imgA = demoFrame(false);
+    var imgB = demoFrame(true);
+    state.assets.push(
+      { img: imgA, name: 'Start', w: 320, h: 240 },
+      { img: imgB, name: 'End', w: 320, h: 240 }
+    );
+    var ka = { id: 'k' + (idSeq++), layer: 'L1', time: 0, img: imgA, name: 'Start', w: 320, h: 240 };
+    var kb = { id: 'k' + (idSeq++), layer: 'L1', time: 1, img: imgB, name: 'End', w: 320, h: 240 };
+    state.keyframes.push(ka, kb);
+    applyWorkSize();
+    refreshDirty();
+    renderAll();
+    syncInputs();
+    save();
+    enterApp();
+    scheduleGenerate(300);
+    toast('Example project loaded');
+  }
+
+  function openCredits() {
+    el.creditsText.innerHTML = 'Ijwta — I just want to animate.<br><br>' +
+      'Frame interpolation: RIFE (ONNX Runtime Web) with a pure-JS mesh-warp fallback.<br>' +
+      'Encoding: gifenc (GIF) · mp4-muxer (MP4).<br>' +
+      'Built as a local, serverless tool — nothing leaves your browser.';
+    el.creditsOverlay.classList.remove('hidden');
   }
 
   function wireEvents() {
@@ -3593,18 +3462,8 @@
       var L = layerById(state.activeLayerId);
       if (!L) return;
       L.visible = el.layerVisible.checked;
-      renderPreview();
-      renderLane();
-      save();
-    });
-    el.layerType.addEventListener('change', function () {
-      var L = layerById(state.activeLayerId);
-      if (!L) return;
-      var next = el.layerType.value === 'color' ? 'color' : 'normal';
-      if (L.type === next) return;
-      L.type = next;
-      // Color layers have no inbetweens; switching back to normal marks the
-      // layer's gaps dirty so they regenerate with the chosen mode.
+      // Visibility changes the flattened composite, so every gap's stamp
+      // changes and the timeline must regenerate.
       refreshDirty();
       renderAll();
       save();
@@ -3934,6 +3793,19 @@
       el.projectInput.value = '';
     });
     el.btnExportGo.addEventListener('click', runExport);
+
+    // Start screen actions.
+    el.btnStartNew.addEventListener('click', newProject);
+    el.btnStartLoad.addEventListener('click', function () { el.projectInput.click(); });
+    el.btnStartExample.addEventListener('click', openExample);
+    el.btnStartDocs.addEventListener('click', function () {
+      window.open('https://github.com/TheShovel/ijwta#readme', '_blank');
+    });
+    el.btnStartGithub.addEventListener('click', function () {
+      window.open('https://github.com/TheShovel/ijwta', '_blank');
+    });
+    el.btnStartCredits.addEventListener('click', openCredits);
+    el.btnCreditsClose.addEventListener('click', function () { el.creditsOverlay.classList.add('hidden'); });
 
     window.addEventListener('beforeunload', writeStorage);
     document.addEventListener('visibilitychange', function () {
