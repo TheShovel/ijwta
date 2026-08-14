@@ -79,6 +79,18 @@
 
   function byId(id) { return document.getElementById(id); }
 
+  // Draw the filled portion of a .slider (normalized 0..1 across its min/max).
+  function syncSlider(input) {
+    var min = parseFloat(input.min);
+    var max = parseFloat(input.max);
+    var v = parseFloat(input.value);
+    if (!isFinite(min)) min = 0;
+    if (!isFinite(max)) max = 1;
+    if (!isFinite(v)) v = min;
+    var pct = (max > min) ? (v - min) / (max - min) : 0;
+    input.style.setProperty('--val', pct.toFixed(4));
+  }
+
   var el = {
     btnAddAssets: byId('btnAddAssets'),
     assetGrid: byId('assetGrid'),
@@ -1306,6 +1318,7 @@
       if (isSquash) {
         var isAuto = squash.amount == null;
         el.gapSquashAmount.value = isAuto ? '0' : String(Math.round(squash.amount * 100) / 100);
+        syncSlider(el.gapSquashAmount);
         el.gapSquashValue.textContent = isAuto ? 'auto' : (Math.round(squash.amount * 100) + '%');
         el.gapSquashValue.classList.toggle('is-auto', isAuto);
         el.gapSquashAmount.title = isAuto ? 'auto (distance-based)' : (Math.round(squash.amount * 100) + '%');
@@ -1321,6 +1334,7 @@
       if (isBlurable) {
         el.gapBlurOn.checked = blur.on;
         el.gapBlurAmount.value = String(Math.round(blur.intensity * 100) / 100);
+        syncSlider(el.gapBlurAmount);
         el.gapBlurValue.textContent = Math.round(blur.intensity * 100) + '%';
         el.gapBlurAmount.disabled = !blur.on;
       }
@@ -1544,7 +1558,7 @@
     var imgs = state.assets;
     // Skip the DOM rebuild when the library is unchanged.
     if (imgs.length === assetCache.length && imgs.every(function (a) { return assetImgs.has(a.img); })) return;
-    assetCache = imgs;
+    assetCache = imgs.slice();
     assetImgs = new Set(imgs.map(function (a) { return a.img; }));
     el.assetGrid.innerHTML = '';
     if (!imgs.length) {
@@ -1567,9 +1581,28 @@
       name.textContent = a.name || 'image';
       name.title = a.name || 'image';
       tile.appendChild(name);
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'asset-del';
+      del.title = 'Remove from library';
+      del.textContent = '×';
+      del.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        removeAsset(a.img);
+      });
+      tile.appendChild(del);
       tile.addEventListener('pointerdown', function (e) { startAssetPointerDrag(e, a); });
       el.assetGrid.appendChild(tile);
     });
+  }
+
+  function removeAsset(imgSrc) {
+    var i = state.assets.findIndex(function (a) { return a.img === imgSrc; });
+    if (i === -1) return;
+    state.assets.splice(i, 1);
+    renderAssets();
+    save();
   }
 
   function selectGap(id) {
@@ -3511,6 +3544,7 @@
     el.gapSquashAmount.addEventListener('input', function () {
       var v = parseFloat(el.gapSquashAmount.value);
       if (!isFinite(v)) return;
+      syncSlider(el.gapSquashAmount);
       el.gapSquashValue.textContent = Math.round(v * 100) + '%';
       el.gapSquashValue.classList.remove('is-auto');
       el.gapSquashAmount.title = Math.round(v * 100) + '%';
@@ -3543,6 +3577,7 @@
     el.gapBlurAmount.addEventListener('input', function () {
       var v = parseFloat(el.gapBlurAmount.value);
       if (!isFinite(v)) return;
+      syncSlider(el.gapBlurAmount);
       el.gapBlurValue.textContent = Math.round(v * 100) + '%';
       clearTimeout(blurDebounce);
       blurDebounce = setTimeout(function () { applyBlurChange({ intensity: v }); }, 160);
@@ -3982,6 +4017,8 @@
     });
     renderAll();
     wireEvents();
+    syncSlider(el.gapSquashAmount);
+    syncSlider(el.gapBlurAmount);
     initWorker();
     loadModelWithOverlay(); // download + compile the AI model on launch
     scheduleGenerate(400);  // auto-fill any dirty gaps shortly after launch
