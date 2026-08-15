@@ -1412,7 +1412,7 @@
   // drag uses its own ghost with a grabbing cursor). An asset lands only
   // when released over the timeline.
 
-  var assetDrag = { active: false, ghost: null };
+  var assetDrag = { active: false, ghost: null, spring: null, anim: 0 };
   var dropGuide = null;
 
   function showDropGuideAt(clientX) {
@@ -1440,7 +1440,35 @@
     return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
   }
 
-  function beginAssetDrag(a) {
+  // Swing physics for the drag ghost: the card follows the cursor on a soft
+  // position spring and tilts toward its own velocity. Rotation and the
+  // drop-in scale are damped springs, so the card swings while moving, settles
+  // with a small wobble when it stops, and bounces slightly on pickup.
+  var GHOST_W2 = 28; // half of .asset-ghost width/height (56px)
+  function ghostFrame() {
+    var g = assetDrag.ghost, s = assetDrag.spring;
+    if (!g || !s) { assetDrag.anim = 0; return; }
+    // Position spring toward the cursor.
+    s.x += (s.tx - s.x) * 0.32;
+    s.y += (s.ty - s.y) * 0.32;
+    // Smoothed velocity from the cursor's movement.
+    var vx = s.tx - s.px, vy = s.ty - s.py;
+    s.px = s.tx; s.py = s.ty;
+    s.vx = s.vx * 0.78 + vx * 0.22;
+    s.vy = s.vy * 0.78 + vy * 0.22;
+    // Damped rotation spring toward the velocity tilt (radians).
+    var target = clamp(s.vx * 0.052 + s.vy * 0.018, -0.42, 0.42);
+    s.rotV += (target - s.rot) * 0.045 - s.rotV * 0.13;
+    s.rot += s.rotV;
+    // Damped scale spring: 0.6 to 1 on pickup, with a slight overshoot bounce.
+    s.scaleV += (1 - s.scale) * 0.05 - s.scaleV * 0.16;
+    s.scale += s.scaleV;
+    g.style.transform = 'translate(' + (s.x - GHOST_W2) + 'px,' + (s.y - GHOST_W2) + 'px)' +
+      ' rotate(' + (s.rot * 57.2958) + 'deg) scale(' + s.scale + ')';
+    assetDrag.anim = requestAnimationFrame(ghostFrame);
+  }
+
+  function beginAssetDrag(a, startX, startY) {
     assetDrag.active = true;
     document.body.classList.add('dragging-asset');
     var ghost = document.createElement('div');
@@ -1451,20 +1479,25 @@
     ghost.appendChild(img);
     document.body.appendChild(ghost);
     assetDrag.ghost = ghost;
+    assetDrag.spring = {
+      x: startX, y: startY, tx: startX, ty: startY, px: startX, py: startY,
+      vx: 0, vy: 0, rot: 0, rotV: 0, scale: 0.6, scaleV: 0
+    };
+    if (assetDrag.anim) cancelAnimationFrame(assetDrag.anim);
+    assetDrag.anim = requestAnimationFrame(ghostFrame);
   }
 
   function moveAssetDrag(clientX, clientY) {
-    var g = assetDrag.ghost;
-    if (g) {
-      g.style.left = clientX + 'px';
-      g.style.top = clientY + 'px';
-    }
+    var s = assetDrag.spring;
+    if (s) { s.tx = clientX; s.ty = clientY; }
     if (isOverTimeline(clientX, clientY)) showDropGuideAt(clientX);
     else hideDropGuide();
   }
 
   function endAssetDrag(a, clientX, clientY) {
+    if (assetDrag.anim) { cancelAnimationFrame(assetDrag.anim); assetDrag.anim = 0; }
     if (assetDrag.ghost) { assetDrag.ghost.remove(); assetDrag.ghost = null; }
+    assetDrag.spring = null;
     assetDrag.active = false;
     document.body.classList.remove('dragging-asset');
     hideDropGuide();
@@ -1482,7 +1515,7 @@
         // Small movement threshold so a plain click never starts a drag.
         if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
         dragging = true;
-        beginAssetDrag(a);
+        beginAssetDrag(a, startX, startY);
       }
       moveAssetDrag(ev.clientX, ev.clientY);
     }
@@ -3586,6 +3619,16 @@
   }
 
   function wireEvents() {
+    // Tactile button feedback: any .btn gets a quick pop animation on press
+    // (the CSS .pop keyframes), so buttons feel physical even without a real
+    // ripple. Delegated so dynamically-created buttons get it too.
+    document.addEventListener('pointerdown', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.btn:not(:disabled)') : null;
+      if (!btn) return;
+      btn.classList.remove('pop');
+      void btn.offsetWidth; // restart the animation if it was still running
+      btn.classList.add('pop');
+    }, true);
     el.btnAddAssets.addEventListener('click', function () { el.fileInput.click(); });
     byId('btnEmptyAdd').addEventListener('click', function () { el.fileInput.click(); });
     // Loading images only fills the library; place keyframes by dragging an

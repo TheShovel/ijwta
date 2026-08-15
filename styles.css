@@ -146,11 +146,13 @@ body::after {
   font-weight: 800;
   letter-spacing: 1.5px;
   color: var(--text);
+  animation: rise-in 0.5s ease both;
 }
 .start-tagline {
   font-size: 13px;
   color: var(--muted);
   margin-bottom: 26px;
+  animation: rise-in 0.5s 0.06s ease both;
 }
 .start-menu {
   display: flex;
@@ -165,10 +167,26 @@ body::after {
   border-radius: 9px;
   justify-content: center;
 }
+/* Staggered entrance: each menu row rises in after the one above it. */
+.start-menu .start-btn {
+  animation: rise-in 0.45s ease both;
+  animation-delay: calc(0.1s + var(--i, 0) * 0.05s);
+}
+.start-menu .start-btn:nth-of-type(1) { --i: 0; }
+.start-menu .start-btn:nth-of-type(2) { --i: 1; }
+.start-menu .start-btn:nth-of-type(3) { --i: 2; }
+.start-menu .start-btn:nth-of-type(4) { --i: 4; }
+.start-menu .start-btn:nth-of-type(5) { --i: 5; }
+.start-menu .start-btn:nth-of-type(6) { --i: 6; }
 .start-sep {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
+  animation: rise-in 0.45s 0.32s ease both;
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .toolbar {
@@ -198,13 +216,33 @@ body::after {
   font-size: 12.5px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.15s ease, border-color 0.15s ease,
+              transform 0.12s ease, box-shadow 0.15s ease;
+  will-change: transform;
 }
-.btn:hover { background: var(--bg-elev3); border-color: #454f5e; }
-.btn:active { filter: brightness(0.92); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:hover {
+  background: var(--bg-elev3);
+  border-color: #454f5e;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+.btn:active {
+  filter: brightness(0.92);
+  transform: translateY(0) scale(0.96);
+  box-shadow: none;
+  transition-duration: 0.05s;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn.icon { padding: 6px 9px; min-width: 32px; }
 .btn svg { flex: 0 0 auto; }
+/* Click pop: JS adds this class briefly on pointerdown for tactile feedback. */
+.btn.pop { animation: btn-pop 0.28s ease; }
+@keyframes btn-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.94); }
+  70%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
 .btn.active {
   background: var(--accent);
   border-color: var(--accent);
@@ -216,8 +254,13 @@ body::after {
   border-color: var(--accent);
   color: #161a20;
   font-weight: 600;
+  box-shadow: 0 1px 6px rgba(138, 163, 185, 0.22);
 }
-.btn.primary:hover { background: #9ab2c6; border-color: #9ab2c6; }
+.btn.primary:hover {
+  background: #9ab2c6;
+  border-color: #9ab2c6;
+  box-shadow: 0 3px 12px rgba(138, 163, 185, 0.32);
+}
 .btn.danger { color: var(--danger); border-color: #4d3a3a; }
 .btn.danger:hover { background: #33252a; border-color: var(--danger); }
 .btn.mini { padding: 2px 8px; font-size: 11px; border-radius: 5px; }
@@ -277,15 +320,26 @@ body::after {
   border-radius: 6px;
   cursor: pointer;
   font-size: 12.5px;
+  transition: background 0.12s ease, transform 0.12s ease, color 0.12s ease;
 }
 .menu button svg { flex: 0 0 auto; opacity: 0.85; }
-.menu button:hover { background: var(--bg-elev); }
+.menu button:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+  transform: translateX(2px);
+}
 .menu button.btn { border: 1px solid var(--border); background: var(--bg-elev2); }
 .menu button.btn.primary { background: var(--accent); border-color: var(--accent); color: #161a20; }
 .menu .field { width: 100%; }
 .menu-row { display: flex; gap: 6px; }
 .menu-row .btn { flex: 1; text-align: center; }
 .menu-sep { height: 1px; background: var(--border); margin: 2px 0; }
+/* Dropdown menus open with a quick drop-in. */
+.menu:not(.hidden) { animation: menu-in 0.16s ease; }
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
 
 .side-col {
   flex: 0 0 auto;
@@ -396,7 +450,8 @@ body.resizing-side { cursor: col-resize; user-select: none; }
 
 /* Ghost that follows the cursor while an asset tile is dragged, plus the
    forced grabbing cursor for the whole drag (custom pointer drag, so the
-   browser's no-drop X never appears). */
+   browser's no-drop X never appears). JS drives the transform (position
+   spring + velocity tilt), so the card visibly swings while dragged. */
 .asset-ghost {
   position: fixed;
   left: 0;
@@ -405,12 +460,12 @@ body.resizing-side { cursor: col-resize; user-select: none; }
   height: 56px;
   border-radius: 8px;
   border: 1px solid var(--accent);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   background: #000;
-  transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 1000;
   display: flex;
+  will-change: transform;
 }
 .asset-ghost img {
   width: 100%;
@@ -710,7 +765,7 @@ body.dragging-asset * { cursor: grabbing !important; }
 .bar .fill {
   height: 100%;
   width: 0%;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), #9ab2c6);
   transition: width 0.2s;
 }
 .bar-meta {
@@ -1150,6 +1205,56 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
   z-index: 100;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
   max-width: 80vw;
+  animation: toast-in 0.24s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* General polish: subtle lift + ring on interactive cards, focus rings for
+   keyboard users, and a shimmer on the progress fill. */
+.asset { transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.asset:hover {
+  border-color: #454f5e;
+  background: var(--bg-elev3);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.kf-card { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.kf-card:hover { border-color: #454f5e; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.filmstrip .thumb img { transition: transform 0.18s ease; }
+.filmstrip .thumb:hover img { transform: scale(1.07); }
+.filmstrip .thumb .actions button { transition: background 0.12s ease, transform 0.12s ease; }
+.filmstrip .thumb .actions button:hover { background: var(--bg-elev3); transform: translateY(-1px); }
+.kf { transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; }
+.kf:hover { border-color: rgba(195, 171, 125, 0.5); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.kf.selected:hover { border-color: var(--accent); }
+
+/* Keyboard focus rings (mouse users keep the clean look). */
+.btn:focus-visible,
+.menu button:focus-visible,
+.asset:focus-visible,
+.kf:focus-visible,
+.filmstrip .thumb:focus-visible,
+.slider:focus-visible,
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Respect users who prefer reduced motion: kill animations and springy
+   transforms, keep functional transitions instant. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001s !important;
+  }
+  .btn:hover, .asset:hover { transform: none; box-shadow: none; }
+  .filmstrip .thumb:hover img { transform: none; }
 }
 
 /* scrollbars */
