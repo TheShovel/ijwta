@@ -141,7 +141,7 @@
           </select>
         </label>
         <div id="gapSquashGroup" class="hidden squash-group">
-          <label class="field">Squash amount — <span id="gapSquashValue" class="mono">auto</span>
+          <label class="field">Squash amount: <span id="gapSquashValue" class="mono">auto</span>
             <input id="gapSquashAmount" class="slider" type="range" min="-0.8" max="0.8" step="0.04" value="0">
           </label>
           <div class="squash-row">
@@ -167,11 +167,35 @@
           <label class="field check">
             <input id="gapBlurOn" type="checkbox"> Motion blur
           </label>
-          <label class="field">Blur intensity — <span id="gapBlurValue" class="mono">50%</span>
+          <label class="field">Blur intensity: <span id="gapBlurValue" class="mono">50%</span>
             <input id="gapBlurAmount" class="slider" type="range" min="0" max="1" step="0.02" value="0.5">
           </label>
           <span class="squash-hint mono">smears inbetweens along their motion · eases in/out</span>
         </div>
+      </div>
+      <div id="dotPanel" class="gap-panel hidden">
+        <div class="side-title">Color dot</div>
+        <div class="kf-card-name" id="dotName"></div>
+        <div class="kf-card-time" id="dotTime"></div>
+        <label class="field">Fill color
+          <input id="dotColor" type="color" value="#4f8fff">
+        </label>
+        <label class="field">Threshold: <span id="dotThresholdValue" class="mono">50%</span>
+          <input id="dotThreshold" class="slider" type="range" min="0" max="1" step="0.01" value="0.5">
+        </label>
+        <label class="field">Grow: <span id="dotGrowValue" class="mono">1px</span>
+          <input id="dotGrow" class="slider" type="range" min="0" max="40" step="1" value="1">
+        </label>
+        <div class="field-row">
+          <label class="field">Start (s) <input id="dotStart" type="number" min="0" step="0.01" value="0"></label>
+          <label class="field">End (s) <input id="dotEnd" type="number" min="0" step="0.01" value="1"></label>
+        </div>
+        <span class="squash-hint mono">dot fills the layer above · active only from start to end · drag the chip to move, drag its edges to resize</span>
+        <button id="btnDotDelete" class="btn danger">Delete dot</button>
+      </div>
+      <div id="fillHint" class="gap-panel hidden">
+        <div class="side-title">Color layer</div>
+        <div class="kf-empty" id="fillHintText"></div>
       </div>
       <div id="kfSection">
         <div class="side-title">Keyframe</div>
@@ -219,6 +243,7 @@
         <span class="layer-bar-label">Layer <b id="layerNameLabel">Layer 1</b></span>
         <label class="field check" title="Show or hide the active layer">Visible <input id="layerVisible" type="checkbox" checked></label>
         <button id="btnAddLayer" class="btn" title="Add a new layer above the others">Add layer</button>
+        <button id="btnAddFillLayer" class="btn" title="Add a generative color-fill layer below the active one. Place dots on the preview to flood-fill the layer above">Color layer</button>
         <button id="btnRemoveLayer" class="btn danger" title="Remove the active layer">Remove</button>
       </div>
       <span class="vsep"></span>

@@ -1122,6 +1122,85 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
   z-index: 30;
 }
 
+/* Color-dot chips on fill layers: a colored swatch + the active window label,
+   spanning [start, end] on the timeline. The whole chip drags the window;
+   the edge strips resize start/end. */
+.fill-dot {
+  position: absolute;
+  top: 18px;
+  height: 34px;
+  min-width: 14px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: rgba(79, 143, 255, 0.12);
+  border: 1px solid rgba(79, 143, 255, 0.4);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  overflow: hidden;
+}
+.fill-dot:hover { border-color: rgba(79, 143, 255, 0.65); background: rgba(79, 143, 255, 0.18); }
+.fill-dot.selected {
+  border-color: var(--accent);
+  background: rgba(138, 163, 185, 0.16);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.fill-dot-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.fill-dot-label {
+  font-size: 8.5px;
+  font-family: var(--mono);
+  color: #c3cbd6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.fill-dot-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+.fill-dot-edge.left { left: 0; border-radius: 8px 0 0 8px; }
+.fill-dot-edge.right { right: 0; border-radius: 0 8px 8px 0; }
+.fill-dot-edge:hover { background: rgba(255, 255, 255, 0.12); }
+.fill-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5262;
+  font-size: 11px;
+  pointer-events: none;
+  border: 1px dashed #232a35;
+  margin: 10px 12px;
+  border-radius: 8px;
+  text-align: center;
+  padding: 0 10px;
+}
+/* Color picker input in the dot panel: match the other field inputs. */
+.field input[type="color"] {
+  width: 100%;
+  height: 30px;
+  padding: 2px;
+  background: #1e232a;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.field input[type="color"]:hover { border-color: #454f5e; }
+
 .playhead {
   position: absolute;
   top: 0;

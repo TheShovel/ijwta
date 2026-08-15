@@ -40,6 +40,7 @@
     keysOnly: false,   // viewport shows keyframes only (no interpolated frames)
     selectedId: null,
     selectedGapId: null,   // gap selected in the timeline (right panel shows it)
+    selectedDotId: null,   // color-dot selected (right panel shows its properties)
     genRun: null,
     pendingRegen: false,
     exporting: false,       // true while an export is running (Stop button)
@@ -133,6 +134,8 @@
     kfEmpty: byId('kfEmpty'),
     kfSection: byId('kfSection'),
     gapPanel: byId('gapPanel'),
+    fillHint: byId('fillHint'),
+    fillHintText: byId('fillHintText'),
     gapName: byId('gapName'),
     gapTime: byId('gapTime'),
     gapTypeInput: byId('gapTypeInput'),
@@ -149,7 +152,19 @@
     layerNameLabel: byId('layerNameLabel'),
     layerVisible: byId('layerVisible'),
     btnAddLayer: byId('btnAddLayer'),
+    btnAddFillLayer: byId('btnAddFillLayer'),
     btnRemoveLayer: byId('btnRemoveLayer'),
+    dotPanel: byId('dotPanel'),
+    dotName: byId('dotName'),
+    dotTime: byId('dotTime'),
+    dotColor: byId('dotColor'),
+    dotThreshold: byId('dotThreshold'),
+    dotThresholdValue: byId('dotThresholdValue'),
+    dotGrow: byId('dotGrow'),
+    dotGrowValue: byId('dotGrowValue'),
+    dotStart: byId('dotStart'),
+    dotEnd: byId('dotEnd'),
+    btnDotDelete: byId('btnDotDelete'),
     previewCanvas: byId('previewCanvas'),
     previewWrap: byId('previewWrap'),
     previewEmpty: byId('previewEmpty'),
@@ -488,6 +503,226 @@
 
   function gapId(fromId, toId) { return fromId + '->' + toId; }
 
+  // ---- generative color fill (color-dot layers) ----
+  // A "fill" layer holds user-placed dots instead of keyframes. Each dot
+  // carries a color, a threshold (how opaque a pixel must be to act as a line
+  // barrier), a grow radius (px, tucks the color under anti-aliased edges) and
+  // an active window [start, end] on the timeline — dots do NOT interpolate;
+  // they simply stop affecting the frame outside their window. The dot fills
+  // the connected transparent region of the layer ABOVE the fill layer.
+
+  function dotById(id) {
+    if (!id) return null;
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = state.layers[i];
+      if (L.type !== 'fill' || !L.dots) continue;
+      var d = L.dots.find(function (x) { return x.id === id; });
+      if (d) return d;
+    }
+    return null;
+  }
+
+  // The layer a dot belongs to (find again; dotById returns the dot only).
+  function layerOfDot(id) {
+    if (!id) return null;
+    for (var i = 0; i < state.layers.length; i++) {
+      var L = state.layers[i];
+      if (L.type !== 'fill' || !L.dots) continue;
+      if (L.dots.some(function (x) { return x.id === id; })) return L;
+    }
+    return null;
+  }
+
+  function dotDefaults() {
+    return { color: '#4f8fff', threshold: 0.5, grow: 1, dur: 1 };
+  }
+
+  // Add a dot at normalized canvas coords (0..1) to a fill layer, active from
+  // the current playhead for `dur` seconds. Returns the new dot.
+  function addDot(layerId, nx, ny) {
+    var L = layerById(layerId);
+    if (!L || L.type !== 'fill') return null;
+    if (!L.dots) L.dots = [];
+    var def = dotDefaults();
+    var start = Math.max(0, state.playhead);
+    var end = start + def.dur;
+    // Clamp to at least the playhead; keep a sensible minimum window.
+    var d = {
+      id: 'D' + (++idSeq),
+      x: clamp(nx, 0, 1),
+      y: clamp(ny, 0, 1),
+      color: def.color,
+      threshold: def.threshold,
+      grow: def.grow,
+      start: start,
+      end: Math.max(end, start + 0.05)
+    };
+    L.dots.push(d);
+    return d;
+  }
+
+  function deleteDot(id) {
+    var L = layerOfDot(id);
+    if (!L || !L.dots) return;
+    L.dots = L.dots.filter(function (d) { return d.id !== id; });
+    if (state.selectedDotId === id) state.selectedDotId = null;
+  }
+
+  // Dots of a fill layer that are active at time t (inclusive window).
+  function activeDots(L, t) {
+    if (L.type !== 'fill' || !L.dots) return [];
+    return L.dots.filter(function (d) {
+      return d.start <= t + 1e-9 && t <= d.end + 1e-9;
+    });
+  }
+
+  function hasFillLayers() {
+    return state.layers.some(function (L) { return L.type === 'fill' && L.visible !== false; });
+  }
+
+  // A signature of a fill layer's dots active at t, for the composite cache
+  // key (dots are user content, not interpolated frames).
+  function fillSig(t) {
+    var parts = [];
+    state.layers.forEach(function (L) {
+      if (L.type !== 'fill' || L.visible === false) return;
+      activeDots(L, t).forEach(function (d) {
+        parts.push(d.id + ':' + d.x.toFixed(4) + ':' + d.y.toFixed(4) + ':' + d.color + ':' +
+          (Math.round(d.threshold * 100) / 100) + ':' + d.grow);
+      });
+    });
+    return parts.join('|');
+  }
+
+  // Fill output cache: the fill for (source img + active dot signature + size)
+  // is deterministic, so holds, scrubbing back and forth, and the filmstrip's
+  // per-time thumbs reuse one canvas instead of re-running the flood fill.
+  // Only modest sizes are cached (the cache caps at 16 entries × 4MB = 64MB
+  // worst case); huge canvases recompute — the bbox path keeps that cheap.
+  var fillCache = new Map();
+  var fillCacheOrder = [];
+  var FILL_CACHE_MAX = 16;
+  var FILL_CACHE_MAX_PX = 1024 * 1024;
+
+  function fillCacheKey(t, L, srcKey, W, H) {
+    var parts = [L.id, srcKey || '', W, H];
+    activeDots(L, t).forEach(function (d) {
+      parts.push(d.id, d.x.toFixed(4), d.y.toFixed(4), d.color,
+        (Math.round(d.threshold * 100) / 100), d.grow);
+    });
+    return parts.join('|');
+  }
+
+  // Render one fill layer's contribution at (W,H): flood-fill every active dot
+  // against the source layer's pixels and paint the results (dot order, so a
+  // later dot overpaints an earlier one in the same region). `srcData` is the
+  // source layer's RGBA at (W,H); `srcKey` identifies it for the cache (the
+  // frame image src) or null when it can't be cached (fill-on-fill). Returns a
+  // canvas or null when there is nothing to draw.
+  function renderFillLayer(t, L, srcData, srcKey, W, H) {
+    var dots = activeDots(L, t);
+    if (!dots.length || !srcData) return null;
+    var cacheable = srcKey && W * H <= FILL_CACHE_MAX_PX;
+    var key = cacheable ? fillCacheKey(t, L, srcKey, W, H) : null;
+    if (key) {
+      var hit = fillCache.get(key);
+      if (hit) return hit;
+    }
+    var n = W * H;
+    var canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+    var out = ctx.createImageData(W, H);
+    dots.forEach(function (d) {
+      var rgb = morph.parseHexColor(d.color);
+      if (!rgb) return;
+      var mask = morph.floodFillMask(srcData, W, H, d.x * W, d.y * H, d.threshold);
+      if (!mask) return;
+      var grow = Math.round(d.grow) || 0;
+      // Grow and paint stay inside the region's bbox — same pixels, but the
+      // cost scales with the filled area instead of the whole canvas.
+      if (grow > 0) mask = morph.dilateMask(mask, W, H, grow, mask.bounds || null);
+      morph.paintMask(out.data, mask, n, rgb, W, mask.bounds || null);
+    });
+    ctx.putImageData(out, 0, 0);
+    if (key) {
+      fillCache.set(key, canvas);
+      fillCacheOrder.push(key);
+      if (fillCacheOrder.length > FILL_CACHE_MAX) {
+        var old = fillCacheOrder.shift();
+        fillCache.delete(old);
+      }
+    }
+    return canvas;
+  }
+
+  // Render every visible layer into its own bitmap at (W,H), top-down so a
+  // fill layer can read the layer above it. Returns the visible layers
+  // bottom-up as { layer, canvas, img } entries: normal layers carry their
+  // frame image (drawn directly by drawComposite — no per-layer canvas
+  // allocation), fill layers carry their computed fill canvas. canvas/img are
+  // null when a layer contributes nothing.
+  function layerBitmaps(t, keysOnly, W, H) {
+    var vis = [];
+    state.layers.forEach(function (L, i) {
+      if (L.visible !== false) vis.push({ L: L, idx: i });
+    });
+    var bmp = {}; // layerId -> { kind:'img', src } | { kind:'fill', canvas } | null
+    for (var v = 0; v < vis.length; v++) {
+      var L = vis[v].L;
+      if (L.type === 'fill') {
+        // The source raster is only needed when dots are actually active; the
+        // pixels come from the cached drawImageToData raster (same math as the
+        // old per-render canvas draw, no getImageData copy per frame).
+        var srcData = null, srcKey = null;
+        if (v > 0 && activeDots(L, t).length) {
+          var up = bmp[vis[v - 1].L.id];
+          if (up) {
+            if (up.kind === 'img') {
+              var img = imgCache.get(up.src);
+              if (img) { srcData = drawImageToData(img, W, H); srcKey = up.src; }
+            } else if (up.kind === 'fill') {
+              var uctx = up.canvas.getContext('2d');
+              try { srcData = uctx.getImageData(0, 0, W, H).data; } catch (e) { srcData = null; }
+            }
+          }
+        }
+        var fc = srcData ? renderFillLayer(t, L, srcData, srcKey, W, H) : null;
+        bmp[L.id] = fc ? { kind: 'fill', canvas: fc } : null;
+      } else {
+        var f = layerFrameAt(L.id, t, keysOnly);
+        bmp[L.id] = f ? { kind: 'img', src: f.img } : null;
+      }
+    }
+    var out = [];
+    for (var i = vis.length - 1; i >= 0; i--) {
+      var b = bmp[vis[i].L.id];
+      out.push({
+        layer: vis[i].L,
+        canvas: b && b.kind === 'fill' ? b.canvas : null,
+        img: b && b.kind === 'img' ? b.src : null
+      });
+    }
+    return out;
+  }
+
+  // Draw a composite from layer bitmaps (bottom-up order). White backdrop.
+  // Normal layers draw their frame image directly (no canvas allocation); fill
+  // layers draw their computed fill canvas.
+  function drawComposite(ctx, bits, W, H) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    for (var i = 0; i < bits.length; i++) {
+      var b = bits[i];
+      if (b.canvas) ctx.drawImage(b.canvas, 0, 0);
+      else if (b.img) {
+        var img = imgCache.get(b.img);
+        if (img) drawContain(ctx, img, W, H);
+      }
+    }
+  }
+
   // Interpolation mode for one gap: 'ai' (neural), 'squash', or 'none'.
   function gapMode(g) {
     return state.gapType[g.id] || 'ai';
@@ -805,6 +1040,15 @@
           times[f.time] = times[f.time] || { key: false };
         });
       });
+      // Fill-layer dots turn on/off at their window edges: those are also
+      // composite-change times (the dots are not interpolated, so the frame
+      // list just gains the two boundary times).
+      if (L.type === 'fill' && L.dots) {
+        L.dots.forEach(function (d) {
+          times[d.start] = times[d.start] || { key: false };
+          times[d.end] = times[d.end] || { key: false };
+        });
+      }
     });
     return Object.keys(times).map(function (t) {
       return { time: parseFloat(t), key: times[t].key };
@@ -858,21 +1102,14 @@
     return list;
   }
 
-  // Draw a composite of the given frames (white backdrop).
-  function drawFrames(ctx, frames) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, workW, workH);
-    for (var i = 0; i < frames.length; i++) {
-      var img = imgCache.get(frames[i].img);
-      if (!img) continue;
-      drawContain(ctx, img, workW, workH);
-    }
-  }
-
   function compositeKey(t, keysOnly) {
-    return framesAt(t, keysOnly).map(function (f) {
+    var key = framesAt(t, keysOnly).map(function (f) {
       return f.img;
     }).join('|');
+    // Fill layers are user content, not interpolated frames: include the
+    // active dots' signature so the cache distinguishes filled composites.
+    var fs = fillSig(t);
+    return fs ? key + '|#fill#' + fs : key;
   }
 
   // Render the composite at t into a fresh canvas (filmstrip thumbs, exports).
@@ -884,13 +1121,8 @@
     var ctx = canvas.getContext('2d');
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
-    })).then(function (imgs) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, workW, workH);
-      for (var i = 0; i < frames.length; i++) {
-        if (!imgs[i]) continue;
-        drawContain(ctx, imgs[i], workW, workH);
-      }
+    })).then(function () {
+      drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH);
       return canvas;
     });
   }
@@ -916,13 +1148,8 @@
     var ctx = canvas.getContext('2d');
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
-    })).then(function (imgs) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, tw, th);
-      for (var i = 0; i < frames.length; i++) {
-        if (!imgs[i]) continue;
-        drawContain(ctx, imgs[i], tw, th);
-      }
+    })).then(function () {
+      drawComposite(ctx, layerBitmaps(t, false, tw, th), tw, th);
       return canvas.toDataURL('image/png');
     });
   }
@@ -934,6 +1161,13 @@
   function renderTimeline() {
     var keys = sortedKeyframes();
     var maxTime = keys.length ? keys[keys.length - 1].time : 0;
+    // Fill-layer dots can extend past the last keyframe (they run on their own
+    // window); make sure their window is visible on the timeline.
+    state.layers.forEach(function (L) {
+      if (L.type === 'fill' && L.dots) {
+        L.dots.forEach(function (d) { if (d.end > maxTime) maxTime = d.end; });
+      }
+    });
     var contentW = Math.max(el.timeline.clientWidth, GUTTER_W + 40 + (maxTime + 2) * state.zoom);
     el.track.style.width = contentW + 'px';
     renderRuler(maxTime);
@@ -1028,6 +1262,55 @@
       var keys = sortedKeyframes(L.id);
       var gaps = computeGaps(L.id);
       var labelItems = [];
+
+      if (L.type === 'fill') {
+        // Fill layers hold color dots (seed points) instead of keyframes.
+        // Each dot is a chip spanning its active window [start, end].
+        var dots = L.dots || [];
+        if (!dots.length) {
+          var hint = document.createElement('div');
+          hint.className = 'fill-hint';
+          hint.textContent = 'Click the preview to add a color dot. It fills the layer above';
+          content.appendChild(hint);
+        }
+        dots.forEach(function (d) {
+          var chip = document.createElement('div');
+          chip.className = 'fill-dot' + (d.id === state.selectedDotId ? ' selected' : '');
+          chip.dataset.dot = d.id;
+          var x1 = d.start * z, x2 = d.end * z;
+          chip.style.left = x1 + 'px';
+          chip.style.width = Math.max(10, x2 - x1) + 'px';
+          chip.style.zIndex = d.id === state.selectedDotId ? 10 : 'auto';
+          chip.title = fmtTime(d.start) + ' → ' + fmtTime(d.end) + '. Drag to move, drag the edges to change its window';
+          var swatch = document.createElement('span');
+          swatch.className = 'fill-dot-swatch';
+          swatch.style.background = d.color || '#888';
+          var label = document.createElement('span');
+          label.className = 'fill-dot-label';
+          label.textContent = fmtTime(d.start) + '-' + fmtTime(d.end);
+          var g1 = document.createElement('div');
+          g1.className = 'fill-dot-edge left';
+          var g2 = document.createElement('div');
+          g2.className = 'fill-dot-edge right';
+          chip.appendChild(swatch);
+          chip.appendChild(label);
+          chip.appendChild(g1);
+          chip.appendChild(g2);
+          chip.addEventListener('dblclick', function (e) {
+            e.stopPropagation();
+            deleteDot(d.id);
+            renderLane();
+            renderSelectedPanel();
+            renderPreview();
+            save();
+          });
+          content.appendChild(chip);
+        });
+        row.appendChild(gutter);
+        row.appendChild(content);
+        el.lane.appendChild(row);
+        return;
+      }
 
       gaps.forEach(function (g) {
         var x1 = g.fromTime * z, x2 = g.toTime * z;
@@ -1255,12 +1538,12 @@
   // Which frame the viewport shows is now a composite of every visible layer
   // (see framesAt). The last successfully drawn composite is remembered so the
   // screen never flashes black while a new frame's images decode.
-  var lastPreview = null; // { key, frames } of the last composite actually drawn
+  var lastPreview = null; // { key, bits } of the last composite actually drawn
   function renderPreview() {
     var token = ++state.previewToken;
     applyViewportSize();
     var ctx = el.previewCanvas.getContext('2d');
-    if (!state.keyframes.length) {
+    if (!state.keyframes.length && !hasFillLayers()) {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, workW, workH);
       lastPreview = null;
@@ -1269,16 +1552,20 @@
     }
     el.previewEmpty.classList.add('hidden');
     var key = compositeKey(state.playhead, state.keysOnly);
-    if (lastPreview && lastPreview.key === key) return; // already showing this exact composite
+    if (lastPreview && lastPreview.key === key) {
+      drawDotMarkers(ctx);
+      return; // already showing this exact composite
+    }
     var frames = framesAt(state.playhead, state.keysOnly);
     var missing = frames.some(function (f) { return !imgCache.get(f.img); });
     if (missing) {
       // Keep the previous composite on screen while the new images decode.
-      if (lastPreview && lastPreview.frames.length) drawFrames(ctx, lastPreview.frames);
+      if (lastPreview && lastPreview.bits.length) drawComposite(ctx, lastPreview.bits, workW, workH);
       else {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, workW, workH);
       }
+      drawDotMarkers(ctx);
       var srcs = {};
       frames.forEach(function (f) { if (!imgCache.get(f.img)) srcs[f.img] = true; });
       Promise.all(Object.keys(srcs).map(function (src) {
@@ -1287,20 +1574,85 @@
         if (token !== state.previewToken) return;
         if (compositeKey(state.playhead, state.keysOnly) !== key) return; // moved on while loading
         var ctx2 = el.previewCanvas.getContext('2d');
-        var fr = framesAt(state.playhead, state.keysOnly);
-        drawFrames(ctx2, fr);
-        lastPreview = { key: key, frames: fr };
+        var bits = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
+        drawComposite(ctx2, bits, workW, workH);
+        drawDotMarkers(ctx2);
+        lastPreview = { key: key, bits: bits };
       });
       return;
     }
-    drawFrames(ctx, frames);
-    lastPreview = { key: key, frames: frames };
+    var bits2 = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
+    drawComposite(ctx, bits2, workW, workH);
+    drawDotMarkers(ctx);
+    lastPreview = { key: key, bits: bits2 };
+  }
+
+  // Dot markers on the preview: the fill layer being edited shows its dots as
+  // small colored rings so the user sees where each seed sits. Only drawn when
+  // a fill layer is active or a dot is selected (markers would clutter normal
+  // editing otherwise).
+  function drawDotMarkers(ctx) {
+    var L = null;
+    if (layerById(state.activeLayerId).type === 'fill') L = layerById(state.activeLayerId);
+    else if (state.selectedDotId) L = layerOfDot(state.selectedDotId);
+    if (!L || !L.dots || !L.dots.length) return;
+    var W = workW, H = workH;
+    L.dots.forEach(function (d) {
+      var px = d.x * W, py = d.y * H;
+      var sel = d.id === state.selectedDotId;
+      // Dark outline ring so the marker reads on any background, then the dot
+      // color; the selected dot gets a bright ring instead.
+      ctx.beginPath();
+      ctx.arc(px, py, sel ? 8 : 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px, py, sel ? 5 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = d.color;
+      ctx.fill();
+      if (sel) {
+        ctx.beginPath();
+        ctx.arc(px, py, 10, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    });
   }
 
   function renderSelectedPanel() {
+    var dot = state.selectedDotId ? dotById(state.selectedDotId) : null;
     var gap = state.selectedGapId ? allGaps().find(function (g) { return g.id === state.selectedGapId; }) : null;
     if (state.selectedGapId && !gap) state.selectedGapId = null;
     var hasGap = !!gap;
+    // When the active layer is a fill layer with nothing selected, show a
+    // placement hint instead of the (empty) keyframe section.
+    var activeFill = layerById(state.activeLayerId).type === 'fill' && !dot;
+    el.dotPanel.classList.toggle('hidden', !dot);
+    el.gapPanel.classList.toggle('hidden', !!dot || activeFill || !hasGap);
+    el.fillHint.classList.toggle('hidden', !activeFill);
+    el.kfSection.classList.toggle('hidden', !!dot || activeFill || hasGap);
+    if (activeFill) {
+      var AL = layerById(state.activeLayerId);
+      el.fillHintText.textContent = AL && AL.dots && AL.dots.length
+        ? 'Color layer with ' + AL.dots.length + ' dot' + (AL.dots.length === 1 ? '' : 's') + '. Click a dot on the timeline to edit it, or click the preview to add another.'
+        : 'Click the preview to place a color dot. It flood-fills the layer above this one, bounded by its line art. Click a dot chip on the timeline to edit its color, threshold, grow, and active window.';
+    }
+    if (dot) {
+      var L = layerOfDot(dot.id);
+      el.dotName.textContent = (L ? L.name + ' · ' : '') + 'color dot';
+      el.dotTime.textContent = fmtTime(dot.start) + ' → ' + fmtTime(dot.end) + ' active';
+      el.dotColor.value = dot.color || '#4f8fff';
+      el.dotThreshold.value = String(Math.round(dot.threshold * 100) / 100);
+      syncSlider(el.dotThreshold);
+      el.dotThresholdValue.textContent = Math.round(dot.threshold * 100) + '%';
+      el.dotGrow.value = String(Math.round(dot.grow));
+      syncSlider(el.dotGrow);
+      el.dotGrowValue.textContent = Math.round(dot.grow) + 'px';
+      el.dotStart.value = (Math.round(dot.start * 100) / 100).toFixed(2);
+      el.dotEnd.value = (Math.round(dot.end * 100) / 100).toFixed(2);
+      return;
+    }
     el.gapPanel.classList.toggle('hidden', !hasGap);
     el.kfSection.classList.toggle('hidden', hasGap);
     if (hasGap) {
@@ -1357,9 +1709,11 @@
     state.activeLayerId = id;
     state.selectedId = null;
     state.selectedGapId = null;
+    state.selectedDotId = null;
     renderLayerPanel();
     renderSelectedPanel();
     renderLane();
+    renderPreview();
   }
 
   function addLayer() {
@@ -1374,10 +1728,39 @@
     // New layers sit on top of the stack (index 0).
     state.layers.unshift({ id: id, name: 'Layer ' + n, visible: true });
     state.activeLayerId = id;
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.selectedDotId = null;
     renderLayerPanel();
     renderSelectedPanel();
     renderLane();
     save();
+  }
+
+  // A generative color-fill layer: holds dots that flood-fill the layer ABOVE
+  // it. Inserted directly below the active layer so a fill added while a line
+  // art layer is active lands right under it, ready for dots.
+  function addFillLayer() {
+    var id = 'L' + (layerSeq++);
+    var n = 1;
+    state.layers.forEach(function (l) {
+      var m = /^Color (\d+)$/.exec(l.name);
+      if (m) n = Math.max(n, parseInt(m[1], 10) + 1);
+    });
+    var L = { id: id, name: 'Color ' + n, visible: true, type: 'fill', dots: [] };
+    var idx = state.layers.findIndex(function (l) { return l.id === state.activeLayerId; });
+    if (idx === -1) idx = 0;
+    state.layers.splice(idx + 1, 0, L);
+    state.activeLayerId = id;
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.selectedDotId = null;
+    renderLayerPanel();
+    renderSelectedPanel();
+    renderLane();
+    renderPreview();
+    save();
+    toast('Color layer added. Click the preview to place a color dot');
   }
 
   function removeLayer(id) {
@@ -1389,6 +1772,8 @@
     if (state.activeLayerId === id) state.activeLayerId = state.layers[0].id;
     var sel = state.keyframes.find(function (k) { return k.id === state.selectedId; });
     if (!sel) state.selectedId = null;
+    // A dot on the removed layer can't stay selected.
+    if (state.selectedDotId && layerOfDot(state.selectedDotId) === null) state.selectedDotId = null;
     applyWorkSize();
     refreshDirty();
     renderAll();
@@ -1634,8 +2019,24 @@
   function selectGap(id) {
     state.selectedGapId = id || null;
     state.selectedId = null;
+    state.selectedDotId = null;
     renderSelectedPanel();
     renderLane();
+  }
+
+  // Select a color dot (from a fill layer): shows its properties in the right
+  // panel and makes its layer the active one.
+  function selectDot(id) {
+    var L = layerOfDot(id);
+    if (!L) return;
+    state.selectedDotId = id;
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.activeLayerId = L.id;
+    renderLayerPanel();
+    renderSelectedPanel();
+    renderLane();
+    renderPreview();
   }
 
   // Set the interpolation type of one gap. The gap's frames are dropped (the
@@ -1875,6 +2276,18 @@
   }
   // Place a keyframe reusing an image already in the library (asset drag & drop).
   // The image is already decoded, so unlike addImageFiles there is no file read.
+  // The layer new keyframes land on: the active layer when it's a normal
+  // layer, otherwise the topmost normal layer (fill layers hold dots, not
+  // keyframes).
+  function keyframeLayerId() {
+    var L = layerById(state.activeLayerId);
+    if (L && L.type !== 'fill') return L.id;
+    for (var i = 0; i < state.layers.length; i++) {
+      if (state.layers[i].type !== 'fill') return state.layers[i].id;
+    }
+    return state.layers[0].id;
+  }
+
   function addAssetKeyframe(imgSrc, atTime) {
     var meta = null;
     for (var i = 0; i < assetCache.length; i++) {
@@ -1882,7 +2295,7 @@
     }
     state.keyframes.push({
       id: 'k' + (idSeq++),
-      layer: state.activeLayerId || state.layers[0].id,
+      layer: keyframeLayerId(),
       time: insertTime(atTime),
       img: imgSrc,
       name: meta ? meta.name : 'asset',
@@ -1899,6 +2312,7 @@
   function selectKeyframe(id) {
     state.selectedId = id;
     state.selectedGapId = null;
+    state.selectedDotId = null;
     var kf = state.keyframes.find(function (k) { return k.id === id; });
     if (kf && kf.layer) state.activeLayerId = kf.layer;
     renderSelectedPanel();
@@ -1951,7 +2365,7 @@
   // composite image becomes a new keyframe; the layer's gaps split there and
   // regenerate.
   function promoteToKeyframe(f) {
-    var layerId = state.activeLayerId || state.layers[0].id;
+    var layerId = keyframeLayerId();
     return compositeDataURL(f.time).then(function (url) {
       state.keyframes.push({
         id: 'k' + (idSeq++),
@@ -2693,7 +3107,7 @@
         onProgress: function (frac) {
           // The first job downloads the model; later jobs resolve instantly
           // and never report progress, so this only shows during download.
-          if (frac >= 1) setExportProgress('Upscaler ready — rendering…', 95);
+          if (frac >= 1) setExportProgress('Upscaler ready, rendering…', 95);
           else setExportProgress('Downloading AI upscaler ' + Math.round(frac * 100) + '%…', frac * 100);
         }
       };
@@ -3373,6 +3787,71 @@
     try { el.timeline.setPointerCapture(e.pointerId); } catch (err) {}
   }
 
+  // Drag a color-dot chip on the timeline: the body moves the whole active
+  // window, the edges resize start/end. Dots never interpolate — only their
+  // window shifts.
+  function startDotDrag(e, chip) {
+    var id = chip.dataset.dot;
+    var d = dotById(id);
+    if (!d) return;
+    e.preventDefault();
+    e.stopPropagation();
+    selectDot(id);
+    var startX = e.clientX;
+    var rect = chip.getBoundingClientRect();
+    var edge = 'body';
+    if (e.clientX - rect.left < 8) edge = 'start';
+    else if (rect.right - e.clientX < 8) edge = 'end';
+    var s0 = d.start, e0 = d.end;
+    var moved = false;
+    var tip = document.createElement('div');
+    tip.className = 'kf-drag-tip';
+    chip.appendChild(tip);
+    function attachTip() {
+      var fresh = el.lane.querySelector('.fill-dot[data-dot="' + id + '"]');
+      if (fresh) fresh.appendChild(tip);
+    }
+    function updateTip() { tip.textContent = fmtTime(d.start) + ' to ' + fmtTime(d.end); }
+    updateTip();
+
+    function onMove(ev) {
+      var dt = (ev.clientX - startX) / state.zoom;
+      var snapT = function (t) { return state.snap ? Math.round(t * state.fps) / state.fps : t; };
+      var minDur = 1 / state.fps;
+      if (edge === 'body') {
+        var ns = Math.max(0, snapT(s0 + dt));
+        var ne = Math.max(ns + minDur, e0 + (ns - s0));
+        d.start = ns; d.end = ne;
+      } else if (edge === 'start') {
+        d.start = Math.min(snapT(s0 + dt), e0 - minDur);
+      } else {
+        d.end = Math.max(snapT(e0 + dt), d.start + minDur);
+      }
+      if (d.start < 0) { d.end -= d.start; d.start = 0; }
+      moved = true;
+      renderLane();
+      attachTip();
+      updateTip();
+      renderPreview();
+    }
+    function onUp() {
+      tip.remove();
+      el.timeline.removeEventListener('pointermove', onMove);
+      el.timeline.removeEventListener('pointerup', onUp);
+      el.timeline.removeEventListener('pointercancel', onUp);
+      if (moved) {
+        renderAll();
+        save();
+      } else {
+        renderLane();
+      }
+    }
+    el.timeline.addEventListener('pointermove', onMove);
+    el.timeline.addEventListener('pointerup', onUp);
+    el.timeline.addEventListener('pointercancel', onUp);
+    try { el.timeline.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+
   function startScrub(e) {
     e.preventDefault();
     if (state.playing) pause(); // scrubbing is a manual override; stop playback
@@ -3394,7 +3873,7 @@
 
   function projectData() {
     return {
-      v: 7,
+      v: 8,
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
         res: state.res, keysOnly: state.keysOnly,
@@ -3402,7 +3881,9 @@
         customW: state.customW, customH: state.customH
       },
       layers: state.layers.map(function (l) {
-        return { id: l.id, name: l.name, visible: l.visible };
+        return l.type === 'fill'
+          ? { id: l.id, name: l.name, visible: l.visible, type: 'fill', dots: l.dots }
+          : { id: l.id, name: l.name, visible: l.visible };
       }),
       activeLayerId: state.activeLayerId,
       assets: state.assets.map(function (a) {
@@ -3461,11 +3942,33 @@
     var savedLayers = Array.isArray(data.layers) && data.layers.length ? data.layers : null;
     if (savedLayers) {
       state.layers = savedLayers.map(function (l) {
-        return {
+        var base = {
           id: l.id,
           name: l.name || 'Layer',
           visible: l.visible !== false
         };
+        if (l.type === 'fill') {
+          // Fill layers hold color dots; sanitize every field so a hand-edited
+          // project can't crash the renderer.
+          base.type = 'fill';
+          base.dots = (Array.isArray(l.dots) ? l.dots : []).map(function (d) {
+            return {
+              id: d && d.id ? String(d.id) : 'D' + (++idSeq),
+              x: clamp(parseFloat(d && d.x) || 0, 0, 1),
+              y: clamp(parseFloat(d && d.y) || 0, 0, 1),
+              color: (typeof (d && d.color) === 'string' && /^#?[0-9a-f]{6}$/i.test(d.color)) ? d.color : '#4f8fff',
+              threshold: clamp(parseFloat(d && d.threshold) || 0.5, 0, 1),
+              grow: clamp(Math.round(parseFloat(d && d.grow) || 0), 0, 200),
+              start: Math.max(0, parseFloat(d && d.start) || 0),
+              end: Math.max(0, parseFloat(d && d.end) || 0)
+            };
+          });
+          // Normalize: end must be after start (swap/raise as needed).
+          base.dots.forEach(function (d) {
+            if (d.end <= d.start) d.end = d.start + 1 / state.fps;
+          });
+        }
+        return base;
       });
       state.activeLayerId = state.layers.some(function (l) { return l.id === data.activeLayerId; })
         ? data.activeLayerId : state.layers[0].id;
@@ -3503,6 +4006,16 @@
       var n = parseInt(String(k.id).replace(/\D/g, ''), 10);
       return Math.max(m, isFinite(n) ? n + 1 : 1);
     }, 1);
+    // Dots share the id sequence; count them too so new dots never collide
+    // with loaded ones (a project could hold only dots).
+    state.layers.forEach(function (l) {
+      if (l.type === 'fill' && l.dots) {
+        l.dots.forEach(function (d) {
+          var n = parseInt(String(d.id).replace(/\D/g, ''), 10);
+          if (isFinite(n) && n + 1 > idSeq) idSeq = n + 1;
+        });
+      }
+    });
   }
 
   function load() {
@@ -3586,6 +4099,7 @@
     state.dirty = new Set();
     state.selectedId = null;
     state.selectedGapId = null;
+    state.selectedDotId = null;
     state.playhead = 0;
     state.curIndex = 0;
     applyWorkSize();
@@ -3611,10 +4125,10 @@
   }
 
   function openCredits() {
-    el.creditsText.innerHTML = 'Ijwta — I just want to animate.<br><br>' +
+    el.creditsText.innerHTML = 'Ijwta · I just want to animate.<br><br>' +
       'Frame interpolation: RIFE (ONNX Runtime Web) with a pure-JS mesh-warp fallback.<br>' +
       'Encoding: gifenc (GIF) · mp4-muxer (MP4).<br>' +
-      'Built as a local, serverless tool — nothing leaves your browser.';
+      'Built as a local, serverless tool. Nothing leaves your browser.';
     el.creditsOverlay.classList.remove('hidden');
   }
 
@@ -3711,7 +4225,68 @@
       save();
       scheduleGenerate();
     });
+
+    // Color-dot properties (right panel, shown when a dot is selected).
+    function patchDot(patch) {
+      var d = dotById(state.selectedDotId);
+      if (!d) return;
+      for (var k in patch) d[k] = patch[k];
+      renderSelectedPanel();
+      renderLane();
+      renderPreview();
+      save();
+    }
+    var dotDebounce = null;
+    el.dotColor.addEventListener('input', function () { patchDot({ color: el.dotColor.value }); });
+    el.dotThreshold.addEventListener('input', function () {
+      var v = parseFloat(el.dotThreshold.value);
+      if (!isFinite(v)) return;
+      syncSlider(el.dotThreshold);
+      el.dotThresholdValue.textContent = Math.round(v * 100) + '%';
+      clearTimeout(dotDebounce);
+      dotDebounce = setTimeout(function () { patchDot({ threshold: v }); }, 120);
+    });
+    el.dotThreshold.addEventListener('change', function () {
+      clearTimeout(dotDebounce);
+      var v = parseFloat(el.dotThreshold.value);
+      if (isFinite(v)) patchDot({ threshold: v });
+    });
+    el.dotGrow.addEventListener('input', function () {
+      var v = parseFloat(el.dotGrow.value);
+      if (!isFinite(v)) return;
+      syncSlider(el.dotGrow);
+      el.dotGrowValue.textContent = Math.round(v) + 'px';
+      clearTimeout(dotDebounce);
+      dotDebounce = setTimeout(function () { patchDot({ grow: v }); }, 120);
+    });
+    el.dotGrow.addEventListener('change', function () {
+      clearTimeout(dotDebounce);
+      var v = parseFloat(el.dotGrow.value);
+      if (isFinite(v)) patchDot({ grow: v });
+    });
+    el.dotStart.addEventListener('change', function () {
+      var d = dotById(state.selectedDotId);
+      if (!d) return;
+      var v = Math.max(0, parseFloat(el.dotStart.value) || 0);
+      d.start = Math.min(v, d.end - 1 / state.fps);
+      patchDot({ start: d.start });
+    });
+    el.dotEnd.addEventListener('change', function () {
+      var d = dotById(state.selectedDotId);
+      if (!d) return;
+      var v = parseFloat(el.dotEnd.value) || 0;
+      d.end = Math.max(v, d.start + 1 / state.fps);
+      patchDot({ end: d.end });
+    });
+    el.btnDotDelete.addEventListener('click', function () {
+      deleteDot(state.selectedDotId);
+      renderSelectedPanel();
+      renderLane();
+      renderPreview();
+      save();
+    });
     el.btnAddLayer.addEventListener('click', addLayer);
+    el.btnAddFillLayer.addEventListener('click', addFillLayer);
     el.btnRemoveLayer.addEventListener('click', function () { removeLayer(state.activeLayerId); });
 
     // generation (automatic; regenerate button forces a full re-run)
@@ -3825,13 +4400,66 @@
     }, { passive: false });
     el.previewCanvas.addEventListener('dblclick', resetViewport);
     var panState = null;
+    // Color-dot editing on the preview: when the active layer is a fill layer,
+    // a press on an existing dot drags it to a new position; a press anywhere
+    // else places a new dot. Takes precedence over panning so placement works
+    // at any zoom.
+    var dotDragState = null; // { dot, startNX, startNY, startPX, startPY }
+    function dotAt(nx, ny, L) {
+      var best = null, bestD = 14; // hit radius in normalized-ish px (14 work px)
+      (L.dots || []).forEach(function (d) {
+        var dx = (d.x - nx) * workW, dy = (d.y - ny) * workH;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestD) { bestD = dist; best = d; }
+      });
+      return best;
+    }
     el.previewCanvas.addEventListener('pointerdown', function (e) {
+      var active = layerById(state.activeLayerId);
+      if (active && active.type === 'fill') {
+        var rect = el.previewCanvas.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+          var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+          var hit = dotAt(nx, ny, active);
+          if (hit) {
+            // Drag the dot under the cursor to reposition it.
+            state.selectedDotId = hit.id;
+            dotDragState = { dot: hit, startNX: nx, startNY: ny, startPX: hit.x, startPY: hit.y, moved: false };
+            renderLane();
+            renderSelectedPanel();
+            renderPreview();
+          } else {
+            var d = addDot(active.id, nx, ny);
+            if (d) state.selectedDotId = d.id;
+            renderPreview();
+            renderLane();
+            renderSelectedPanel();
+            save();
+          }
+          return;
+        }
+      }
       if (state.viewZoom <= 1) return;
       panState = { x: e.clientX, y: e.clientY };
       el.previewCanvas.classList.add('panning');
       try { el.previewCanvas.setPointerCapture(e.pointerId); } catch (err) {}
     });
     el.previewCanvas.addEventListener('pointermove', function (e) {
+      var ds = dotDragState;
+      if (ds) {
+        var rect = el.previewCanvas.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+          var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+          ds.dot.x = clamp(ds.startPX + (nx - ds.startNX), 0, 1);
+          ds.dot.y = clamp(ds.startPY + (ny - ds.startNY), 0, 1);
+          ds.moved = true;
+          renderPreview();
+          renderLane();
+        }
+        return;
+      }
       if (!panState) return;
       // Drag-pan: scroll the wrap 1:1 with the cursor (CSS px).
       el.previewWrap.scrollLeft -= e.clientX - panState.x;
@@ -3842,6 +4470,10 @@
     function endPan() {
       panState = null;
       el.previewCanvas.classList.remove('panning');
+      if (dotDragState) {
+        if (dotDragState.moved) save();
+        dotDragState = null;
+      }
     }
     el.previewCanvas.addEventListener('pointerup', endPan);
     el.previewCanvas.addEventListener('pointercancel', endPan);
@@ -3856,6 +4488,8 @@
     // timeline pointer interactions. Clicking a layer row selects it: the
     // name gutter, or anywhere in the layer's band (which also scrubs).
     el.timeline.addEventListener('pointerdown', function (e) {
+      var dotEl = e.target.closest('.fill-dot');
+      if (dotEl) { startDotDrag(e, dotEl); return; }
       var chip = e.target.closest('.kf');
       if (chip) {
         if (e.target.closest('.kf-resize')) { startKfResize(e, chip); return; }

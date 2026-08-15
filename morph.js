@@ -1566,6 +1566,185 @@
     return rgba;
   }
 
+  // ---- generative color fill (color-dot layers) ----
+  // A color dot sits on a "fill" layer below the line art it colors. The dot
+  // flood-fills the connected region of the layer ABOVE (the source) that is
+  // transparent enough, bounded by its ink: pixels whose alpha is above the
+  // dot's threshold are barriers (line art strokes), everything else is
+  // fillable. The returned mask can be grown (fillDilate) to tuck the color
+  // under anti-aliased edges, then painted with fillPaint.
+  //
+  // The fill functions carry a `.bounds` property on the mask ({ x0, y0, x1,
+  // y1 }, inclusive) so the grow and paint steps can stay inside the region
+  // instead of re-scanning the whole canvas — byte-identical output, but the
+  // cost scales with the filled area instead of the canvas.
+
+  // Flood-fill mask from a seed pixel. Returns a Uint8Array(n) mask (1 = fill)
+  // or null when the seed sits on ink (alpha above the threshold) or outside
+  // the canvas. Iterative 4-connected scanline fill; each pixel is visited a
+  // constant number of times regardless of the region size.
+  function fillFlood(src, w, h, sx, sy, threshold) {
+    sx = Math.round(sx); sy = Math.round(sy);
+    if (sx < 0 || sx >= w || sy < 0 || sy >= h) return null;
+    var bar = Math.round(Math.min(1, Math.max(0, threshold)) * 255);
+    var seed = (sy * w + sx) * 4;
+    if (src[seed + 3] > bar) return null; // seed on ink: nothing to fill
+    var n = w * h;
+    var mask = new Uint8Array(n);
+    var bx0 = w, by0 = h, bx1 = -1, by1 = -1;
+    var stack = [sx, sy]; // x,y pairs; JS array grows safely for any region
+    while (stack.length) {
+      var y = stack.pop();
+      var x = stack.pop();
+      var i = y * w + x;
+      if (mask[i]) continue;
+      // Expand the fillable run through (x, y) to its full width.
+      var l = x;
+      while (l > 0) {
+        var li = y * w + l - 1;
+        if (mask[li] || src[li * 4 + 3] > bar) break;
+        l--;
+      }
+      var r = x;
+      while (r < w - 1) {
+        var ri = y * w + r + 1;
+        if (mask[ri] || src[ri * 4 + 3] > bar) break;
+        r++;
+      }
+      for (var xx = l; xx <= r; xx++) mask[y * w + xx] = 1;
+      if (l < bx0) bx0 = l;
+      if (r > bx1) bx1 = r;
+      if (y < by0) by0 = y;
+      if (y > by1) by1 = y;
+      // Seed new runs on the scanlines above and below, inside this run.
+      for (var yy = y - 1; yy <= y + 1; yy += 2) {
+        if (yy < 0 || yy >= h) continue;
+        var row = yy * w;
+        var inRun = false;
+        for (var xx2 = l; xx2 <= r; xx2++) {
+          var idx = row + xx2;
+          if (!mask[idx] && src[idx * 4 + 3] <= bar) {
+            if (!inRun) { stack.push(xx2, yy); inRun = true; }
+          } else {
+            inRun = false;
+          }
+        }
+      }
+    }
+    mask.bounds = { x0: bx0, y0: by0, x1: bx1, y1: by1 };
+    return mask;
+  }
+
+  // Bounding box of a mask's filled pixels (inclusive), or null when empty.
+  function maskBounds(mask, w, h) {
+    var x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (var y = 0; y < h; y++) {
+      var row = y * w;
+      for (var x = 0; x < w; x++) {
+        if (mask[row + x]) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return null;
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+
+  // Grow a fill mask outward by `grow` pixels (4-connected). Uses a two-pass
+  // 3-4 chamfer distance transform on the background, so the cost is O(n)
+  // regardless of how large grow is (iterative dilation would be O(n·grow)).
+  // Chamfer distance units are 3 per orthogonal step, so a pixel is included
+  // when its distance is at most grow*3. When `bounds` is given the transform
+  // runs only inside the bbox padded by `grow` — byte-identical to running on
+  // the whole canvas (pixels further than grow from the mask are untouched),
+  // but the cost scales with the region, not the canvas.
+  function fillDilate(mask, w, h, grow, bounds) {
+    if (!(grow > 0)) return mask;
+    var bx0 = 0, by0 = 0, bx1 = w - 1, by1 = h - 1;
+    if (bounds) {
+      bx0 = Math.max(0, bounds.x0 - grow);
+      by0 = Math.max(0, bounds.y0 - grow);
+      bx1 = Math.min(w - 1, bounds.x1 + grow);
+      by1 = Math.min(h - 1, bounds.y1 + grow);
+    }
+    var bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+    var BIG = 1 << 20;
+    var dist = new Int32Array(bw * bh);
+    var p, d;
+    // Forward pass: distances propagate from the top/left.
+    for (var y = 0; y < bh; y++) {
+      var row = y * bw;
+      var gy = y + by0;
+      for (var x = 0; x < bw; x++) {
+        p = row + x;
+        if (mask[gy * w + (x + bx0)]) { dist[p] = 0; continue; }
+        d = BIG;
+        if (x > 0) { var dl = dist[p - 1] + 3; if (dl < d) d = dl; }
+        if (y > 0) { var du = dist[p - bw] + 3; if (du < d) d = du; }
+        if (x > 0 && y > 0) { var dul = dist[p - bw - 1] + 4; if (dul < d) d = dul; }
+        if (x < bw - 1 && y > 0) { var dur = dist[p - bw + 1] + 4; if (dur < d) d = dur; }
+        dist[p] = d;
+      }
+    }
+    // Backward pass: finish distances from the bottom/right, emit the mask.
+    var out = new Uint8Array(mask.length);
+    var limit = grow * 3;
+    for (var y2 = bh - 1; y2 >= 0; y2--) {
+      var row2 = y2 * bw;
+      var gy2 = y2 + by0;
+      for (var x2 = bw - 1; x2 >= 0; x2--) {
+        p = row2 + x2;
+        d = dist[p];
+        if (x2 < bw - 1) { var dr = dist[p + 1] + 3; if (dr < d) d = dr; }
+        if (y2 < bh - 1) { var dd = dist[p + bw] + 3; if (dd < d) d = dd; }
+        if (x2 > 0 && y2 < bh - 1) { var ddl = dist[p + bw - 1] + 4; if (ddl < d) d = ddl; }
+        if (x2 < bw - 1 && y2 < bh - 1) { var ddr = dist[p + bw + 1] + 4; if (ddr < d) d = ddr; }
+        dist[p] = d;
+        if (d <= limit) out[gy2 * w + (x2 + bx0)] = 1;
+      }
+    }
+    out.bounds = { x0: bx0, y0: by0, x1: bx1, y1: by1 };
+    return out;
+  }
+
+  // Paint a fill mask into an RGBA buffer with a solid color (opaque). When
+  // `bounds` is given, only the region inside it is scanned (the mask is empty
+  // elsewhere). `w` is required for the bounded path.
+  function fillPaint(rgba, mask, n, color, w, bounds) {
+    var r = color[0], g = color[1], b = color[2];
+    if (bounds && w) {
+      for (var y = bounds.y0; y <= bounds.y1; y++) {
+        var row = y * w;
+        for (var x = bounds.x0; x <= bounds.x1; x++) {
+          var p = row + x;
+          if (mask[p]) {
+            var q = p * 4;
+            rgba[q] = r; rgba[q + 1] = g; rgba[q + 2] = b; rgba[q + 3] = 255;
+          }
+        }
+      }
+    } else {
+      for (var p2 = 0, q2 = 0; p2 < n; p2++, q2 += 4) {
+        if (mask[p2]) {
+          rgba[q2] = r; rgba[q2 + 1] = g; rgba[q2 + 2] = b; rgba[q2 + 3] = 255;
+        }
+      }
+    }
+    return rgba;
+  }
+
+  // Parse "#rrggbb" into [r, g, b]; returns null for anything else.
+  function parseHexColor(hex) {
+    if (typeof hex !== 'string') return null;
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return null;
+    var v = parseInt(m[1], 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+  }
+
   return {
     computeFlow: computeFlow,
     computeFlowBoth: computeFlowBoth,
@@ -1591,6 +1770,11 @@
     warpAlphaDense: warpAlphaDense,
     alphaToGray: alphaToGray,
     applyGrayAlpha: applyGrayAlpha,
-    applyGrayAlphaRaw: applyGrayAlphaRaw
+    applyGrayAlphaRaw: applyGrayAlphaRaw,
+    floodFillMask: fillFlood,
+    dilateMask: fillDilate,
+    paintMask: fillPaint,
+    maskBounds: maskBounds,
+    parseHexColor: parseHexColor
   };
 })();
