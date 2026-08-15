@@ -620,15 +620,29 @@ body.dragging-asset * { cursor: grabbing !important; }
   min-height: 0;
   overflow: auto;   /* pans by scrolling when the zoomed canvas outgrows the panel */
 }
-.preview-wrap canvas {
+.preview-stage {
+  position: relative;
   flex: 0 0 auto;
-  margin: auto;      /* centered when smaller, fully scrollable when larger */
+  margin: auto;
+}
+.preview-stage canvas { display: block; }
+/* Dot markers live on their own overlay canvas so editing never disturbs the
+   composite underneath (no smears or stale marker ghosts when scrubbing). */
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+#previewCanvas {
+  flex: 0 0 auto;
   image-rendering: auto;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   cursor: grab;
   touch-action: none;
 }
-.preview-wrap canvas.panning { cursor: grabbing; }
+#previewCanvas.panning { cursor: grabbing; }
 
 .empty-overlay {
   position: absolute;
@@ -889,6 +903,11 @@ body.resizing-timeline { cursor: row-resize; user-select: none; }
   height: 66px;
   border-bottom: 1px solid var(--border);
 }
+/* Color-fill layers only hold dot chips (no keyframe previews), so their rows
+   are much thinner than normal layers. */
+.layer-row.thin {
+  height: 34px;
+}
 .layer-row.active .layer-content { background: rgba(138, 163, 185, 0.05); }
 .layer-gutter {
   position: sticky;
@@ -1127,14 +1146,14 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
    the edge strips resize start/end. */
 .fill-dot {
   position: absolute;
-  top: 18px;
-  height: 34px;
-  min-width: 14px;
+  top: 7px;
+  height: 20px;
+  min-width: 12px;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: 6px;
   background: rgba(79, 143, 255, 0.12);
   border: 1px solid rgba(79, 143, 255, 0.4);
   cursor: grab;
@@ -1150,8 +1169,8 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
 }
 .fill-dot-swatch {
   flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.35);
 }

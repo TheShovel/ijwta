@@ -105,7 +105,10 @@
     <div class="side-resizer" id="leftResizer" title="Drag to resize; double-click to reset"></div>
     <section class="preview-col">
       <div class="preview-wrap" id="previewWrap">
-        <canvas id="previewCanvas" width="512" height="512"></canvas>
+        <div class="preview-stage" id="previewStage">
+          <canvas id="previewCanvas" width="512" height="512"></canvas>
+          <canvas id="previewOverlay" class="preview-overlay" width="512" height="512"></canvas>
+        </div>
         <div id="previewEmpty" class="empty-overlay">
           <div class="empty-box">
             <div class="empty-title">Add images to your library, then drag them onto the timeline</div>
