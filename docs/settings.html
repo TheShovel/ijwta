@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — Khuwari</title>
+<meta name="description" content="FPS, snapping, aspect ratios and the working size.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html" class="active">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Settings</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Settings</h1>
+      <p>FPS, snapping, aspect ratios and the working size.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="fps">
+      <h2>FPS</h2>
+      
+        <p>How many frames per second the timeline plays. Lower values are punchier and cheaper to generate, higher values are smoother.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="snap">
+      <h2>Snap to frames</h2>
+      
+        <p>Keeps the playhead and keyframes on whole frames, so times stay tidy. Turn it off for free placement.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="aspect">
+      <h2>Aspect ratio</h2>
+      
+        <p>Follow the first frame, pick a preset such as 16:9 or 1:1, or set a custom size or a manual ratio like 2.35.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="work-size">
+      <h2>Working size</h2>
+      
+        <p>The long edge of the working canvas, from 512 pixels down to 320. Smaller is noticeably faster to generate, and exports still render at full resolution.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 310" role="img" aria-label="The settings menu with FPS, snapping, aspect ratio and working size" class="fig-border">
+    <rect x="8" y="8" width="320" height="294" rx="10" fill="#2a3038" stroke="#39414d"/>
+    <text x="28" y="44" font-size="13.5" fill="#98a1ad">FPS</text>
+    <rect x="28" y="52" width="130" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="44" y="73" font-size="14" fill="#e6e9ee">12</text>
+    <text x="28" y="112" font-size="13.5" fill="#98a1ad">Snap to frames</text>
+    <rect x="28" y="122" width="18" height="18" rx="4" fill="#8aa3b9"/>
+    <path d="M32 131 l5 5 9 -9" stroke="#161a20" stroke-width="2" fill="none"/>
+    <text x="28" y="172" font-size="13.5" fill="#98a1ad">Aspect ratio</text>
+    <rect x="28" y="180" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="44" y="201" font-size="14" fill="#e6e9ee">16:9</text>
+    <path d="M268 191 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <text x="28" y="240" font-size="13.5" fill="#98a1ad">Working size (long edge)</text>
+    <rect x="28" y="248" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="44" y="269" font-size="14" fill="#e6e9ee">512px</text>
+    <path d="M268 259 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <text x="380" y="80" font-size="16.5" fill="#e6e9ee" font-weight="600">Tune the timeline</text>
+    <circle cx="388" cy="112" r="3.5" fill="#8aa3b9"/><text x="400" y="116" font-size="15" fill="#98a1ad">fps sets frames per second</text>
+    <circle cx="388" cy="140" r="3.5" fill="#8aa3b9"/><text x="400" y="144" font-size="15" fill="#98a1ad">snapping keeps whole-frame times</text>
+    <circle cx="388" cy="168" r="3.5" fill="#8aa3b9"/><text x="400" y="172" font-size="15" fill="#98a1ad">aspect sets the canvas shape</text>
+    <circle cx="388" cy="196" r="3.5" fill="#8aa3b9"/><text x="400" y="200" font-size="15" fill="#98a1ad">working size sets speed vs detail</text>
+  </svg>
+  <figcaption>The settings menu controls the pace and shape of your project.</figcaption>
+</figure>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="export.html"><span class="pn-dir">Previous</span>Export</a>
+    <a class="pn-link next" href="shortcuts.html"><span class="pn-dir">Next</span>Keyboard shortcuts</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

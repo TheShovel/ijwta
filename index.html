@@ -1,434 +1,160 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Khuwari · frame interpolation</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khuwari — frame interpolation animation in your browser</title>
+<meta name="description" content="Khuwari is a browser based animation tool that fills in the frames between your keyframes with machine learning. Everything runs locally, nothing leaves your browser.">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
 
-  <header class="toolbar">
-    <div class="toolbar-brand" aria-hidden="true"><span class="brand-dot"></span><span class="brand-name">Khuwari</span></div>
-    <div class="toolbar-group">
-      <div class="menu-wrap">
-        <button id="btnFile" class="btn" title="Project file">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span>File</span>
-        </button>
-        <div class="menu hidden" id="fileMenu">
-          <button id="btnSaveProject">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            <span>Save project (.khuwari)</span>
-          </button>
-          <button id="btnLoadProject">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-            <span>Load project…</span>
-          </button>
-        </div>
-      </div>
+<nav class="nav">
+  <a class="nav-brand" href="index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html" class="active">Home</a>
+    <a href="docs.html">Docs</a>
+    <a href="credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="editor.html">Open Khuwari</a>
+  </div>
+</nav>
 
-      <div class="menu-wrap">
-        <button id="btnSettings" class="btn" title="Project settings">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>Settings</span>
-        </button>
-        <div class="menu hidden" id="settingsMenu">
-          <label class="field">FPS <input id="fpsInput" type="number" min="1" max="60" step="1" value="12"></label>
-          <label class="field check">Snap to frames <input id="snapInput" type="checkbox" checked></label>
-          <label class="field">Aspect ratio
-            <select id="aspectInput">
-              <option value="auto">Follow first frame</option>
-              <option value="16:9">16:9</option>
-              <option value="9:16">9:16</option>
-              <option value="4:3">4:3</option>
-              <option value="3:4">3:4</option>
-              <option value="1:1">1:1</option>
-              <option value="custom">Custom size…</option>
-              <option value="manual">Manual ratio…</option>
-            </select>
-          </label>
-          <div class="field-row hidden" id="manualAspectRow">
-            <label class="field">Ratio <input id="aspectRatioInput" type="text" placeholder="e.g. 2.35 or 16:9"></label>
-          </div>
-          <div class="field-row hidden" id="customSizeRow">
-            <label class="field">Width <input id="customWInput" type="number" min="8" max="4096" step="8" value="1920"></label>
-            <label class="field">Height <input id="customHInput" type="number" min="8" max="4096" step="8" value="1080"></label>
-          </div>
-          <label class="field">Working size (long edge)
-            <select id="resInput">
-              <option value="512">512px (max)</option>
-              <option value="448">448px</option>
-              <option value="384">384px</option>
-              <option value="320">320px (fast)</option>
-            </select>
-          </label>
-          <div class="menu-sep"></div>
-        </div>
-      </div>
+<div class="wrap">
 
-      <div class="menu-wrap">
-        <button id="btnExport" class="btn">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          <span>Export</span>
-        </button>
-        <div class="menu hidden" id="exportMenu">
-          <label class="field">Format
-            <select id="exportFormat">
-              <option value="png">PNG sequence (.zip)</option>
-              <option value="gif">Animated GIF</option>
-              <option value="mp4">MP4 video</option>
-              <option value="frame">Current frame (PNG)</option>
-            </select>
-          </label>
-          <label class="field">Resolution
-            <select id="exportRes"></select>
-          </label>
-          <div class="menu-sep"></div>
-          <button id="btnExportGo" class="btn primary">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            <span>Export</span>
-          </button>
-        </div>
-      </div>
+  <section class="hero">
+    <div class="hero-art rise" id="heroArt">
+      <img src="mascot.png" alt="The Khuwari mascot" width="500" height="1000">
     </div>
-  </header>
+    <div class="hero-copy">
+      <h1 class="rise-1">Draw the keyframes.<br><em>Khuwari fills in the motion.</em></h1>
+      <p class="lede rise-2">
+        Khuwari is a free and open source animation tool that generates the frames
+        between your keyframes with machine learning. Everything runs locally in
+        your browser, your images and projects never leave your machine. You bring
+        the art, it brings the inbetweens.
+      </p>
+      <div class="hero-cta rise-3">
+        <a class="btn primary" href="editor.html">Open Khuwari</a>
+        <a class="btn" href="docs.html">Read the docs</a>
+      </div>
 
-  <main class="stage">
-    <aside class="side-col" id="leftCol">
-      <div class="side-title">Assets</div>
-      <button id="btnAddAssets" class="btn">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        <span>Add images…</span>
-      </button>
-      <div class="asset-grid" id="assetGrid"></div>
-    </aside>
-    <div class="side-resizer" id="leftResizer" title="Drag to resize; double-click to reset"></div>
-    <section class="preview-col">
-      <div class="preview-wrap" id="previewWrap">
-        <div class="preview-stage" id="previewStage">
-          <canvas id="previewCanvas" width="512" height="512"></canvas>
-          <canvas id="previewOverlay" class="preview-overlay" width="512" height="512"></canvas>
-        </div>
-        <div id="previewEmpty" class="empty-overlay">
-          <div class="empty-box">
-            <div class="empty-title">Add images to your library, then drag them onto the timeline</div>
-            <button class="btn primary" id="btnEmptyAdd">Choose images…</button>
-          </div>
-        </div>
-      </div>
-      <div class="transport">
-        <span id="timeLabel" class="mono">0.00s</span>
-        <span class="sep-dot"></span>
-        <span id="frameLabel" class="mono">frame 1 / 1</span>
-        <span class="spacer"></span>
-        <span id="genStatus" class="status idle"></span>
-        <span id="resLabel" class="muted"></span>
-      </div>
-      <div class="genbar hidden" id="genProgress">
-        <div class="bar"><div class="fill" id="genFill"></div></div>
-        <div class="bar-meta"><span id="genLabel"></span><span><span id="genMeta"></span> <button id="btnCancel" class="btn mini hidden">Stop</button></span></div>
-      </div>
-      <div class="filmstrip" id="filmstrip"></div>
-    </section>
-    <div class="side-resizer" id="rightResizer" title="Drag to resize; double-click to reset"></div>
-    <aside class="side-col right" id="rightCol">
-      <div class="gap-panel hidden" id="gapPanel">
-        <div class="side-title">Gap</div>
-        <div class="kf-card-name" id="gapName"></div>
-        <div class="kf-card-time" id="gapTime"></div>
-        <label class="field">Interpolation
-          <select id="gapTypeInput">
-            <option value="ai">ML</option>
-            <option value="squash">Squash</option>
-            <option value="none">None</option>
-          </select>
-        </label>
-        <div id="gapSquashGroup" class="hidden squash-group">
-          <label class="field">Squash amount: <span id="gapSquashValue" class="mono">auto</span>
-            <input id="gapSquashAmount" class="slider" type="range" min="-0.8" max="0.8" step="0.04" value="0">
-          </label>
-          <div class="squash-row">
-            <button id="gapSquashAuto" class="btn mini" title="Use distance-based amount">Auto</button>
-            <span class="squash-hint mono">drag to set · Auto = distance based</span>
-          </div>
-          <label class="field">Curve
-            <select id="gapSquashCurve">
-              <option value="peak">Anticipation (peak mid-gap)</option>
-              <option value="impact">Impact (builds to end)</option>
-              <option value="ease">Ease (smooth)</option>
-              <option value="linear">Linear</option>
-            </select>
-          </label>
-          <label class="field">Preserve
-            <select id="gapSquashPreserve">
-              <option value="area">Area</option>
-              <option value="volume">Volume</option>
-            </select>
-          </label>
-        </div>
-        <div id="gapBlurGroup" class="hidden squash-group">
-          <label class="field check">
-            <input id="gapBlurOn" type="checkbox"> Motion blur
-          </label>
-          <label class="field">Blur intensity: <span id="gapBlurValue" class="mono">50%</span>
-            <input id="gapBlurAmount" class="slider" type="range" min="0" max="1" step="0.02" value="0.5">
-          </label>
-          <span class="squash-hint mono">smears inbetweens along their motion · eases in/out</span>
-        </div>
-      </div>
-      <div id="dotPanel" class="gap-panel hidden">
-        <div class="side-title">Color dot</div>
-        <div class="kf-card-name" id="dotName"></div>
-        <div class="kf-card-time" id="dotTime"></div>
-        <label class="field">Fill color
-          <input id="dotColor" type="color" value="#4f8fff">
-        </label>
-        <label class="field">Threshold: <span id="dotThresholdValue" class="mono">50%</span>
-          <input id="dotThreshold" class="slider" type="range" min="0" max="1" step="0.01" value="0.5">
-        </label>
-        <label class="field">Grow: <span id="dotGrowValue" class="mono">1px</span>
-          <input id="dotGrow" class="slider" type="range" min="0" max="40" step="1" value="1">
-        </label>
-        <label class="field check"><input id="dotGradOn" type="checkbox"> Gradient</label>
-        <div id="dotGradGroup" class="squash-group hidden">
-          <label class="field">Gradient color <input id="dotGradColor" type="color" value="#ffffff"></label>
-          <label class="field">Height: <span id="dotGradHeightValue" class="mono">24px</span>
-            <input id="dotGradHeight" class="slider" type="range" min="4" max="200" step="1" value="24">
-          </label>
-          <label class="field">Direction
-            <select id="dotGradDir">
-              <option value="bottom">Bottom</option>
-              <option value="top">Top</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-            </select>
-          </label>
-        </div>
-        <div class="field-row">
-          <label class="field">Start (s) <input id="dotStart" type="number" min="0" step="0.01" value="0"></label>
-          <label class="field">End (s) <input id="dotEnd" type="number" min="0" step="0.01" value="1"></label>
-        </div>
-        <span class="squash-hint mono">dot fills the layer above · active only from start to end · drag the chip to move, drag its edges to resize</span>
-        <button id="btnDotDelete" class="btn danger">Delete dot</button>
-      </div>
-      <div id="fillHint" class="gap-panel hidden">
-        <div class="side-title">Color layer</div>
-        <div class="kf-empty" id="fillHintText"></div>
-      </div>
-      <div id="kfSection">
-        <div class="side-title">Keyframe</div>
-        <div class="kf-card hidden" id="kfCard">
-          <div class="kf-card-thumb"><img id="kfThumb" alt=""></div>
-          <div class="kf-card-meta">
-            <div class="kf-card-name" id="kfName"></div>
-            <div class="kf-card-time" id="kfTime"></div>
-          </div>
-        </div>
-        <div class="kf-empty" id="kfEmpty">No keyframe selected. Click a frame chip on the timeline.</div>
-        <div class="kf-field-block">
-          <label class="field">Time (s)
-            <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
-          </label>
-          <label class="field">Blend mode
-            <select id="kfMixInput">
-              <option value="source-over">Normal</option>
-              <option value="multiply">Multiply</option>
-              <option value="screen">Screen</option>
-              <option value="overlay">Overlay</option>
-              <option value="darken">Darken</option>
-              <option value="lighten">Lighten</option>
-              <option value="color-dodge">Color dodge</option>
-              <option value="color-burn">Color burn</option>
-              <option value="hard-light">Hard light</option>
-              <option value="soft-light">Soft light</option>
-              <option value="difference">Difference</option>
-              <option value="exclusion">Exclusion</option>
-              <option value="hue">Hue</option>
-              <option value="saturation">Saturation</option>
-              <option value="color">Color</option>
-              <option value="luminosity">Luminosity</option>
-            </select>
-          </label>
-        </div>
-        <div class="menu-row">
-          <button id="btnReplace" class="btn">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            <span>Replace image</span>
-          </button>
-          <button id="btnDelete" class="btn danger">Delete</button>
-        </div>
-      </div>
-    </aside>
-  </main>
+    </div>
+  </section>
 
-  <div class="tl-resizer" id="tlResizer" title="Drag to resize; double-click to reset"></div>
-
-  <footer class="timeline-col" id="timelineCol">
-    <div class="tl-transport">
-      <button id="btnStepBack" class="btn icon" title="Previous frame">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14"/><path d="M18 6l-9 6 9 6z"/></svg>
-      </button>
-      <button id="btnPlay" class="btn icon" title="Play / pause (Space)">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>
-      </button>
-      <button id="btnStepFwd" class="btn icon" title="Next frame">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5v14"/><path d="M6 6l9 6-9 6z"/></svg>
-      </button>
-      <button id="btnLoop" class="btn icon" title="Loop playback">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-      </button>
-      <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide interpolated frames)">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
-      </button>
-      <div class="btn-group" id="onionWrap">
-        <button id="btnOnion" class="btn icon" title="Onion skin — show neighboring keyframes as ghosts" style="border-top-right-radius:0; border-bottom-right-radius:0; height:32px">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 20c-5 0-8.4-3.4-8.4-8 0-4.6 3.6-8.1 8.4-9 4.8.9 8.4 4.4 8.4 9 0 4.6-3.4 8-8.4 8z"/>
-            <path d="M7.4 6.4 C8.3 9.4 7.2 13.8 9.4 17.8"/>
-            <path d="M16.6 6.4 C15.7 9.4 16.8 13.8 14.6 17.8"/>
-            <path d="M12 4 C12 7.8 11.2 14 12 19.8" opacity="0.75"/>
-            <path d="M12 3 L12 1.6" stroke-width="2"/>
-            <path d="M11 2.2 C11.3 1.3 12.6 1.2 13.2 2" stroke-width="1.25" opacity="0.95"/>
-          </svg>
-        </button>
-        <button id="btnOnionMenu" class="btn icon" title="Onion skin settings" aria-label="Onion skin settings" style="border-top-left-radius:0; border-bottom-left-radius:0; margin-left:-1px; padding:6px 5px; min-width:22px; height:32px">
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="menu hidden" id="onionMenu" style="min-width:240px; top:100%; left:0; right:auto; margin-top:6px">
-          <div class="menu-label">Onion skin</div>
-          <label class="field">Frames before <span id="onionBeforeVal" class="mono">1</span>
-            <input id="onionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="field">Frames after <span id="onionAfterVal" class="mono">1</span>
-            <input id="onionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="field">Opacity <span id="onionOpacityVal" class="mono">28%</span>
-            <input id="onionOpacity" class="slider" type="range" min="0.05" max="0.9" step="0.01" value="0.28">
-          </label>
-          <label class="field check"><input id="onionTint" type="checkbox"> Tint</label>
-          <div id="onionTintGroup" class="squash-group hidden">
-            <label class="field">Tint color <input id="onionTintColor" type="color" value="#ff3b30"></label>
-            <label class="field">Tint strength <span id="onionTintOpacityVal" class="mono">35%</span>
-              <input id="onionTintOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.35">
-            </label>
-          </div>
-        </div>
-      </div>
-      <span class="vsep"></span>
-      <div class="menu-wrap" id="layerMenuWrap">
-        <button id="btnLayerMenu" class="btn" title="Layer actions">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-          <span>Layer <b id="layerNameLabel">Layer 1</b></span>
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="menu hidden" id="layerMenu" style="right:auto; left:0; min-width:220px">
-          <div class="menu-label" id="layerMenuLabel">Layer 1</div>
-          <label class="field check" style="padding:6px 10px"><input id="layerVisible" type="checkbox" checked> Visible</label>
-          <button id="btnRemoveLayer" class="danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg> <span>Remove layer</span></button>
-          <div class="menu-sep"></div>
-          <button id="btnAddLayer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span>Add layer</span></button>
-          <button id="btnAddFillLayer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg> <span>Add color layer</span></button>
-        </div>
-      </div>
-      <span class="vsep"></span>
-      <button id="btnRegenerate" class="btn" title="Force all gaps to regenerate">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        <span>Regenerate</span>
-      </button>
-    </div>
-    <div class="timeline-scroll" id="timeline">
-      <div class="track" id="track">
-        <div class="ruler" id="ruler"></div>
-        <div class="lane" id="lane"></div>
-        <div class="playhead" id="playhead"></div>
-      </div>
-    </div>
-    <div class="timeline-hint">
-      <span id="zoomLabel" class="mono"></span>
-    </div>
-  </footer>
-
-  <div id="toast" class="toast hidden"></div>
-
-  <!-- Start screen: shown on launch until the user starts or loads a project.
-       The mascot banner sits on the left, scaled to the full window height; the
-       menu panel is on the right. -->
-  <div id="startScreen" class="start-screen">
-    <div class="start-art">
-      <img src="mascot.png" alt="Khuwari mascot" width="500" height="1000">
-    </div>
-    <div class="start-panel">
-      <div class="start-name">Khuwari</div>
-      <div class="start-menu">
-        <button id="btnStartNew" class="btn primary start-btn">New project</button>
-        <button id="btnStartLoad" class="btn start-btn">Load project</button>
-        <button id="btnStartExample" class="btn start-btn">Example project</button>
-        <div class="start-sep"></div>
-        <button id="btnStartDocs" class="btn start-btn">Docs</button>
-        <button id="btnStartCredits" class="btn start-btn">Credits</button>
-        <button id="btnStartGithub" class="btn start-btn">GitHub</button>
-      </div>
-    </div>
+  <div class="feat-head">
+    <h2 class="section-title rise">What you can do</h2>
+    <p class="section-sub rise">The goal is to get out of your way and let the machine handle the busywork.</p>
   </div>
 
-  <!-- Credits overlay -->
-  <div id="creditsOverlay" class="loading-overlay hidden">
-    <div class="loading-box">
-      <div class="logo big">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+  <section class="feat-deck" id="feats">
+
+    <article class="feat-row" id="feat-ml">
+      <div class="feat-text">
+        <span class="feat-num">01</span>
+        <h3>ML inbetweens</h3>
+        <p>A machine learning model generates the frames between your keyframes. Pick ML, squash and stretch, or no interpolation per gap.</p>
+        <a class="feat-link" href="docs/gaps.html">How gaps work</a>
       </div>
-      <div class="loading-title">Khuwari</div>
-      <div class="loading-sub" id="creditsText"></div>
-      <button id="btnCreditsClose" class="btn primary">Close</button>
+      <div class="feat-shot" data-fig="ml"></div>
+    </article>
+
+    <article class="feat-row" id="feat-layers">
+      <div class="feat-shot" data-fig="layers"></div>
+      <div class="feat-text">
+        <span class="feat-num">02</span>
+        <h3>Layer based timeline</h3>
+        <p>Stack backgrounds, characters and effects on their own layers. Each layer keeps its own keyframes and its own gaps.</p>
+        <a class="feat-link" href="docs/interface.html">About the timeline</a>
+      </div>
+    </article>
+
+    <article class="feat-row" id="feat-fill">
+      <div class="feat-text">
+        <span class="feat-num">03</span>
+        <h3>Color fill dots</h3>
+        <p>Drop dots on a color layer and they fill the line art on the layer above. Each dot has its own threshold, grow radius, gradient and timing.</p>
+        <a class="feat-link" href="docs/color-layers.html">About color layers</a>
+      </div>
+      <div class="feat-shot" data-fig="fill"></div>
+    </article>
+
+    <article class="feat-row" id="feat-onion">
+      <div class="feat-shot" data-fig="onion"></div>
+      <div class="feat-text">
+        <span class="feat-num">04</span>
+        <h3>Onion skinning</h3>
+        <p>See the frames around the one you are working on, as ghosts or tinted. Configure how many frames back and forward to show.</p>
+        <a class="feat-link" href="docs/onion-skinning.html">About onion skinning</a>
+      </div>
+    </article>
+
+    <article class="feat-row" id="feat-blur">
+      <div class="feat-text">
+        <span class="feat-num">05</span>
+        <h3>Motion blur</h3>
+        <p>Turn on motion blur for a gap and the inbetweens smear along their motion, easing in and out. Great for masking small imperfections.</p>
+        <a class="feat-link" href="docs/gaps.html#motion-blur">About motion blur</a>
+      </div>
+      <div class="feat-shot" data-fig="blur"></div>
+    </article>
+
+    <article class="feat-row" id="feat-export">
+      <div class="feat-shot" data-fig="export"></div>
+      <div class="feat-text">
+        <span class="feat-num">06</span>
+        <h3>Export anywhere</h3>
+        <p>Export a PNG sequence, an animated GIF or an MP4 at the resolution you pick. Playback and exports share the exact same look.</p>
+        <a class="feat-link" href="docs/export.html">About export</a>
+      </div>
+    </article>
+
+  </section>
+
+  <section class="steps-wrap">
+    <h2 class="section-title rise">How it works</h2>
+    <p class="section-sub rise">Three steps from your art to a finished animation.</p>
+    <div class="steps">
+      <div class="step rise">
+        <h3>Bring your art</h3>
+        <p>Add images to the asset library or draw your frames. Any image format works, and images are scaled down automatically to keep generation fast.</p>
+      </div>
+      <div class="step rise">
+        <h3>Place your keyframes</h3>
+        <p>Drag images onto the timeline. Set how each gap between two keyframes should behave, and let the machine fill in the rest.</p>
+      </div>
+      <div class="step rise">
+        <h3>Play, tweak, export</h3>
+        <p>Watch it back, adjust the motion, then export a video, a GIF or a frame sequence. Your project saves as a single .khuwari file.</p>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Model loading overlay: shown while the ML model downloads+compiles on launch -->
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="loading-box">
-      <div class="logo big">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
-      </div>
-      <div class="loading-title">Loading the interpolation model</div>
-      <div class="loading-sub" id="loadingSub">Fetching the local ML engine + model (one-time, ~21 MB)…</div>
-      <div class="progress">
-        <div class="bar"><div class="fill" id="loadingFill"></div></div>
-        <div class="bar-meta"><span id="loadingLabel"></span><span id="loadingMeta"></span></div>
-      </div>
-      <button id="btnLoadingRetry" class="btn hidden">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        <span>Retry</span>
-      </button>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
     </div>
-  </div>
-
-  <!-- Export overlay: shown while an export runs (waits for generation first) -->
-  <div id="exportOverlay" class="loading-overlay hidden">
-    <div class="loading-box">
-      <div class="logo big">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-      </div>
-      <div class="loading-title" id="exportTitle">Exporting</div>
-      <div class="loading-sub" id="exportSub"></div>
-      <div class="progress">
-        <div class="bar"><div class="fill" id="exportFill"></div></div>
-        <div class="bar-meta"><span id="exportLabel"></span><span id="exportMeta"></span></div>
-      </div>
-      <button id="btnExportCancelOverlay" class="btn">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
-        <span>Stop</span>
-      </button>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="docs.html">Docs</a>
+      <a href="credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
     </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
+</footer>
 
-  <input type="file" id="fileInput" accept="image/*" multiple hidden>
-  <input type="file" id="projectInput" accept=".khuwari,application/json" hidden>
-
-  <script src="vendor/gifenc.js"></script>
-  <script src="vendor/mp4-muxer.js"></script>
-  <script src="morph.js?v=20260816c"></script>
-  <script src="model.js?v=20260816c"></script>
-  <script src="app.js?v=20260816c"></script>
+<script src="home-figures.js"></script>
+<script src="site.js"></script>
 </body>
 </html>

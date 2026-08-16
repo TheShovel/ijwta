@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — Khuwari</title>
+<meta name="description" content="Khuwari documentation: keyframes, gaps, interpolation modes, color layers, onion skinning, export and more.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a>
+    <a href="docs.html" class="active">Docs</a>
+    <a href="credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <div class="docs-head">
+    <h1 class="rise">Documentation</h1>
+    <p class="rise-1">Everything you need to get animating. Search across the whole guide, or pick a category below. Press <kbd>/</kbd> to jump to the search from anywhere on this page.</p>
+    <div class="search-wrap rise-2">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="docSearch" type="search" placeholder="Search the docs, for example: motion blur" autocomplete="off" spellcheck="false">
+    </div>
+    <span id="searchCount"></span>
+  </div>
+
+  <div id="searchResults" class="search-results hidden"></div>
+  <div id="searchEmpty" class="hidden">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <div>No topics match that search. Try a different word.</div>
+  </div>
+
+  <section id="catGrid">
+    <h2 class="section-title rise">Browse by category</h2>
+    <div class="doc-grid">
+      <a class="doc-card rise" href="docs/getting-started.html">
+        <span class="doc-card-count">3 topics</span>
+        <h3>Getting started</h3>
+        <p>What Khuwari is, how to open it, and how project files work.</p>
+      </a>
+      <a class="doc-card rise" href="docs/interface.html">
+        <span class="doc-card-count">5 topics</span>
+        <h3>The interface</h3>
+        <p>The assets panel, the preview, the timeline, the selection panel and layers.</p>
+      </a>
+      <a class="doc-card rise" href="docs/keyframes.html">
+        <span class="doc-card-count">5 topics</span>
+        <h3>Keyframes</h3>
+        <p>Adding, selecting, moving, resizing, timing, replacing and deleting frames.</p>
+      </a>
+      <a class="doc-card rise" href="docs/gaps.html">
+        <span class="doc-card-count">6 topics</span>
+        <h3>Gaps &amp; interpolation</h3>
+        <p>Machine learning, squash and stretch, no interpolation, motion blur and regeneration.</p>
+      </a>
+      <a class="doc-card rise" href="docs/color-layers.html">
+        <span class="doc-card-count">6 topics</span>
+        <h3>Color layers</h3>
+        <p>Color dots that fill the layer above, with thresholds, grow, gradients and timing.</p>
+      </a>
+      <a class="doc-card rise" href="docs/onion-skinning.html">
+        <span class="doc-card-count">4 topics</span>
+        <h3>Onion skinning</h3>
+        <p>Seeing the frames around the current one, and configuring the ghosts.</p>
+      </a>
+      <a class="doc-card rise" href="docs/blend-modes.html">
+        <span class="doc-card-count">1 topic</span>
+        <h3>Blend modes</h3>
+        <p>16 blend modes per keyframe, from multiply to luminosity.</p>
+      </a>
+      <a class="doc-card rise" href="docs/export.html">
+        <span class="doc-card-count">3 topics</span>
+        <h3>Export</h3>
+        <p>PNG sequences, GIFs, MP4 videos and exporting the current frame.</p>
+      </a>
+      <a class="doc-card rise" href="docs/settings.html">
+        <span class="doc-card-count">4 topics</span>
+        <h3>Settings</h3>
+        <p>FPS, snapping, aspect ratios and the working size.</p>
+      </a>
+      <a class="doc-card rise" href="docs/shortcuts.html">
+        <span class="doc-card-count">2 topics</span>
+        <h3>Keyboard shortcuts</h3>
+        <p>Playback and editing shortcuts, and when they are ignored.</p>
+      </a>
+      <a class="doc-card rise" href="docs/privacy.html">
+        <span class="doc-card-count">1 topic</span>
+        <h3>Privacy</h3>
+        <p>How Khuwari stays local and what never leaves your machine.</p>
+      </a>
+    </div>
+  </section>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="docs.html">Docs</a>
+      <a href="credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="docs-data.js"></script>
+<script src="site.js"></script>
+</body>
+</html>

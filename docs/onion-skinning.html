@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Onion skinning — Khuwari</title>
+<meta name="description" content="Seeing the frames around the current one, and configuring the ghosts.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html" class="active">Onion skinning</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Onion skinning</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Onion skinning</h1>
+      <p>Seeing the frames around the current one, and configuring the ghosts.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="what-it-is">
+      <h2>What it is</h2>
+      
+        <p>Onion skinning shows the frames around the current one, so you can see where the motion is heading while you work. It is a toggle, like the view only keyframes button.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 260" role="img" aria-label="Onion skinning showing ghost frames behind the current one, with the onion settings menu" class="fig-border">
+    <rect x="8" y="8" width="500" height="200" rx="8" fill="#161a20" stroke="#39414d"/>
+    <g class="fig-anim fig-fade">
+      <circle cx="150" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
+      <path d="M124 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
+    </g>
+    <g class="fig-anim fig-fade fig-fade-1">
+      <circle cx="270" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
+      <path d="M244 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
+    </g>
+    <circle cx="390" cy="104" r="28" fill="none" stroke="#e6e9ee" stroke-width="3"/>
+    <path d="M364 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#e6e9ee" stroke-width="3"/>
+    <rect x="520" y="8" width="192" height="200" rx="10" fill="#2a3038" stroke="#39414d"/>
+    <text x="536" y="32" font-size="14" font-weight="600" fill="#e6e9ee">Onion skin</text>
+    <text x="536" y="60" font-size="12.5" fill="#98a1ad">Frames before <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
+    <rect x="536" y="66" width="160" height="5" rx="2.5" fill="#39414d"/>
+    <rect x="536" y="66" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
+    <circle cx="616" cy="68" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
+    <text x="536" y="92" font-size="12.5" fill="#98a1ad">Frames after <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
+    <rect x="536" y="98" width="160" height="5" rx="2.5" fill="#39414d"/>
+    <rect x="536" y="98" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
+    <circle cx="616" cy="100" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
+    <text x="536" y="124" font-size="12.5" fill="#98a1ad">Opacity <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">28%</tspan></text>
+    <rect x="536" y="130" width="160" height="5" rx="2.5" fill="#39414d"/>
+    <rect x="536" y="130" width="52" height="5" rx="2.5" fill="#8aa3b9"/>
+    <circle cx="588" cy="132" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
+    <rect x="536" y="150" width="16" height="16" rx="4" fill="#8aa3b9"/>
+    <path d="M539 158 l2.5 2.5 4.5 -4.5" stroke="#161a20" stroke-width="2" fill="none"/>
+    <text x="560" y="163" font-size="13" fill="#e6e9ee">Tint</text>
+    <rect x="536" y="178" width="28" height="20" rx="4" fill="#1e232a" stroke="#39414d"/>
+    <rect x="540" y="182" width="20" height="12" rx="2" fill="#ff3b30"/>
+    <text x="360" y="232" font-size="15" fill="#98a1ad" text-anchor="middle">ghosts fade in from both sides; the tint option recolors them</text>
+  </svg>
+  <figcaption>Onion skinning keeps the neighboring frames faintly visible while you work.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="turn-it-on">
+      <h2>Turn it on</h2>
+      
+        <p>The onion button in the transport area toggles it on and off. The small arrow next to it opens the settings popup.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="settings">
+      <h2>Settings</h2>
+      
+        <ul>
+          <li><strong>Frames before</strong> and <strong>after</strong> choose how many neighbors to show.</li>
+          <li><strong>Opacity</strong> sets how strong the ghosts are.</li>
+          <li><strong>Tint</strong> replaces the ghost look with a flat tint; pick the color and strength.</li>
+        </ul>
+      
+    </section>
+
+    <section class="doc-sec" id="saved">
+      <h2>Saved automatically</h2>
+      
+        <p>Your onion skin settings are saved in the browser, so they come back the next time you open Khuwari, even after loading a project.</p>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="color-layers.html"><span class="pn-dir">Previous</span>Color layers</a>
+    <a class="pn-link next" href="blend-modes.html"><span class="pn-dir">Next</span>Blend modes</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

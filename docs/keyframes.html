@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyframes — Khuwari</title>
+<meta name="description" content="Adding, selecting, moving, resizing, timing, replacing and deleting frames.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html" class="active">Keyframes</a>
+    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Keyframes</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Keyframes</h1>
+      <p>Adding, selecting, moving, resizing, timing, replacing and deleting frames.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="add-keyframe">
+      <h2>Add a keyframe</h2>
+      
+        <p>Drag an image from the assets panel onto a layer track at the time you want it. The image becomes a keyframe chip that holds that pose.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="select-inspect">
+      <h2>Select and inspect</h2>
+      
+        <p>Click a chip to select it. The selection panel on the right shows:</p>
+        <ul>
+          <li>a thumbnail of the frame</li>
+          <li>the exact time</li>
+          <li>the blend mode</li>
+          <li>buttons to replace or delete the frame</li>
+        </ul>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 300" role="img" aria-label="The selection panel with a selected keyframe" class="fig-border">
+    <rect x="8" y="8" width="260" height="284" rx="8" fill="#22272e" stroke="#39414d"/>
+    <text x="20" y="32" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
+    <rect x="20" y="44" width="60" height="60" rx="8" fill="#0d0f12" stroke="#c3ab7d"/>
+    <circle cx="50" cy="74" r="15" fill="#8aa3b9"/>
+    <text x="92" y="68" font-size="14.5" fill="#e6e9ee" font-weight="600">hero.png</text>
+    <text x="92" y="86" font-size="12" fill="#98a1ad">0.00s</text>
+    <text x="20" y="124" font-size="12.5" fill="#98a1ad">Time (s)</text>
+    <rect x="20" y="130" width="236" height="30" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="34" y="150" font-size="13.5" fill="#e6e9ee">0.00</text>
+    <text x="20" y="182" font-size="12.5" fill="#98a1ad">Blend mode</text>
+    <rect x="20" y="188" width="236" height="30" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="34" y="208" font-size="13.5" fill="#e6e9ee">Normal</text>
+    <path d="M236 198 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <rect x="20" y="232" width="114" height="32" rx="7" fill="#2a3038" stroke="#39414d"/>
+    <text x="48" y="253" font-size="13.5" fill="#e6e9ee">Replace image</text>
+    <rect x="142" y="232" width="114" height="32" rx="7" fill="#2a3038" stroke="#39414d"/>
+    <text x="176" y="253" font-size="13.5" fill="#c48181">Delete</text>
+    <text x="300" y="70" font-size="16.5" fill="#e6e9ee" font-weight="600">What you can do here</text>
+    <circle cx="308" cy="100" r="3.5" fill="#8aa3b9"/><text x="320" y="104" font-size="15" fill="#98a1ad">move the frame to an exact time</text>
+    <circle cx="308" cy="126" r="3.5" fill="#8aa3b9"/><text x="320" y="130" font-size="15" fill="#98a1ad">pick one of 16 blend modes</text>
+    <circle cx="308" cy="152" r="3.5" fill="#8aa3b9"/><text x="320" y="156" font-size="15" fill="#98a1ad">swap in different art</text>
+    <circle cx="308" cy="178" r="3.5" fill="#8aa3b9"/><text x="320" y="182" font-size="15" fill="#98a1ad">remove the keyframe</text>
+  </svg>
+  <figcaption>Select a keyframe and its details appear in the right panel.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="move-resize">
+      <h2>Move and resize</h2>
+      
+        <p>Drag a chip left or right to change when it happens. Drag its edges to change how long the frame holds before the gap starts. Hold times matter for pacing.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 210" role="img" aria-label="A keyframe chip being dragged, with resize handles at its edges" class="fig-border">
+    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
+    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
+    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
+    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
+    <text x="536" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">2s</text>
+    <rect x="8" y="36" width="704" height="66" fill="#1b1f25"/>
+    <rect x="8" y="36" width="96" height="66" fill="#22272e"/>
+    <line x1="104" y1="36" x2="104" y2="102" stroke="#39414d"/>
+    <text x="18" y="76" font-size="13.5" fill="#e6e9ee">Layer 1</text>
+    <rect x="150" y="48" width="60" height="54" rx="8" fill="none" stroke="#39414d" stroke-dasharray="4 4"/>
+    <g class="fig-anim fig-drag">
+      <rect x="250" y="48" width="60" height="54" rx="8" fill="rgba(195,171,125,0.12)" stroke="#c3ab7d" stroke-width="2"/>
+      <rect x="252" y="50" width="34" height="34" rx="5" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
+      <circle cx="269" cy="67" r="8" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
+      <text x="254" y="98" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">1.00s</text>
+      <rect x="302" y="48" width="8" height="54" rx="4" fill="rgba(195,171,125,0.22)"/>
+      <rect x="305" y="65" width="2" height="20" rx="1" fill="rgba(195,171,125,0.5)"/>
+    </g>
+    <text x="390" y="60" font-size="15" fill="#98a1ad">drag the body to move the frame</text>
+    <text x="390" y="80" font-size="15" fill="#98a1ad">drag the edges to change the hold</text>
+  </svg>
+  <figcaption>Drag the chip to retime it; drag its edges to change how long it holds.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="set-time">
+      <h2>Set the time exactly</h2>
+      
+        <p>With a keyframe selected, enter the time in seconds in the selection panel. Use the playhead and frame counter to find the moment you want.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="replace-delete">
+      <h2>Replace or delete</h2>
+      
+        <ul>
+          <li><code>Replace image</code> swaps in different art while keeping the timing.</li>
+          <li><code>Delete</code> removes the keyframe. The keyboard shortcut <kbd>Delete</kbd> or <kbd>Backspace</kbd> also works.</li>
+        </ul>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="interface.html"><span class="pn-dir">Previous</span>The interface</a>
+    <a class="pn-link next" href="gaps.html"><span class="pn-dir">Next</span>Gaps & interpolation</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

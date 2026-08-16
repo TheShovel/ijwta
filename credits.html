@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credits — Khuwari</title>
+<meta name="description" content="The people and projects behind Khuwari.">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="index.html">Home</a>
+    <a href="docs.html">Docs</a>
+    <a href="credits.html" class="active">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <div class="credits-head">
+    <h1 class="rise">Credits</h1>
+    <p class="rise-1">Khuwari stands on the shoulders of some excellent open source work. Thank you to everyone who made it possible.</p>
+  </div>
+
+  <div class="credit-grid">
+    <div class="credit-card rise">
+      <div class="credit-role">Machine learning</div>
+      <h3>RIFE</h3>
+      <p>The RIFE model generates the inbetween frames. It provides the natural motion that makes Khuwari feel alive, and runs entirely in your browser.</p>
+    </div>
+    <div class="credit-card rise">
+      <div class="credit-role">Machine learning runtime</div>
+      <h3>ONNX Runtime Web</h3>
+      <p>Runs the RIFE model in the browser with WebAssembly, so no server and no GPU are needed.</p>
+    </div>
+    <div class="credit-card rise">
+      <div class="credit-role">Encoding</div>
+      <h3>gifenc</h3>
+      <p>A fast, dependency free GIF encoder used for animated GIF exports.</p>
+    </div>
+    <div class="credit-card rise">
+      <div class="credit-role">Encoding</div>
+      <h3>mp4-muxer</h3>
+      <p>Muxes the WebCodecs encoded video stream into MP4 files for video export.</p>
+    </div>
+    <div class="credit-card rise credit-wide">
+      <div class="credit-role">Everything else</div>
+      <h3>Built for Khuwari</h3>
+      <p>The pure JavaScript mesh warp interpolation fallback, the color fill system, the onion skinning, the timeline, the motion blur, and all the rest were written for Khuwari itself.</p>
+    </div>
+    <div class="credit-card rise credit-wide">
+      <div class="credit-role">Art</div>
+      <h3>The mascot</h3>
+      <p>The Khuwari mascot was drawn by hand for the project. It guards the start screen and keeps you company while the machine works.</p>
+    </div>
+  </div>
+
+  <div class="band rise">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <div>
+      <h3>License</h3>
+      <p>Khuwari itself is open source under the GNU Affero General Public License v3. The full license text lives in the <code>LICENSE</code> file in the repository.</p>
+    </div>
+  </div>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="docs.html">Docs</a>
+      <a href="credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

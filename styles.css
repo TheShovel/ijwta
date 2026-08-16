@@ -79,7 +79,6 @@ body::after {
 .loading-box .bar-meta { margin-top: 6px; }
 .loading-box #btnLoadingRetry { margin-top: 12px; }
 .loading-box #btnExportCancelOverlay { margin-top: 12px; }
-.loading-box #btnCreditsClose { margin-top: 12px; }
 
 /* Start screen: full-window launch menu. The mascot (500×1000) is a banner on
    the left, scaled to the full window height (width = half the height, so the
@@ -689,12 +688,22 @@ body.dragging-asset * { cursor: grabbing !important; }
   min-width: 0;
 }
 
+/* Scroll container that also anchors the floating generation progress bar:
+   the bar is positioned against this box, so it stays put over the preview
+   even while the canvas is panned or zoomed. */
+.preview-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
 .preview-wrap {
   flex: 1 1 auto;
+  min-width: 0;
   position: relative;
   display: flex;
   background: radial-gradient(900px 600px at 50% -10%, rgba(138,163,185,0.10), transparent 60%), #161a20;
-  min-height: 0;
   overflow: auto;
 }
 .preview-stage {
@@ -851,7 +860,21 @@ body.dragging-asset * { cursor: grabbing !important; }
 .status.error { color: var(--danger); border-color: rgba(196, 129, 129, 0.4); }
 .status.downloading { color: var(--gold); border-color: rgba(195, 171, 125, 0.4); }
 
-.genbar { padding: 0 14px 8px; }
+.genbar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(420px, calc(100% - 28px));
+  padding: 10px 12px;
+  background: rgba(27, 31, 37, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
 .bar {
   height: 6px;
   border-radius: 4px;

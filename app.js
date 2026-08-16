@@ -68,11 +68,16 @@
   var SIDE_W_KEY_L = 'khuwari-side-w-l'; // UI preferences, not part of the project file
   var SIDE_W_KEY_R = 'khuwari-side-w-r';
   var ONION_KEY = 'khuwari-onion'; // onion-skin prefs (persisted separately from the project file)
+  var DOT_COLOR_KEY = 'khuwari-dot-color'; // last fill color used, so new dots pick it up
+  var lastDotColor = '#4f8fff';
+  var copiedDotProps = null; // fill properties copied from a dot, ready to paste onto another
   var toastTimer = null;
   var WARN_GEN_COUNT = 5; // gaps needing more inbetweens than this get a red warning
+  var REGEN_ABSORB_MS = 400; // while a run is active, edits wait at least this long so a quick burst coalesces into ONE restart instead of one cancel+restart per edit
+  var EDIT_DEBOUNCE_MS = 250; // floor for edit-driven regeneration: a burst of quick edits shares one run that starts after they settle
 
   // Inline SVG icons for the buttons that are (re)built at runtime. Stroke-based
-  // 24×24 paths, currentColor, matching the static icons in index.html.
+  // 24×24 paths, currentColor, matching the static icons in editor.html.
   var ICONS = {
     play: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
@@ -104,9 +109,6 @@
     btnStartDocs: byId('btnStartDocs'),
     btnStartCredits: byId('btnStartCredits'),
     btnStartGithub: byId('btnStartGithub'),
-    creditsOverlay: byId('creditsOverlay'),
-    creditsText: byId('creditsText'),
-    btnCreditsClose: byId('btnCreditsClose'),
     btnPlay: byId('btnPlay'),
     btnStepBack: byId('btnStepBack'),
     btnStepFwd: byId('btnStepFwd'),
@@ -139,6 +141,7 @@
     exportFormat: byId('exportFormat'),
     exportRes: byId('exportRes'),
     btnExportGo: byId('btnExportGo'),
+    btnHelp: byId('btnHelp'),
     btnReplace: byId('btnReplace'),
     btnDelete: byId('btnDelete'),
     btnCancel: byId('btnCancel'),
@@ -189,6 +192,8 @@
     dotStart: byId('dotStart'),
     dotEnd: byId('dotEnd'),
     btnDotDelete: byId('btnDotDelete'),
+    btnDotCopy: byId('btnDotCopy'),
+    btnDotPaste: byId('btnDotPaste'),
     previewCanvas: byId('previewCanvas'),
     previewOverlay: byId('previewOverlay'),
     previewStage: byId('previewStage'),
@@ -578,7 +583,7 @@
       id: 'D' + (++idSeq),
       x: clamp(nx, 0, 1),
       y: clamp(ny, 0, 1),
-      color: def.color,
+      color: lastDotColor || def.color,
       threshold: def.threshold,
       grow: def.grow,
       gradOn: false,
@@ -1410,21 +1415,20 @@
     var ROW_GAP = 4;    // px: vertical spacing between stacked rows
     var PAD_BOTTOM = 7; // px: clearance below the last row
     var ROW_STEP = CHIP_H + ROW_GAP;  // stacked rows: a chip height plus a gap
-    var MAX_ROWS = 5;   // rows before giving up (extremely rare to need more)
     var MARGIN = 2;     // px of horizontal clearance between chips
     var rows = [];
     items.forEach(function (it) {
       var row = 0;
-      while (row < MAX_ROWS && rows[row] && rows[row].some(function (o) {
+      while (rows[row] && rows[row].some(function (o) {
         return it.right + MARGIN > o.left && it.left < o.right + MARGIN;
       })) row++;
-      if (row >= MAX_ROWS) row = MAX_ROWS - 1; // cap: reuse the bottom row
       if (!rows[row]) rows[row] = [];
       rows[row].push({ left: it.left, right: it.right });
       if (row > 0) it.el.style.top = (BASE_TOP + row * ROW_STEP) + 'px';
     });
     // Grow the fill layer's row to fit the deepest stack (the CSS default of
-    // 34px covers the single-row case).
+    // 34px covers the single-row case). There is no row limit: the layer keeps
+    // growing however many dots overlap in time.
     if (rowEl) {
       var used = 0;
       for (var i = 0; i < rows.length; i++) if (rows[i] && rows[i].length) used = i;
@@ -1942,6 +1946,7 @@
       el.dotGradDir.value = dot.gradDir || 'bottom';
       el.dotStart.value = (Math.round(dot.start * 100) / 100).toFixed(2);
       el.dotEnd.value = (Math.round(dot.end * 100) / 100).toFixed(2);
+      el.btnDotPaste.disabled = !copiedDotProps;
       return;
     }
     el.gapPanel.classList.toggle('hidden', !hasGap);
@@ -3035,6 +3040,14 @@
   function scheduleGenerate(delay) {
     clearTimeout(genTimer);
     var token = ++genSeq;
+    // Edit-driven schedules (50-60ms) are too twitchy for quick successive
+    // edits: each one fired its own generation run, and during a run each one
+    // cancelled and restarted it, so a burst of edits stacked one restart per
+    // edit and generation lagged further and further behind. Floor the delay
+    // so a burst shares a single run that starts once the edits settle, and
+    // absorb edits that land mid-run into one restart.
+    var d = delay == null ? 500 : Math.max(delay, EDIT_DEBOUNCE_MS);
+    if (state.genRun && d < REGEN_ABSORB_MS) d = REGEN_ABSORB_MS;
     genTimer = setTimeout(function () {
       // Wait for the model download/compile to settle so gaps are generated
       // with ML when possible (the launch overlay blocks interaction anyway).
@@ -3043,7 +3056,7 @@
         if (state.genRun) { state.pendingRegen = true; cancelRun(); }
         else runGeneration();
       });
-    }, delay || 500);
+    }, d);
   }
 
   function cancelRun() {
@@ -4401,14 +4414,6 @@
     });
   }
 
-  function openCredits() {
-    el.creditsText.innerHTML = 'Khuwari · I just want to animate.<br><br>' +
-      'Frame interpolation: RIFE (ONNX Runtime Web) with a pure-JS mesh-warp fallback.<br>' +
-      'Encoding: gifenc (GIF) · mp4-muxer (MP4).<br>' +
-      'Built as a local, serverless tool. Nothing leaves your browser.';
-    el.creditsOverlay.classList.remove('hidden');
-  }
-
   function wireEvents() {
     // Tactile button feedback: any .btn gets a quick pop animation on press
     // (the CSS .pop keyframes), so buttons feel physical even without a real
@@ -4509,13 +4514,21 @@
       var d = dotById(state.selectedDotId);
       if (!d) return;
       for (var k in patch) d[k] = patch[k];
+      if (patch.color) {
+        lastDotColor = patch.color;
+        try { localStorage.setItem(DOT_COLOR_KEY, lastDotColor); } catch (e) {}
+      }
       renderSelectedPanel();
       renderLane();
       renderPreview();
       invalidateDots();
     }
     var dotDebounce = null;
-    el.dotColor.addEventListener('input', function () { patchDot({ color: el.dotColor.value }); });
+    el.dotColor.addEventListener('input', function () {
+      lastDotColor = el.dotColor.value;
+      try { localStorage.setItem(DOT_COLOR_KEY, lastDotColor); } catch (e) {}
+      patchDot({ color: el.dotColor.value });
+    });
     el.dotThreshold.addEventListener('input', function () {
       var v = parseFloat(el.dotThreshold.value);
       if (!isFinite(v)) return;
@@ -4578,6 +4591,45 @@
       renderLane();
       renderPreview();
       invalidateDots();
+    });
+    // Copy/paste a dot's fill properties (color, threshold, grow, gradient)
+    // onto other dots, so a consistent look can be spread across many dots
+    // without re-entering every field. Timing is left alone: a dot's window on
+    // the timeline is placement, not part of its look.
+    el.btnDotCopy.addEventListener('click', function () {
+      var d = dotById(state.selectedDotId);
+      if (!d) return;
+      copiedDotProps = {
+        color: d.color || '#4f8fff',
+        threshold: d.threshold != null ? d.threshold : 0.5,
+        grow: d.grow != null ? d.grow : 1,
+        gradOn: !!d.gradOn,
+        gradColor: d.gradColor || '#ffffff',
+        gradHeight: d.gradHeight != null ? d.gradHeight : 24,
+        gradDir: d.gradDir || 'bottom'
+      };
+      el.btnDotPaste.disabled = false;
+      toast('Dot properties copied');
+    });
+    el.btnDotPaste.addEventListener('click', function () {
+      var d = dotById(state.selectedDotId);
+      if (!copiedDotProps || !d) return;
+      var p = copiedDotProps;
+      d.color = p.color;
+      d.threshold = p.threshold;
+      d.grow = p.grow;
+      d.gradOn = p.gradOn;
+      d.gradColor = p.gradColor;
+      d.gradHeight = p.gradHeight;
+      d.gradDir = p.gradDir;
+      // Pasting a color also becomes the last-used color for new dots.
+      lastDotColor = p.color;
+      try { localStorage.setItem(DOT_COLOR_KEY, lastDotColor); } catch (e) {}
+      renderSelectedPanel();
+      renderLane();
+      renderPreview();
+      invalidateDots();
+      toast('Dot properties pasted');
     });
     el.btnAddLayer.addEventListener('click', addLayer);
     el.btnAddFillLayer.addEventListener('click', addFillLayer);
@@ -5009,18 +5061,24 @@
     });
     el.btnExportGo.addEventListener('click', runExport);
 
+    // Help button in the toolbar: open the documentation in a new tab.
+    el.btnHelp.addEventListener('click', function () {
+      window.open('docs.html', '_blank');
+    });
+
     // Start screen actions.
     el.btnStartNew.addEventListener('click', newProject);
     el.btnStartLoad.addEventListener('click', function () { el.projectInput.click(); });
     el.btnStartExample.addEventListener('click', openExample);
     el.btnStartDocs.addEventListener('click', function () {
-      window.open('https://github.com/TheShovel/khuwari#readme', '_blank');
+      window.open('docs.html', '_blank');
     });
     el.btnStartGithub.addEventListener('click', function () {
-      window.open('https://github.com/TheShovel/khuwari', '_blank');
+      window.open('https://github.com/TheShovel/ijwta', '_blank');
     });
-    el.btnStartCredits.addEventListener('click', openCredits);
-    el.btnCreditsClose.addEventListener('click', function () { el.creditsOverlay.classList.add('hidden'); });
+    el.btnStartCredits.addEventListener('click', function () {
+      window.open('credits.html', '_blank');
+    });
   }
 
   // Model auto-load (used by boot + retry button; works via the worker or
@@ -5111,6 +5169,13 @@
           tintColor: (typeof onionSaved.tintColor === 'string' && /^#?[0-9a-f]{6}$/i.test(onionSaved.tintColor)) ? (onionSaved.tintColor[0] === '#' ? onionSaved.tintColor : '#' + onionSaved.tintColor) : '#ff3b30',
           tintOpacity: clamp(parseFloat(onionSaved.tintOpacity) || 0.35, 0.05, 1)
         };
+      }
+    } catch (e) {}
+    // Restore the last fill color used, so newly placed dots keep it.
+    try {
+      var savedDotColor = localStorage.getItem(DOT_COLOR_KEY);
+      if (savedDotColor && /^#?[0-9a-f]{6}$/i.test(savedDotColor)) {
+        lastDotColor = savedDotColor[0] === '#' ? savedDotColor : '#' + savedDotColor;
       }
     } catch (e) {}
     renderAll();

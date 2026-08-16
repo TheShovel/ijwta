@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blend modes — Khuwari</title>
+<meta name="description" content="16 blend modes per keyframe, from multiply to luminosity.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="blend-modes.html" class="active">Blend modes</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Blend modes</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Blend modes</h1>
+      <p>16 blend modes per keyframe, from multiply to luminosity.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="per-keyframe">
+      <h2>Per keyframe blending</h2>
+      
+        <p>Each keyframe can blend with the layers below it in 16 different ways. Set the mode in the selection panel with a keyframe selected.</p>
+        <table class="doc-table">
+          <thead><tr><th>Group</th><th>Modes</th></tr></thead>
+          <tbody>
+            <tr><td>Normal</td><td>source-over</td></tr>
+            <tr><td>Darken</td><td>multiply, darken, color burn</td></tr>
+            <tr><td>Lighten</td><td>screen, lighten, color dodge</td></tr>
+            <tr><td>Contrast</td><td>overlay, hard light, soft light</td></tr>
+            <tr><td>Invert</td><td>difference, exclusion</td></tr>
+            <tr><td>Color</td><td>hue, saturation, color, luminosity</td></tr>
+          </tbody>
+        </table>
+        <p>Inbetweens between two keyframes use the normal blend, so the blending itself stays stable across the gap.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 230" role="img" aria-label="Two overlapping shapes showing a blend mode" class="fig-border">
+    <rect x="8" y="8" width="400" height="200" rx="8" fill="#161a20" stroke="#39414d"/>
+    <circle cx="170" cy="108" r="60" fill="rgba(138,163,185,0.55)"/>
+    <g class="fig-anim fig-blend">
+      <circle cx="290" cy="108" r="60" fill="rgba(195,171,125,0.55)"/>
+    </g>
+    <text x="208" y="184" font-size="14" fill="#98a1ad" text-anchor="middle">the overlap changes with the blend mode</text>
+    <rect x="420" y="8" width="292" height="200" rx="10" fill="#22272e" stroke="#39414d"/>
+    <text x="436" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
+    <text x="436" y="60" font-size="12.5" fill="#98a1ad">Blend mode</text>
+    <rect x="436" y="66" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="452" y="86" font-size="13.5" fill="#e6e9ee">Multiply</text>
+    <path d="M676 76 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <text x="436" y="118" font-size="13" fill="#98a1ad">16 modes, from normal to</text>
+    <text x="436" y="134" font-size="13" fill="#98a1ad">luminosity, per keyframe</text>
+    <text x="436" y="164" font-size="13" fill="#98a1ad">great for shading passes,</text>
+    <text x="436" y="180" font-size="13" fill="#98a1ad">highlights and overlays</text>
+  </svg>
+  <figcaption>Each keyframe can blend with the layers below it in 16 different ways.</figcaption>
+</figure>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="onion-skinning.html"><span class="pn-dir">Previous</span>Onion skinning</a>
+    <a class="pn-link next" href="export.html"><span class="pn-dir">Next</span>Export</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

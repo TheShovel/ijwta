@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Color layers — Khuwari</title>
+<meta name="description" content="Color dots that fill the layer above, with thresholds, grow, gradients and timing.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="color-layers.html" class="active">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Color layers</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Color layers</h1>
+      <p>Color dots that fill the layer above, with thresholds, grow, gradients and timing.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="what-they-do">
+      <h2>What they do</h2>
+      
+        <p>A color layer holds dots instead of keyframes. Each dot acts like a smart bucket fill for the layer above it, so you can color in line art without touching the drawing.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 290" role="img" aria-label="A dot filling the area inside a line art ring, with its chip on the color layer" class="fig-border">
+    <rect x="8" y="8" width="420" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
+    <rect x="118" y="50" width="200" height="128" rx="10" fill="none" stroke="#22272e" stroke-width="16"/>
+    <rect x="118" y="50" width="200" height="128" rx="10" fill="none" stroke="#0d0f12" stroke-width="14"/>
+    <g class="fig-anim fig-fillc">
+      <circle cx="218" cy="114" r="52" fill="rgba(79,143,255,0.55)"/>
+    </g>
+    <circle cx="218" cy="114" r="7" fill="#4f8fff" stroke="#8aa3b9" stroke-width="2"/>
+    <rect x="8" y="226" width="420" height="58" fill="#1b1f25"/>
+    <rect x="8" y="226" width="96" height="58" fill="#22272e"/>
+    <line x1="104" y1="226" x2="104" y2="284" stroke="#39414d"/>
+    <text x="18" y="260" font-size="13.5" fill="#98a1ad">Color 1</text>
+    <rect x="150" y="233" width="160" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
+    <circle cx="161" cy="244" r="6" fill="#4f8fff" stroke="rgba(255,255,255,0.35)"/>
+    <text x="172" y="248" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-2.00</text>
+    <rect x="304" y="233" width="6" height="22" rx="3" fill="rgba(255,255,255,0.12)"/>
+    <text x="452" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">One dot fills a region</text>
+    <circle cx="460" cy="92" r="3.5" fill="#8aa3b9"/><text x="472" y="96" font-size="15" fill="#98a1ad">place the dot inside the lines</text>
+    <circle cx="460" cy="118" r="3.5" fill="#8aa3b9"/><text x="472" y="122" font-size="15" fill="#98a1ad">it floods the connected region</text>
+    <circle cx="460" cy="144" r="3.5" fill="#8aa3b9"/><text x="472" y="148" font-size="15" fill="#98a1ad">threshold sets line strength</text>
+    <circle cx="460" cy="170" r="3.5" fill="#8aa3b9"/><text x="472" y="174" font-size="15" fill="#98a1ad">needed to block the fill</text>
+    <circle cx="460" cy="196" r="3.5" fill="#8aa3b9"/><text x="472" y="200" font-size="15" fill="#98a1ad">grow tucks color under edges</text>
+    <circle cx="460" cy="222" r="3.5" fill="#8aa3b9"/><text x="472" y="226" font-size="15" fill="#98a1ad">the chip sets its active window</text>
+  </svg>
+  <figcaption>Each dot flood-fills the connected area inside the nearest lines.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="add-place">
+      <h2>Add one and place dots</h2>
+      
+        <ol>
+          <li>Use the <code>Layer</code> menu and choose <code>Add color layer</code>.</li>
+          <li>Click on the canvas to place a dot.</li>
+          <li>The dot fills everything inside the nearest lines of the layer above.</li>
+        </ol>
+        <p class="doc-note">New dots remember the last color you used, so coloring many regions is quick. You can also copy and paste a dot's properties onto other dots.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="dot-properties">
+      <h2>Dot properties</h2>
+      
+        <ul>
+          <li><strong>Fill color</strong> is what the dot pours into the area.</li>
+          <li><strong>Threshold</strong> is how strong a line must be to stop the fill.</li>
+          <li><strong>Grow</strong> is a radius in pixels that tucks the color under anti-aliased edges.</li>
+        </ul>
+        <p>Each dot has its own values, so tune them per region.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="gradients">
+      <h2>Gradients</h2>
+      
+        <p>Turn on <code>Gradient</code> to give a dot a gradient instead of a flat fill.</p>
+        <ul>
+          <li><strong>Gradient color</strong> is the color the fill fades toward.</li>
+          <li><strong>Height</strong> controls how tall the gradient is.</li>
+          <li><strong>Direction</strong> picks top, bottom, left or right.</li>
+        </ul>
+      
+    </section>
+
+    <section class="doc-sec" id="timing">
+      <h2>Timing</h2>
+      
+        <p>Dots only work during the time you set. Use the start and end fields in the right panel, or drag the dot chip on the timeline and drag its edges to resize. Outside that window the dot does nothing.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="stacking">
+      <h2>Stacking</h2>
+      
+        <p>Dots that overlap in time stack into their own rows in the timeline, so they never cover each other and stay easy to find. The color layer grows to fit the stack, no matter how many dots overlap.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 250" role="img" aria-label="Overlapping dot chips stacking into separate rows" class="fig-border">
+    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
+    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
+    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
+    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
+    <rect x="8" y="36" width="704" height="92" fill="#1b1f25"/>
+    <rect x="8" y="36" width="96" height="92" fill="#22272e"/>
+    <line x1="104" y1="36" x2="104" y2="128" stroke="#39414d"/>
+    <text x="18" y="86" font-size="13.5" fill="#98a1ad">Color 1</text>
+    <circle cx="88" cy="76" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="83" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="90" r="1.8" fill="#98a1ad" opacity="0.6"/>
+    <g class="fig-anim fig-drop">
+      <rect x="180" y="43" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
+      <circle cx="191" cy="54" r="6" fill="#4f8fff" stroke="rgba(255,255,255,0.35)"/>
+      <text x="202" y="58" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
+    </g>
+    <g class="fig-anim fig-drop fig-drop-1">
+      <rect x="180" y="69" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
+      <circle cx="191" cy="80" r="6" fill="#c3ab7d" stroke="rgba(255,255,255,0.35)"/>
+      <text x="202" y="84" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
+    </g>
+    <g class="fig-anim fig-drop fig-drop-2">
+      <rect x="180" y="95" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
+      <circle cx="191" cy="106" r="6" fill="#8fb0a2" stroke="rgba(255,255,255,0.35)"/>
+      <text x="202" y="110" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">1.00-2.00</text>
+    </g>
+    <text x="350" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">Dots that overlap stack</text>
+    <text x="350" y="86" font-size="15" fill="#98a1ad">each one gets its own row, so chips</text>
+    <text x="350" y="102" font-size="15" fill="#98a1ad">never cover each other</text>
+    <text x="350" y="130" font-size="15" fill="#98a1ad">the layer grows to fit however many</text>
+    <text x="350" y="146" font-size="15" fill="#98a1ad">dots you add. there is no limit</text>
+  </svg>
+  <figcaption>Overlapping dots stack into their own rows, and the layer grows to fit.</figcaption>
+</figure>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="gaps.html"><span class="pn-dir">Previous</span>Gaps & interpolation</a>
+    <a class="pn-link next" href="onion-skinning.html"><span class="pn-dir">Next</span>Onion skinning</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    </div>
+    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>
