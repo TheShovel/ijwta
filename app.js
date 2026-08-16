@@ -38,6 +38,8 @@
     playing: false,
     loop: true,
     keysOnly: false,   // viewport shows keyframes only (no interpolated frames)
+    onion: false,      // onion skin — ghosts of neighboring keyframes
+    onionCfg: { before: 1, after: 1, opacity: 0.28, tint: false, tintColor: '#ff3b30', tintOpacity: 0.35 },
     selectedId: null,
     selectedGapId: null,   // gap selected in the timeline (right panel shows it)
     selectedDotId: null,   // color-dot selected (right panel shows its properties)
@@ -65,6 +67,7 @@
   var SIDE_W_MIN = 140;     // px, smallest a side panel can be dragged to
   var SIDE_W_KEY_L = 'khuwari-side-w-l'; // UI preferences, not part of the project file
   var SIDE_W_KEY_R = 'khuwari-side-w-r';
+  var ONION_KEY = 'khuwari-onion'; // onion-skin prefs (persisted separately from the project file)
   var toastTimer = null;
   var WARN_GEN_COUNT = 5; // gaps needing more inbetweens than this get a red warning
 
@@ -109,6 +112,20 @@
     btnStepFwd: byId('btnStepFwd'),
     btnLoop: byId('btnLoop'),
     btnKeysOnly: byId('btnKeysOnly'),
+    btnOnion: byId('btnOnion'),
+    btnOnionMenu: byId('btnOnionMenu'),
+    onionMenu: byId('onionMenu'),
+    onionBefore: byId('onionBefore'),
+    onionBeforeVal: byId('onionBeforeVal'),
+    onionAfter: byId('onionAfter'),
+    onionAfterVal: byId('onionAfterVal'),
+    onionOpacity: byId('onionOpacity'),
+    onionOpacityVal: byId('onionOpacityVal'),
+    onionTint: byId('onionTint'),
+    onionTintGroup: byId('onionTintGroup'),
+    onionTintColor: byId('onionTintColor'),
+    onionTintOpacity: byId('onionTintOpacity'),
+    onionTintOpacityVal: byId('onionTintOpacityVal'),
     btnRegenerate: byId('btnRegenerate'),
     btnSettings: byId('btnSettings'),
     settingsMenu: byId('settingsMenu'),
@@ -148,6 +165,9 @@
     gapBlurAmount: byId('gapBlurAmount'),
     gapBlurValue: byId('gapBlurValue'),
     layerNameLabel: byId('layerNameLabel'),
+    layerMenu: byId('layerMenu'),
+    layerMenuLabel: byId('layerMenuLabel'),
+    btnLayerMenu: byId('btnLayerMenu'),
     layerVisible: byId('layerVisible'),
     btnAddLayer: byId('btnAddLayer'),
     btnAddFillLayer: byId('btnAddFillLayer'),
@@ -205,6 +225,7 @@
     customHInput: byId('customHInput'),
     customSizeRow: byId('customSizeRow'),
     selTimeInput: byId('selTimeInput'),
+    kfMixInput: byId('kfMixInput'),
     fileInput: byId('fileInput'),
     toast: byId('toast'),
     loadingOverlay: byId('loadingOverlay'),
@@ -814,7 +835,7 @@
         bmp[L.id] = fc ? { kind: 'fill', canvas: fc } : null;
       } else {
         var f = layerFrameAt(L.id, t, keysOnly);
-        bmp[L.id] = f ? { kind: 'img', src: f.img } : null;
+        bmp[L.id] = f ? { kind: 'img', src: f.img, mix: f.mix || 'source-over' } : null;
       }
     }
     var out = [];
@@ -823,7 +844,8 @@
       out.push({
         layer: vis[i].L,
         canvas: b && b.kind === 'fill' ? b.canvas : null,
-        img: b && b.kind === 'img' ? b.src : null
+        img: b && b.kind === 'img' ? b.src : null,
+        mix: b && b.kind === 'img' ? (b.mix || 'source-over') : 'source-over'
       });
     }
     return out;
@@ -837,12 +859,18 @@
     ctx.fillRect(0, 0, W, H);
     for (var i = 0; i < bits.length; i++) {
       var b = bits[i];
-      if (b.canvas) ctx.drawImage(b.canvas, 0, 0);
-      else if (b.img) {
+      if (b.canvas) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(b.canvas, 0, 0);
+      } else if (b.img) {
         var img = imgCache.get(b.img);
-        if (img) drawContain(ctx, img, W, H);
+        if (img) {
+          ctx.globalCompositeOperation = b.mix || 'source-over';
+          drawContain(ctx, img, W, H);
+        }
       }
     }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // Interpolation mode for one gap: 'ai' (neural), 'squash', or 'none'.
@@ -1195,7 +1223,7 @@
   function layerFrameAt(layerId, t, keysOnly) {
     var frames = [];
     sortedKeyframes(layerId).forEach(function (k) {
-      frames.push({ time: k.time, img: k.img, gen: false });
+      frames.push({ time: k.time, img: k.img, gen: false, mix: k.mix || 'source-over' });
     });
     if (!keysOnly) {
       computeGaps(layerId).forEach(function (g) {
@@ -1226,14 +1254,14 @@
       var L = state.layers[i];
       if (L.visible === false) continue;
       var f = layerFrameAt(L.id, t, keysOnly);
-      if (f) list.push({ img: f.img });
+      if (f) list.push({ img: f.img, mix: f.mix || 'source-over' });
     }
     return list;
   }
 
   function compositeKey(t, keysOnly) {
     var key = framesAt(t, keysOnly).map(function (f) {
-      return f.img;
+      return f.img + ':' + (f.mix || 'source-over');
     }).join('|');
     // Fill layers are user content, not interpolated frames: include the
     // active dots' signature so the cache distinguishes filled composites.
@@ -1715,6 +1743,71 @@
   // (see framesAt). The last successfully drawn composite is remembered so the
   // screen never flashes black while a new frame's images decode.
   var lastPreview = null; // { key, bits } of the last composite actually drawn
+  function onionNeighbors() {
+    var L = layerById(state.activeLayerId);
+    if (!L || L.type === 'fill') return { before: [], after: [] };
+    var ks = sortedKeyframes(L.id);
+    if (!ks.length) return { before: [], after: [] };
+    var t = state.playhead;
+    var idx = -1;
+    for (var i = 0; i < ks.length; i++) {
+      if (ks[i].time <= t + 1e-9) idx = i;
+    }
+    var before = [], after = [];
+    var b = (state.onionCfg && state.onionCfg.before) | 0;
+    var a = (state.onionCfg && state.onionCfg.after) | 0;
+    for (var j = 1; j <= b; j++) { var k = idx - j; if (k >= 0) before.push(ks[k]); }
+    for (var k2 = 1; k2 <= a; k2++) { var k3 = idx + 1 + (k2 - 1); if (k3 < ks.length && ks[k3].time > t + 1e-9) after.push(ks[k3]); else if (idx === -1 && k3 < ks.length) after.push(ks[k3]); }
+    if (idx === -1 && !after.length && ks.length) after.push(ks[0]);
+    return { before: before, after: after };
+  }
+  function drawOnion(ctx) {
+    if (!state.onion || state.playing) return;
+    var nb = onionNeighbors();
+    if (!nb.before.length && !nb.after.length) return;
+    var op = state.onionCfg ? state.onionCfg.opacity : 0.28;
+    var tint = state.onionCfg && state.onionCfg.tint;
+    var tintColor = state.onionCfg && state.onionCfg.tintColor;
+    var tintOp = state.onionCfg ? state.onionCfg.tintOpacity : 0.35;
+    function drawGhost(img, alpha) {
+      if (!img) return;
+      if (!tint || !tintColor) {
+        ctx.globalAlpha = alpha;
+        drawContain(ctx, img, workW, workH);
+        return;
+      }
+      var c = document.createElement('canvas'); c.width = workW; c.height = workH;
+      var g = c.getContext('2d');
+      g.globalAlpha = alpha;
+      drawContain(g, img, workW, workH);
+      g.globalCompositeOperation = 'source-atop';
+      g.globalAlpha = tintOp;
+      g.fillStyle = tintColor;
+      g.fillRect(0, 0, workW, workH);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(c, 0, 0);
+    }
+    ctx.save();
+    for (var i = 0; i < nb.before.length; i++) {
+      var fade = 1 - i * 0.22; if (fade < 0.22) fade = 0.22;
+      drawGhost(imgCache.get(nb.before[i].img), op * fade);
+    }
+    for (var j = 0; j < nb.after.length; j++) {
+      var fade2 = 1 - j * 0.22; if (fade2 < 0.22) fade2 = 0.22;
+      drawGhost(imgCache.get(nb.after[j].img), op * 0.8 * fade2);
+    }
+    ctx.restore();
+  }
+  function syncOnionUI() {
+    var c = state.onionCfg || {};
+    if (el.onionBefore) { el.onionBefore.value = String(c.before | 0); syncSlider(el.onionBefore); if (el.onionBeforeVal) el.onionBeforeVal.textContent = String(c.before | 0); }
+    if (el.onionAfter) { el.onionAfter.value = String(c.after | 0); syncSlider(el.onionAfter); if (el.onionAfterVal) el.onionAfterVal.textContent = String(c.after | 0); }
+    if (el.onionOpacity) { el.onionOpacity.value = String(c.opacity); syncSlider(el.onionOpacity); if (el.onionOpacityVal) el.onionOpacityVal.textContent = Math.round(c.opacity * 100) + '%'; }
+    if (el.onionTint) el.onionTint.checked = !!c.tint;
+    if (el.onionTintGroup) el.onionTintGroup.classList.toggle('hidden', !c.tint);
+    if (el.onionTintColor) el.onionTintColor.value = c.tintColor || '#ff3b30';
+    if (el.onionTintOpacity) { el.onionTintOpacity.value = String(c.tintOpacity); syncSlider(el.onionTintOpacity); if (el.onionTintOpacityVal) el.onionTintOpacityVal.textContent = Math.round(c.tintOpacity * 100) + '%'; }
+  }
   function renderPreview() {
     var token = ++state.previewToken;
     applyViewportSize();
@@ -1731,8 +1824,11 @@
       return;
     }
     el.previewEmpty.classList.add('hidden');
+    // Playing always redraws: editor-only overlays (onion ghosts, dot markers)
+    // must never linger on the canvas during playback, even when the composite
+    // is unchanged (held keyframes reuse the same image).
     var key = compositeKey(state.playhead, state.keysOnly);
-    if (lastPreview && lastPreview.key === key) {
+    if (!state.playing && lastPreview && lastPreview.key === key) {
       drawDotMarkers(octx);
       return; // already showing this exact composite
     }
@@ -1758,6 +1854,7 @@
         octx2.clearRect(0, 0, workW, workH);
         var bits = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
         drawComposite(ctx2, bits, workW, workH);
+        if (state.onion) drawOnion(ctx2);
         drawDotMarkers(octx2);
         lastPreview = { key: key, bits: bits };
       });
@@ -1765,6 +1862,7 @@
     }
     var bits2 = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
     drawComposite(ctx, bits2, workW, workH);
+    if (state.onion) drawOnion(ctx);
     drawDotMarkers(octx);
     lastPreview = { key: key, bits: bits2 };
   }
@@ -1775,6 +1873,7 @@
   // the playhead reaches them). Only drawn when a fill layer is active or a
   // dot is selected.
   function drawDotMarkers(ctx) {
+    if (state.playing) return; // editor markers never show during playback
     var L = null;
     if (layerById(state.activeLayerId).type === 'fill') L = layerById(state.activeLayerId);
     else if (state.selectedDotId) L = layerOfDot(state.selectedDotId);
@@ -1885,12 +1984,14 @@
     var kf = state.keyframes.find(function (k) { return k.id === state.selectedId; });
     var has = !!kf;
     el.selTimeInput.disabled = !has;
+    el.kfMixInput.disabled = !has;
     el.btnReplace.disabled = !has;
     el.btnDelete.disabled = !has;
     el.kfCard.classList.toggle('hidden', !has);
     el.kfEmpty.classList.toggle('hidden', has);
     if (!kf) return;
     el.selTimeInput.value = (Math.round(kf.time * 100) / 100).toFixed(2);
+    el.kfMixInput.value = kf.mix || 'source-over';
     el.kfThumb.src = kf.img;
     el.kfName.textContent = kf.name || 'keyframe';
     el.kfTime.textContent = fmtTime(kf.time);
@@ -1970,11 +2071,10 @@
     scheduleGenerate();
   }
 
-  // The layer bar above the timeline follows the active layer. Selecting a
-  // layer happens by clicking its row on the timeline, not via a dropdown.
   function renderLayerPanel() {
     var L = layerById(state.activeLayerId);
     el.layerNameLabel.textContent = L ? L.name : '';
+    if (el.layerMenuLabel) el.layerMenuLabel.textContent = L ? L.name : 'Layer';
     el.layerVisible.checked = L ? L.visible !== false : true;
     el.btnRemoveLayer.disabled = state.layers.length <= 1;
   }
@@ -2378,6 +2478,7 @@
     if (state.playing || !buildPlaybackFrames().length) return;
     if (state.playhead >= playbackEnd()) state.playhead = 0; // at the end: restart
     state.playing = true;
+    lastPreview = null; // force a clean redraw — clears editor-only ghosts/markers
     playStart = state.playhead;
     playStartTime = performance.now();
     updateTransport();
@@ -4071,10 +4172,10 @@
 
   function projectData() {
     return {
-      v: 9,
+      v: 10,
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
-        res: state.res, keysOnly: state.keysOnly,
+        res: state.res, keysOnly: state.keysOnly, onion: state.onion, onionCfg: state.onionCfg,
         aspect: state.aspect, aspectRatio: state.aspectRatio,
         customW: state.customW, customH: state.customH
       },
@@ -4088,7 +4189,7 @@
         return { img: a.img, name: a.name, w: a.w, h: a.h };
       }),
       keyframes: state.keyframes.map(function (k) {
-        return { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h };
+        return { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h, mix: k.mix || 'source-over' };
       }),
       generated: state.generated,
       gapMeta: state.gapMeta,
@@ -4105,6 +4206,22 @@
     state.zoom = clamp(parseFloat(s.zoom) || 90, 12, 4000);
     state.res = [512, 448, 384, 320].indexOf(parseInt(s.res, 10)) >= 0 ? parseInt(s.res, 10) : 512;
     state.keysOnly = !!s.keysOnly;
+    // Onion prefs: the toggle and its settings are UI prefs (persisted to
+    // localStorage on every change). A project file only overrides them when it
+    // explicitly carries onion settings — otherwise the user's current prefs
+    // (already restored at boot) stay, so loading a project never wipes them.
+    if (s.hasOwnProperty('onion')) state.onion = !!s.onion;
+    if (s.onionCfg && typeof s.onionCfg === 'object') {
+      var c = s.onionCfg;
+      state.onionCfg = {
+        before: clamp(parseInt(c.before, 10) || 1, 0, 4),
+        after: clamp(parseInt(c.after, 10) || 1, 0, 4),
+        opacity: clamp(parseFloat(c.opacity) || 0.28, 0.05, 0.9),
+        tint: !!c.tint,
+        tintColor: (typeof c.tintColor === 'string' && /^#?[0-9a-f]{6}$/i.test(c.tintColor)) ? (c.tintColor[0] === '#' ? c.tintColor : '#' + c.tintColor) : '#ff3b30',
+        tintOpacity: clamp(parseFloat(c.tintOpacity) || 0.35, 0.05, 1)
+      };
+    }
     state.aspect = ['auto', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom', 'manual'].indexOf(s.aspect) >= 0 ? s.aspect : 'auto';
     var ar = parseRatio(s.aspectRatio);
     state.aspectRatio = ar;
@@ -4158,6 +4275,9 @@
     }, 1);
     state.keyframes = (data.keyframes || []).filter(function (k) { return k && k.img; }).map(function (k) {
       if (!k.layer || !state.layers.some(function (l) { return l.id === k.layer; })) k.layer = state.layers[0].id;
+      if (typeof k.mix !== 'string' || ['source-over','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity'].indexOf(k.mix) < 0) {
+        k.mix = 'source-over';
+      }
       return k;
     });
     state.generated = (data.generated && typeof data.generated === 'object') ? data.generated : {};
@@ -4485,6 +4605,23 @@
       el.btnKeysOnly.classList.toggle('active', state.keysOnly);
       renderPreview();
     });
+    el.btnOnion.addEventListener('click', function () {
+      state.onion = !state.onion;
+      el.btnOnion.classList.toggle('active', state.onion);
+      lastPreview = null;
+      renderPreview();
+    });
+    function onionPatch(patch) { for (var k in patch) state.onionCfg[k] = patch[k]; try { localStorage.setItem(ONION_KEY, JSON.stringify(state.onionCfg)); } catch (e) {} syncOnionUI(); lastPreview = null; renderPreview(); }
+    el.onionBefore.addEventListener('input', function () { var v = parseInt(el.onionBefore.value, 10) || 0; syncSlider(el.onionBefore); el.onionBeforeVal.textContent = String(v); clearTimeout(window._onionDeb); window._onionDeb = setTimeout(function () { onionPatch({ before: v }); }, 100); });
+    el.onionBefore.addEventListener('change', function () { var v = parseInt(el.onionBefore.value, 10) || 0; onionPatch({ before: v }); });
+    el.onionAfter.addEventListener('input', function () { var v = parseInt(el.onionAfter.value, 10) || 0; syncSlider(el.onionAfter); el.onionAfterVal.textContent = String(v); clearTimeout(window._onionDeb2); window._onionDeb2 = setTimeout(function () { onionPatch({ after: v }); }, 100); });
+    el.onionAfter.addEventListener('change', function () { var v = parseInt(el.onionAfter.value, 10) || 0; onionPatch({ after: v }); });
+    el.onionOpacity.addEventListener('input', function () { var v = parseFloat(el.onionOpacity.value) || 0.28; syncSlider(el.onionOpacity); el.onionOpacityVal.textContent = Math.round(v * 100) + '%'; clearTimeout(window._onionDeb3); window._onionDeb3 = setTimeout(function () { onionPatch({ opacity: v }); }, 100); });
+    el.onionOpacity.addEventListener('change', function () { var v = parseFloat(el.onionOpacity.value) || 0.28; onionPatch({ opacity: v }); });
+    el.onionTint.addEventListener('change', function () { onionPatch({ tint: el.onionTint.checked }); });
+    el.onionTintColor.addEventListener('input', function () { onionPatch({ tintColor: el.onionTintColor.value }); });
+    el.onionTintOpacity.addEventListener('input', function () { var v = parseFloat(el.onionTintOpacity.value) || 0.35; syncSlider(el.onionTintOpacity); el.onionTintOpacityVal.textContent = Math.round(v * 100) + '%'; clearTimeout(window._onionDeb4); window._onionDeb4 = setTimeout(function () { onionPatch({ tintOpacity: v }); }, 100); });
+    el.onionTintOpacity.addEventListener('change', function () { var v = parseFloat(el.onionTintOpacity.value) || 0.35; onionPatch({ tintOpacity: v }); });
     el.btnStepBack.addEventListener('click', function () { pause(); step(-1); });
     el.btnStepFwd.addEventListener('click', function () { pause(); step(1); });
 
@@ -4556,6 +4693,16 @@
       refreshDirty();
       renderAll();
       scheduleGenerate(300);
+    });
+    // Keyframe blend mode: only affects the live/export composite (the inbetween
+    // composites bake fills at source-over), so a change just re-renders — no
+    // gap regeneration needed.
+    el.kfMixInput.addEventListener('change', function () {
+      var kf = state.keyframes.find(function (k) { return k.id === state.selectedId; });
+      if (!kf) return;
+      kf.mix = el.kfMixInput.value;
+      renderAll();
+      renderPreview();
     });
 
     // (timeline zoom buttons were removed from Settings; Ctrl+wheel on the
@@ -4847,6 +4994,8 @@
     wireMenu(el.btnSettings, el.settingsMenu);
     wireMenu(el.btnFile, el.fileMenu);
     wireMenu(el.btnExport, el.exportMenu, populateExportRes);
+    wireMenu(el.btnLayerMenu, el.layerMenu);
+    wireMenu(el.btnOnionMenu, el.onionMenu, syncOnionUI);
     document.addEventListener('click', closeMenus);
 
     // File menu: save / load project .khuwari files
@@ -4878,7 +5027,7 @@
   // inline when no worker is available)
 
   function closeMenus() {
-    [el.settingsMenu, el.fileMenu, el.exportMenu].forEach(function (m) { m.classList.add('hidden'); });
+    [el.settingsMenu, el.fileMenu, el.exportMenu, el.layerMenu, el.onionMenu].forEach(function (m) { if (m) m.classList.add('hidden'); });
   }
 
   function setLoadingProgress(label, pct) {
@@ -4948,10 +5097,28 @@
       try { savedW = parseInt(localStorage.getItem(pair[0]) || '', 10) || 0; } catch (e) {}
       if (savedW) pair[1].style.width = clamp(savedW, SIDE_W_MIN, maxSideWidth()) + 'px';
     });
+    // Restore onion-skin prefs (overrides the project-file defaults only when
+    // nothing is loaded from a file — project settings win once a project is
+    // opened, see applyProjectData).
+    try {
+      var onionSaved = JSON.parse(localStorage.getItem(ONION_KEY) || 'null');
+      if (onionSaved && typeof onionSaved === 'object') {
+        state.onionCfg = {
+          before: clamp(parseInt(onionSaved.before, 10) || 1, 0, 4),
+          after: clamp(parseInt(onionSaved.after, 10) || 1, 0, 4),
+          opacity: clamp(parseFloat(onionSaved.opacity) || 0.28, 0.05, 0.9),
+          tint: !!onionSaved.tint,
+          tintColor: (typeof onionSaved.tintColor === 'string' && /^#?[0-9a-f]{6}$/i.test(onionSaved.tintColor)) ? (onionSaved.tintColor[0] === '#' ? onionSaved.tintColor : '#' + onionSaved.tintColor) : '#ff3b30',
+          tintOpacity: clamp(parseFloat(onionSaved.tintOpacity) || 0.35, 0.05, 1)
+        };
+      }
+    } catch (e) {}
     renderAll();
     wireEvents();
     syncSlider(el.gapSquashAmount);
     syncSlider(el.gapBlurAmount);
+    syncOnionUI();
+    el.btnOnion.classList.toggle('active', state.onion);
     initWorker();
     loadModelWithOverlay(); // download + compile the ML model on launch
     scheduleGenerate(400);  // auto-fill any dirty gaps shortly after launch

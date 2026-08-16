@@ -9,6 +9,7 @@
 <body>
 
   <header class="toolbar">
+    <div class="toolbar-brand" aria-hidden="true"><span class="brand-dot"></span><span class="brand-name">Khuwari</span></div>
     <div class="toolbar-group">
       <div class="menu-wrap">
         <button id="btnFile" class="btn" title="Project file">
@@ -225,14 +226,38 @@
           </div>
         </div>
         <div class="kf-empty" id="kfEmpty">No keyframe selected. Click a frame chip on the timeline.</div>
-        <label class="field">Time (s)
-          <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
-        </label>
-        <button id="btnReplace" class="btn">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          <span>Replace image</span>
-        </button>
-        <button id="btnDelete" class="btn danger">Delete keyframe</button>
+        <div class="kf-field-block">
+          <label class="field">Time (s)
+            <input id="selTimeInput" type="number" min="0" step="0.01" value="0">
+          </label>
+          <label class="field">Blend mode
+            <select id="kfMixInput">
+              <option value="source-over">Normal</option>
+              <option value="multiply">Multiply</option>
+              <option value="screen">Screen</option>
+              <option value="overlay">Overlay</option>
+              <option value="darken">Darken</option>
+              <option value="lighten">Lighten</option>
+              <option value="color-dodge">Color dodge</option>
+              <option value="color-burn">Color burn</option>
+              <option value="hard-light">Hard light</option>
+              <option value="soft-light">Soft light</option>
+              <option value="difference">Difference</option>
+              <option value="exclusion">Exclusion</option>
+              <option value="hue">Hue</option>
+              <option value="saturation">Saturation</option>
+              <option value="color">Color</option>
+              <option value="luminosity">Luminosity</option>
+            </select>
+          </label>
+        </div>
+        <div class="menu-row">
+          <button id="btnReplace" class="btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Replace image</span>
+          </button>
+          <button id="btnDelete" class="btn danger">Delete</button>
+        </div>
       </div>
     </aside>
   </main>
@@ -256,13 +281,55 @@
       <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide interpolated frames)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
       </button>
+      <div class="btn-group" id="onionWrap">
+        <button id="btnOnion" class="btn icon" title="Onion skin — show neighboring keyframes as ghosts" style="border-top-right-radius:0; border-bottom-right-radius:0; height:32px">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20c-5 0-8.4-3.4-8.4-8 0-4.6 3.6-8.1 8.4-9 4.8.9 8.4 4.4 8.4 9 0 4.6-3.4 8-8.4 8z"/>
+            <path d="M7.4 6.4 C8.3 9.4 7.2 13.8 9.4 17.8"/>
+            <path d="M16.6 6.4 C15.7 9.4 16.8 13.8 14.6 17.8"/>
+            <path d="M12 4 C12 7.8 11.2 14 12 19.8" opacity="0.75"/>
+            <path d="M12 3 L12 1.6" stroke-width="2"/>
+            <path d="M11 2.2 C11.3 1.3 12.6 1.2 13.2 2" stroke-width="1.25" opacity="0.95"/>
+          </svg>
+        </button>
+        <button id="btnOnionMenu" class="btn icon" title="Onion skin settings" aria-label="Onion skin settings" style="border-top-left-radius:0; border-bottom-left-radius:0; margin-left:-1px; padding:6px 5px; min-width:22px; height:32px">
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="menu hidden" id="onionMenu" style="min-width:240px; top:100%; left:0; right:auto; margin-top:6px">
+          <div class="menu-label">Onion skin</div>
+          <label class="field">Frames before <span id="onionBeforeVal" class="mono">1</span>
+            <input id="onionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
+          </label>
+          <label class="field">Frames after <span id="onionAfterVal" class="mono">1</span>
+            <input id="onionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
+          </label>
+          <label class="field">Opacity <span id="onionOpacityVal" class="mono">28%</span>
+            <input id="onionOpacity" class="slider" type="range" min="0.05" max="0.9" step="0.01" value="0.28">
+          </label>
+          <label class="field check"><input id="onionTint" type="checkbox"> Tint</label>
+          <div id="onionTintGroup" class="squash-group hidden">
+            <label class="field">Tint color <input id="onionTintColor" type="color" value="#ff3b30"></label>
+            <label class="field">Tint strength <span id="onionTintOpacityVal" class="mono">35%</span>
+              <input id="onionTintOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.35">
+            </label>
+          </div>
+        </div>
+      </div>
       <span class="vsep"></span>
-      <div class="layer-bar">
-        <span class="layer-bar-label">Layer <b id="layerNameLabel">Layer 1</b></span>
-        <label class="field check" title="Show or hide the active layer">Visible <input id="layerVisible" type="checkbox" checked></label>
-        <button id="btnAddLayer" class="btn" title="Add a new layer above the others">Add layer</button>
-        <button id="btnAddFillLayer" class="btn" title="Add a generative color-fill layer below the active one. Place dots on the preview to flood-fill the layer above">Color layer</button>
-        <button id="btnRemoveLayer" class="btn danger" title="Remove the active layer">Remove</button>
+      <div class="menu-wrap" id="layerMenuWrap">
+        <button id="btnLayerMenu" class="btn" title="Layer actions">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span>Layer <b id="layerNameLabel">Layer 1</b></span>
+          <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="menu hidden" id="layerMenu" style="right:auto; left:0; min-width:220px">
+          <div class="menu-label" id="layerMenuLabel">Layer 1</div>
+          <label class="field check" style="padding:6px 10px"><input id="layerVisible" type="checkbox" checked> Visible</label>
+          <button id="btnRemoveLayer" class="danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg> <span>Remove layer</span></button>
+          <div class="menu-sep"></div>
+          <button id="btnAddLayer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span>Add layer</span></button>
+          <button id="btnAddFillLayer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg> <span>Add color layer</span></button>
+        </div>
       </div>
       <span class="vsep"></span>
       <button id="btnRegenerate" class="btn" title="Force all gaps to regenerate">
@@ -293,7 +360,6 @@
     </div>
     <div class="start-panel">
       <div class="start-name">Khuwari</div>
-      <div class="start-tagline">I just want to animate.</div>
       <div class="start-menu">
         <button id="btnStartNew" class="btn primary start-btn">New project</button>
         <button id="btnStartLoad" class="btn start-btn">Load project</button>
@@ -361,8 +427,8 @@
 
   <script src="vendor/gifenc.js"></script>
   <script src="vendor/mp4-muxer.js"></script>
-  <script src="morph.js"></script>
-  <script src="model.js"></script>
-  <script src="app.js"></script>
+  <script src="morph.js?v=20260816c"></script>
+  <script src="model.js?v=20260816c"></script>
+  <script src="app.js?v=20260816c"></script>
 </body>
 </html>
