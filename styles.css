@@ -71,6 +71,7 @@ body::after {
   color: var(--accent);
   margin-bottom: 10px;
 }
+.loading-box .logo.big img { width: 40px; height: 40px; }
 .loading-box .logo.big svg { width: 34px; height: 34px; }
 
 .loading-title { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
@@ -197,6 +198,7 @@ body::after {
 }
 
 .toolbar-brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -0.02em; color: var(--text); opacity: 0.92; }
+.toolbar-brand .brand-logo { width: 16px; height: 16px; }
 .toolbar-brand .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(138,163,185,0.6); }
 .toolbar-brand .brand-name { font-size: 13px; }
 .toolbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }

@@ -73,6 +73,7 @@ a:hover { text-decoration: underline; }
   font-size: 16px;
 }
 .nav-brand:hover { text-decoration: none; }
+.nav-brand .brand-logo { width: 18px; height: 18px; flex: 0 0 auto; }
 .nav-brand svg { width: 18px; height: 18px; color: var(--accent); }
 .nav-links { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .nav-links a {
@@ -734,8 +735,20 @@ section:first-of-type { padding-top: 40px; }
   padding: 22px 20px;
 }
 .credit-card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+.credit-card h3 a {
+  color: var(--text);
+  border-bottom: 1px solid transparent;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+.credit-card h3 a:hover {
+  color: #9ab2c6;
+  border-bottom-color: rgba(138, 163, 185, 0.5);
+  text-decoration: none;
+}
 .credit-card .credit-role { color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
 .credit-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.58; }
+.credit-card p code a { color: var(--accent); }
+.credit-card p code a:hover { color: #9ab2c6; }
 
 .credit-wide { grid-column: 1 / -1; }
 
@@ -756,6 +769,7 @@ section:first-of-type { padding-top: 40px; }
   flex-wrap: wrap;
 }
 .footer-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); }
+.footer-brand .brand-logo { width: 16px; height: 16px; flex: 0 0 auto; }
 .footer-brand svg { width: 16px; height: 16px; color: var(--accent); }
 .footer-links { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
 .footer-links a { color: var(--muted); font-size: 13.5px; }
