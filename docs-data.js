@@ -9,7 +9,7 @@ window.KHUWARI_DOCS = [
     text: 'The easiest way is to use Khuwari straight from the website at theshovel.rocks/khuwari, in your browser, no install. You can also host it yourself with any static file server and open index.html. From the start screen you can start a new project, load an existing .khuwari file, or try the bundled example project. The example project is the fastest way to see what a finished animation looks like. Load it and press play.',
     url: 'docs/getting-started.html' },
   { cat: 'Getting started', slug: 'getting-started', id: 'project-files', title: 'Project files',
-    text: 'Projects save as .khuwari files. They are plain JSON files that hold your layers, keyframes, gaps and settings, so they are easy to version and share. Use File in the toolbar, then Save project (.khuwari) to download one, and Load project to bring one back.',
+    text: 'Projects save as .khuwari files that are easy to version and share. They hold your layers, keyframes, gaps and settings. Use File in the toolbar, then Save project (.khuwari) to download one, and Load project to bring one back.',
     url: 'docs/getting-started.html' },
 
   // ---- interface ----
@@ -23,7 +23,7 @@ window.KHUWARI_DOCS = [
     text: 'Each layer has its own track at the bottom. Keyframes appear as chips, and the space between two keyframes is a gap. Click a chip to select it, drag it to move it, and drag its edges to change how long it holds.',
     url: 'docs/interface.html' },
   { cat: 'The interface', slug: 'interface', id: 'selection-panel', title: 'Selection panel',
-    text: 'Shows the details of whatever you have selected, whether that is a keyframe, a gap or a color dot. This is where you set times, blend modes, interpolation and dot properties.',
+    text: 'Shows the details of whatever you have selected, whether that is a keyframe, a gap or a color dot. This is where you set times, blend modes, inbetweens and dot properties.',
     url: 'docs/interface.html' },
   { cat: 'The interface', slug: 'interface', id: 'layers', title: 'Layers',
     text: 'The Layer button in the toolbar opens the layer menu. From there you can add a normal layer, add a color layer, rename, hide or remove the active layer. Layers draw from top to bottom, and each one keeps its own keyframes and gaps. Drag layers up and down in the menu to reorder them.',
@@ -46,23 +46,23 @@ window.KHUWARI_DOCS = [
     text: 'Select a keyframe and use Replace image to swap in different art, or Delete to remove it. The keyboard shortcut Delete or Backspace also works.',
     url: 'docs/keyframes.html' },
 
-  // ---- gaps & interpolation ----
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'what-is-gap', title: 'What is a gap?',
+  // ---- gaps & inbetweens ----
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'what-is-gap', title: 'What is a gap?',
     text: 'The space between two keyframes on the same layer. Click the gap chip on the timeline to open its options in the right panel. The inbetweens are generated there.',
     url: 'docs/gaps.html' },
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'ml', title: 'Machine learning',
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'ml', title: 'Machine learning',
     text: 'The default mode. A machine learning model generates the inbetween frames, which gives the most natural motion for complex art. This is where Khuwari shines.',
     url: 'docs/gaps.html' },
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'squash', title: 'Squash and stretch',
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'squash', title: 'Squash and stretch',
     text: 'A stylized deformation for cartoon motion. Choose the amount, the curve (anticipation, impact, ease or linear) and whether to preserve area or volume. Set the amount to auto for a distance based value.',
     url: 'docs/gaps.html' },
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'none', title: 'No interpolation',
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'none', title: 'No inbetweens',
     text: 'No inbetweens at all. The first keyframe simply holds until the next one starts. Good for flashes, cuts and text.',
     url: 'docs/gaps.html' },
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'motion-blur', title: 'Motion blur',
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'motion-blur', title: 'Motion blur',
     text: 'A per gap toggle. When on, the inbetweens smear along their motion, and the blur eases in and out with the movement. The intensity slider controls how strong the smear is. It is designed to mask small imperfections in generated frames, and it works on color layers too.',
     url: 'docs/gaps.html' },
-  { cat: 'Gaps & interpolation', slug: 'gaps', id: 'regenerate', title: 'Regenerate',
+  { cat: 'Gaps & inbetweens', slug: 'gaps', id: 'regenerate', title: 'Regenerate',
     text: 'Inbetweens regenerate automatically whenever your keyframes change. To force a full refresh, use the regenerate button above the timeline, to the right of the play buttons.',
     url: 'docs/gaps.html' },
 
@@ -74,16 +74,13 @@ window.KHUWARI_DOCS = [
     text: 'Use the Layer menu and choose Add color layer. Then click on the canvas to place a dot. The dot fills everything inside the nearest lines of the layer above.',
     url: 'docs/color-layers.html' },
   { cat: 'Color layers', slug: 'color-layers', id: 'dot-properties', title: 'Dot properties',
-    text: 'Each dot has a fill color, a threshold (how strong a line must be to stop the fill) and a grow radius in pixels, which tucks the color under anti-aliased edges. Tune these per dot.',
+    text: 'Each dot has a fill color, a threshold (how strong a line must be to stop the fill) and a grow radius in pixels, which tucks the color under soft edges. Tune these per dot.',
     url: 'docs/color-layers.html' },
   { cat: 'Color layers', slug: 'color-layers', id: 'gradients', title: 'Gradients',
     text: 'Turn on Gradient to give a dot a gradient instead of a flat fill. Choose the gradient color, its height and its direction (top, bottom, left or right).',
     url: 'docs/color-layers.html' },
   { cat: 'Color layers', slug: 'color-layers', id: 'timing', title: 'Timing',
     text: 'Dots only work during the time you set. Use the start and end fields in the right panel, or drag the dot chip on the timeline and drag its edges to resize. Outside that window the dot does nothing.',
-    url: 'docs/color-layers.html' },
-  { cat: 'Color layers', slug: 'color-layers', id: 'stacking', title: 'Stacking',
-    text: 'Dots that overlap in time stack into their own rows in the timeline, so they never cover each other and stay easy to find. The color layer grows to fit the stack, no matter how many dots overlap.',
     url: 'docs/color-layers.html' },
 
   // ---- onion skinning ----
@@ -102,18 +99,15 @@ window.KHUWARI_DOCS = [
 
   // ---- blend modes ----
   { cat: 'Blend modes', slug: 'blend-modes', id: 'per-keyframe', title: 'Per keyframe blending',
-    text: 'Each keyframe can use any of 16 blend modes, from multiply and screen to color and luminosity. Set it in the selection panel with a keyframe selected. Inbetweens between two keyframes use the normal blend, so the blending itself stays stable across the gap.',
+    text: 'Each keyframe can use any of 16 blend modes, from multiply and screen to color and luminosity. Set it in the selection panel with a keyframe selected.',
     url: 'docs/blend-modes.html' },
 
   // ---- export ----
   { cat: 'Export', slug: 'export', id: 'formats', title: 'Formats',
-    text: 'The Export button in the toolbar offers a PNG sequence in a zip, an animated GIF, video in five containers (MP4, WebM, MKV, MOV and MPEG-TS) and the current frame as a single PNG. Each video container picks the best codec your browser can encode.',
+    text: 'The Export button in the toolbar offers a PNG sequence in a zip, an animated GIF, video in five containers (MP4, WebM, MKV, MOV and MPEG-TS) and the current frame as a single PNG.',
     url: 'docs/export.html' },
   { cat: 'Export', slug: 'export', id: 'resolution', title: 'Resolution',
     text: 'Pick the export resolution from the export menu. Exports run in the background with a progress bar, and you can stop them if you change your mind.',
-    url: 'docs/export.html' },
-  { cat: 'Export', slug: 'export', id: 'wysiwyg', title: 'What you see is what you get',
-    text: 'Exports render through the same composite as playback, so the video, GIF and sequence all match what you see in the preview, including blend modes and color fills.',
     url: 'docs/export.html' },
 
   // ---- settings ----
@@ -140,6 +134,6 @@ window.KHUWARI_DOCS = [
 
   // ---- privacy ----
   { cat: 'Privacy', slug: 'privacy', id: 'nothing-leaves', title: 'Nothing leaves your browser',
-    text: 'Khuwari is a local, serverless tool. The machine learning model downloads once and then runs in your browser, and your images, projects and exports never leave your machine. There are no accounts and no tracking.',
+    text: 'Khuwari is a local tool. The machine learning model downloads once and then runs in your browser, and your images, projects and exports never leave your machine. There are no accounts and no tracking.',
     url: 'docs/privacy.html' }
 ];

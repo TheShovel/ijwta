@@ -241,7 +241,7 @@
           if (g.sec > 0) {
             var noneLabel = document.createElement('div');
             noneLabel.className = 'glabel';
-            noneLabel.textContent = 'no interpolation';
+            noneLabel.textContent = 'no inbetweens';
             overlay.appendChild(noneLabel);
             labelItems.push({ el: noneLabel, left: x1 + 4 });
           }

@@ -288,7 +288,7 @@
       renderAll();
       scheduleGenerate();
       if (s.w * s.h > 2 * 1024 * 1024) {
-        toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
+        toast('Working size ' + s.w + '×' + s.h + ' is large, generating frames may be slow', 6000);
       }
     }
     el.aspectInput.addEventListener('change', changeSizeSetting);
@@ -309,7 +309,7 @@
       renderAll();
       scheduleGenerate();
       if (s.w * s.h > 2 * 1024 * 1024) {
-        toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
+        toast('Working size ' + s.w + '×' + s.h + ' is large, generating frames may be slow', 6000);
       }
     });
     el.resInput.addEventListener('change', function () {
@@ -504,7 +504,7 @@
       var warn = e.target && e.target.closest ? e.target.closest('.gap-overlay.warn') : null;
       if (!warn) { hideGapTip(); return; }
       gapTip.textContent = '⚠ This gap needs ' + (warn.dataset.count || '?') +
-        ' interpolated frames. It\u2019s recommended to put a real frame in here. Long ML stretches tend to look bad.';
+        ' inbetweens. It\u2019s recommended to put a real frame in here. Long ML stretches tend to look bad.';
       gapTip.classList.remove('hidden');
       gapTipVisible = true;
       moveGapTip(e);

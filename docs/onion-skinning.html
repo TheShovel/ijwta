@@ -35,7 +35,7 @@
     <a href="getting-started.html">Getting started</a>
     <a href="interface.html">The interface</a>
     <a href="keyframes.html">Keyframes</a>
-    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
     <a href="color-layers.html">Color layers</a>
     <a href="onion-skinning.html" class="active">Onion skinning</a>
     <a href="blend-modes.html">Blend modes</a>
@@ -65,39 +65,7 @@
         <p>Onion skinning shows the frames around the current one, so you can see where the motion is heading while you work. It is a toggle, like the view only keyframes button.</p>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 260" role="img" aria-label="Onion skinning showing ghost frames behind the current one, with the onion settings menu" class="fig-border">
-    <rect x="8" y="8" width="500" height="200" rx="8" fill="#161a20" stroke="#39414d"/>
-    <g class="fig-anim fig-fade">
-      <circle cx="150" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M124 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <g class="fig-anim fig-fade fig-fade-1">
-      <circle cx="270" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M244 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <circle cx="390" cy="104" r="28" fill="none" stroke="#e6e9ee" stroke-width="3"/>
-    <path d="M364 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#e6e9ee" stroke-width="3"/>
-    <rect x="520" y="8" width="192" height="200" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="536" y="32" font-size="14" font-weight="600" fill="#e6e9ee">Onion skin</text>
-    <text x="536" y="60" font-size="12.5" fill="#98a1ad">Frames before <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
-    <rect x="536" y="66" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="66" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="616" cy="68" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="536" y="92" font-size="12.5" fill="#98a1ad">Frames after <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
-    <rect x="536" y="98" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="98" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="616" cy="100" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="536" y="124" font-size="12.5" fill="#98a1ad">Opacity <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">28%</tspan></text>
-    <rect x="536" y="130" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="130" width="52" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="588" cy="132" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <rect x="536" y="150" width="16" height="16" rx="4" fill="#8aa3b9"/>
-    <path d="M539 158 l2.5 2.5 4.5 -4.5" stroke="#161a20" stroke-width="2" fill="none"/>
-    <text x="560" y="163" font-size="13" fill="#e6e9ee">Tint</text>
-    <rect x="536" y="178" width="28" height="20" rx="4" fill="#1e232a" stroke="#39414d"/>
-    <rect x="540" y="182" width="20" height="12" rx="2" fill="#ff3b30"/>
-    <text x="360" y="232" font-size="15" fill="#98a1ad" text-anchor="middle">ghosts fade in from both sides; the tint option recolors them</text>
-  </svg>
+  <img class="fig-img" src="../shots/onion.png" alt="Onion skinning with ghost frames around the current one and the settings popup" width="720">
   <figcaption>Onion skinning keeps the neighboring frames faintly visible while you work.</figcaption>
 </figure>
       
@@ -148,7 +116,6 @@
       <a href="../credits.html">Credits</a>
       <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
-    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
 </footer>
 

@@ -206,9 +206,9 @@
           bFlowTex = morph.extendTexture(bData, workW, workH, 10, flowBg);
         }
       }
-      if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', 0);
+      if (cbs.onProgress) cbs.onProgress('Preparing inbetweens…', 0);
       flowPromise = morph.computeFlowBoth(aFlowTex, bFlowTex, workW, workH, flowOpts, function (frac) {
-        if (cbs.onProgress) cbs.onProgress('Preparing interpolation…', frac * 0.05);
+        if (cbs.onProgress) cbs.onProgress('Preparing inbetweens…', frac * 0.05);
       }, cbs.cancelled).then(function (pair) {
         if (cbs.cancelled()) return;
         meshes = morph.buildMeshes(pair, workW, workH, 16);

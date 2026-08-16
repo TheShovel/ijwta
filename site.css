@@ -301,6 +301,15 @@ section:first-of-type { padding-top: 40px; }
   background: var(--bg);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
 }
+.feat-shot .fig-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+}
 
 /* ---------- steps ---------- */
 
@@ -545,6 +554,15 @@ section:first-of-type { padding-top: 40px; }
   height: auto;
   border-radius: 12px;
 }
+.doc-fig .fig-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+}
 .doc-fig svg.fig-border {
   border: 1px solid var(--border);
   background: var(--bg);
@@ -556,54 +574,14 @@ section:first-of-type { padding-top: 40px; }
   line-height: 1.5;
 }
 
-/* figure animations: show the interaction the docs are describing. All use
-   transform/opacity so they stay smooth, and they pause under reduced motion. */
+/* figure animation: the keyboard keys figure taps a keycap. Uses transform
+   so it stays smooth, and it is fine under reduced motion (opacity-less). */
 .fig-anim { transform-box: fill-box; transform-origin: center; }
-@keyframes fig-playhead { 0% { transform: translateX(0); } 50% { transform: translateX(90px); } 100% { transform: translateX(0); } }
-.fig-playhead { animation: fig-playhead 4.5s ease-in-out infinite; }
-@keyframes fig-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.fig-bob { animation: fig-bob 3s ease-in-out infinite; }
-@keyframes fig-fade { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.5; } }
-.fig-fade { animation: fig-fade 2.8s ease-in-out infinite; }
-.fig-fade-1 { animation-delay: 0.6s; }
-.fig-fade-2 { animation-delay: 1.2s; }
-.fig-fade-3 { animation-delay: 1.8s; }
-@keyframes fig-drag { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(60px); } }
-.fig-drag { animation: fig-drag 3.2s ease-in-out infinite; }
-@keyframes fig-dots {
-  0% { opacity: 0; }
-  30% { opacity: 0; }
-  60% { opacity: 1; }
-  100% { opacity: 1; }
-}
-.fig-dots { animation: fig-dots 3.4s ease-in-out infinite; }
-.fig-dots circle:nth-child(1) { animation-delay: 0.0s; }
-.fig-dots circle:nth-child(2) { animation-delay: 0.08s; }
-.fig-dots circle:nth-child(3) { animation-delay: 0.16s; }
-.fig-dots circle:nth-child(4) { animation-delay: 0.24s; }
-.fig-dots circle:nth-child(5) { animation-delay: 0.32s; }
-.fig-dots circle:nth-child(6) { animation-delay: 0.4s; }
-.fig-dots circle:nth-child(7) { animation-delay: 0.48s; }
-.fig-dots circle:nth-child(8) { animation-delay: 0.56s; }
-@keyframes fig-squash { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.45); } }
-.fig-squash { animation: fig-squash 2.6s ease-in-out infinite; }
-@keyframes fig-blur { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(1.8); } }
-.fig-blur { animation: fig-blur 2.8s ease-in-out infinite; }
-@keyframes fig-fillc { 0% { transform: scale(0.15); opacity: 0.4; } 70% { transform: scale(1); opacity: 0.95; } 100% { transform: scale(1); opacity: 0.95; } }
-.fig-fillc { animation: fig-fillc 3s ease-out infinite; }
-@keyframes fig-drop { 0% { transform: translateY(-8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
-.fig-drop { animation: fig-drop 0.5s ease both; }
-.fig-drop-1 { animation-delay: 0.5s; }
-.fig-drop-2 { animation-delay: 1s; }
-@keyframes fig-blend { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-60px); } }
-.fig-blend { animation: fig-blend 3.6s ease-in-out infinite; }
 @keyframes fig-tap {
   0%, 82%, 100% { transform: translateY(0); }
   90% { transform: translateY(3px); }
 }
 .fig-tap { animation: fig-tap 3s ease-in-out infinite; }
-@keyframes fig-shield { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-.fig-shield { animation: fig-shield 3.4s ease-in-out infinite; }
 
 #searchEmpty {
   text-align: center;
@@ -799,7 +777,7 @@ section:first-of-type { padding-top: 40px; }
     padding: 30px 22px;
   }
   .feat-text h3 { font-size: 27px; }
-  .feat-shot svg { max-width: 460px; margin: 0 auto; }
+  .feat-shot svg, .feat-shot .fig-img { max-width: 460px; margin: 0 auto; }
   .doc-layout { grid-template-columns: 1fr; gap: 10px; }
   .doc-side { position: static; }
   .doc-side-title { display: none; }

@@ -36,7 +36,6 @@ const FOOTER = `<footer class="footer">
       <a href="../credits.html">Credits</a>
       <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
-    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
 </footer>`;
 
@@ -45,107 +44,19 @@ const FOOTER = `<footer class="footer">
 // .fig-* CSS animations in site.css and pause under prefers-reduced-motion.
 // Figures are authored at a 720-unit viewBox with fonts sized to match their
 // boxes (no post-scaling), so text never overflows or clips.
+// Figure library. UI figures are real screenshots of the editor (shots/);
+// the remaining illustrations (project file, keyboard, privacy) are SVGs.
 const FIG = {
-  // Full app window: toolbar, asset panel, canvas, selection panel, timeline.
-  // Figures are authored at a 720-unit viewBox with fonts sized to match their
-  // boxes (no post-scaling), so text never overflows or clips.
-  appWindow: `
+  appWindow:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 480" role="img" aria-label="The Khuwari window with the toolbar on top, assets on the left, the canvas in the center, the selection panel on the right and the timeline along the bottom" class="fig-border">
-    <!-- toolbar -->
-    <rect x="8" y="8" width="704" height="44" rx="8" fill="rgba(34,39,46,0.92)" stroke="#39414d"/>
-    <circle cx="28" cy="30" r="4.5" fill="#8aa3b9"/>
-    <text x="40" y="35" font-size="14" fill="#e6e9ee" font-weight="650">Khuwari</text>
-    <rect x="448" y="16" width="60" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="478" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">File</text>
-    <rect x="516" y="16" width="66" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="549" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Settings</text>
-    <rect x="590" y="16" width="60" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="620" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Export</text>
-    <rect x="658" y="16" width="46" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="681" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Help</text>
-    <!-- assets panel -->
-    <rect x="8" y="60" width="150" height="310" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="20" y="84" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">ASSETS</text>
-    <rect x="16" y="92" width="134" height="28" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="83" y="110" font-size="13" fill="#e6e9ee" text-anchor="middle">Add images…</text>
-    <rect x="16" y="130" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="44" cy="158" r="12" fill="#8aa3b9"/>
-    <rect x="80" y="130" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="108" cy="158" r="12" fill="#c3ab7d"/>
-    <rect x="16" y="194" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <rect x="26" y="212" width="36" height="24" rx="5" fill="#8fb0a2"/>
-    <rect x="80" y="194" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="108" cy="222" r="12" fill="#c48181"/>
-    <text x="16" y="264" font-size="12" fill="#98a1ad">hero.png</text>
-    <text x="80" y="264" font-size="12" fill="#98a1ad">ball.png</text>
-    <text x="16" y="280" font-size="12" fill="#98a1ad">bg.png</text>
-    <text x="80" y="280" font-size="12" fill="#98a1ad">star.png</text>
-    <!-- canvas -->
-    <rect x="166" y="60" width="390" height="310" rx="8" fill="#161a20" stroke="#39414d"/>
-    <g class="fig-anim fig-bob">
-      <circle cx="361" cy="180" r="36" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M327 244 q34 -30 68 0 l-8 40 h-52 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <circle cx="343" cy="232" r="5" fill="#c3ab7d"/>
-    <circle cx="379" cy="232" r="5" fill="#c3ab7d"/>
-    <rect x="333" y="254" width="56" height="24" rx="6" fill="none" stroke="#8fb0a2" stroke-width="2"/>
-    <!-- selection panel -->
-    <rect x="564" y="60" width="148" height="310" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="576" y="84" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
-    <rect x="576" y="92" width="52" height="52" rx="6" fill="#0d0f12" stroke="#c3ab7d"/>
-    <circle cx="602" cy="118" r="14" fill="#8aa3b9"/>
-    <text x="636" y="112" font-size="13.5" fill="#e6e9ee" font-weight="600">hero.png</text>
-    <text x="636" y="128" font-size="12" fill="#98a1ad">0.00s</text>
-    <text x="576" y="154" font-size="12.5" fill="#98a1ad">Time (s)</text>
-    <rect x="576" y="160" width="124" height="28" rx="6" fill="#1e232a" stroke="#39414d"/>
-    <text x="590" y="178" font-size="13" fill="#e6e9ee">0.00</text>
-    <text x="576" y="196" font-size="12.5" fill="#98a1ad">Blend mode</text>
-    <rect x="576" y="202" width="124" height="28" rx="6" fill="#1e232a" stroke="#39414d"/>
-    <text x="590" y="220" font-size="13" fill="#e6e9ee">Normal</text>
-    <rect x="576" y="240" width="60" height="30" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="606" y="259" font-size="13" fill="#e6e9ee" text-anchor="middle">Replace</text>
-    <rect x="640" y="240" width="60" height="30" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="670" y="259" font-size="13" fill="#c48181" text-anchor="middle">Delete</text>
-    <!-- timeline -->
-    <rect x="8" y="378" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="406" x2="712" y2="406" stroke="#39414d"/>
-    <text x="116" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <text x="536" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">2s</text>
-    <rect x="8" y="406" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="406" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="406" x2="104" y2="472" stroke="#39414d"/>
-    <text x="18" y="446" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <circle cx="88" cy="436" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="443" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="450" r="1.8" fill="#98a1ad" opacity="0.6"/>
-    <rect x="120" y="418" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="122" y="420" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="142" cy="440" r="10" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-    <text x="124" y="468" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.00s</text>
-    <rect x="174" y="440" width="294" height="22" rx="5" fill="rgba(143,176,162,0.09)"/>
-    <rect x="468" y="418" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="470" y="420" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="490" cy="440" r="10" fill="none" stroke="#8fb0a2" stroke-width="2.5"/>
-    <text x="472" y="468" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">2.00s</text>
-    <g class="fig-anim fig-playhead">
-      <line x1="330" y1="382" x2="330" y2="472" stroke="#c48181" stroke-width="2"/>
-      <path d="M326 382 h8 l-4 6 z" fill="#c48181"/>
-    </g>
-  </svg>
+  <img class="fig-img" src="../shots/win.png" alt="The Khuwari window with a project loaded: assets on the left, the canvas in the middle, the selection panel on the right, and the timeline along the bottom" width="720">
   <figcaption>The whole Khuwari window. Your image library sits on the left, the canvas is in the middle, the selection panel is on the right, and the timeline runs along the bottom.</figcaption>
 </figure>`,
-
-  browserBar: `
+  browserBar:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 120" role="img" aria-label="A browser address bar showing localhost:4000" class="fig-border">
-    <rect x="8" y="34" width="704" height="52" rx="10" fill="#22272e" stroke="#39414d"/>
-    <circle cx="36" cy="60" r="5" fill="#c48181"/><circle cx="56" cy="60" r="5" fill="#c3ab7d"/><circle cx="76" cy="60" r="5" fill="#8fb0a2"/>
-    <rect x="120" y="48" width="480" height="24" rx="12" fill="#1e232a" stroke="#39414d"/>
-    <text x="200" y="64" font-size="15" fill="#98a1ad">localhost:4000</text>
-  </svg>
-  <figcaption>Serve the project folder, then open localhost:4000 in your browser.</figcaption>
+  <img class="fig-img" src="../shots/start.png" alt="The Khuwari start screen with the mascot banner and the launch buttons" width="720">
+  <figcaption>The start screen greets you with a new project, load, docs, example project, credits and GitHub buttons.</figcaption>
 </figure>`,
-
   projectFile: `
 <figure class="doc-fig">
   <svg viewBox="0 0 720 200" role="img" aria-label="A .khuwari project file with its contents listed" class="fig-border">
@@ -158,467 +69,73 @@ const FIG = {
     <circle cx="316" cy="118" r="3.5" fill="#8aa3b9"/><text x="328" y="122" font-size="15" fill="#e6e9ee">keyframes and gaps</text>
     <circle cx="316" cy="144" r="3.5" fill="#8aa3b9"/><text x="328" y="148" font-size="15" fill="#e6e9ee">settings</text>
   </svg>
-  <figcaption>A project is one plain JSON file, easy to save, share and version.</figcaption>
+  <figcaption>A project is one file, easy to save, share and version.</figcaption>
 </figure>`,
-
-  assetsPanel: `
+  assetsPanel:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 270" role="img" aria-label="The assets panel with an image grid" class="fig-border">
-    <rect x="8" y="8" width="210" height="254" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="20" y="32" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">ASSETS</text>
-    <rect x="16" y="42" width="194" height="30" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="113" y="61" font-size="13" fill="#e6e9ee" text-anchor="middle">Add images…</text>
-    <rect x="16" y="84" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="44" cy="112" r="14" fill="#8aa3b9"/>
-    <rect x="80" y="84" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="108" cy="112" r="14" fill="#c3ab7d"/>
-    <rect x="144" y="84" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <rect x="154" y="100" width="36" height="24" rx="5" fill="#8fb0a2"/>
-    <rect x="16" y="148" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="44" cy="176" r="14" fill="#c48181"/>
-    <rect x="80" y="148" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <rect x="90" y="164" width="32" height="24" rx="5" fill="#8aa3b9"/>
-    <text x="16" y="214" font-size="12" fill="#98a1ad">hero.png</text>
-    <text x="80" y="214" font-size="12" fill="#98a1ad">ball.png</text>
-    <text x="144" y="214" font-size="12" fill="#98a1ad">bg.png</text>
-    <text x="16" y="230" font-size="12" fill="#98a1ad">star.png</text>
-    <text x="80" y="230" font-size="12" fill="#98a1ad">box.png</text>
-    <g>
-      <circle cx="66" cy="94" r="9" fill="#c48181"/>
-      <path d="M63 97 l6 -6 M69 97 l-6 -6" stroke="#161a20" stroke-width="1.5"/>
-    </g>
-    <text x="250" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">Your image library</text>
-    <circle cx="258" cy="88" r="3.5" fill="#8aa3b9"/><text x="270" y="92" font-size="15" fill="#98a1ad">add images, then drag them onto the</text>
-    <circle cx="258" cy="108" r="3.5" fill="#8aa3b9"/><text x="270" y="112" font-size="15" fill="#98a1ad">timeline to make keyframes</text>
-    <circle cx="258" cy="128" r="3.5" fill="#8aa3b9"/><text x="270" y="132" font-size="15" fill="#98a1ad">hover a tile to delete it</text>
-    <circle cx="258" cy="148" r="3.5" fill="#8aa3b9"/><text x="270" y="152" font-size="15" fill="#98a1ad">dragging a tile swings it around</text>
-  </svg>
+  <img class="fig-img" src="../shots/assets.png" alt="The assets panel with images in a grid" width="720">
   <figcaption>The assets panel. Drag any tile onto the timeline to turn it into a keyframe.</figcaption>
 </figure>`,
-
-  previewFilmstrip: `
+  previewFilmstrip:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 260" role="img" aria-label="The preview canvas with the filmstrip below it" class="fig-border">
-    <rect x="8" y="8" width="704" height="150" rx="8" fill="#161a20" stroke="#39414d"/>
-    <g class="fig-anim fig-bob">
-      <circle cx="360" cy="90" r="36" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M326 152 q34 -30 68 0 l-8 40 h-52 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <rect x="8" y="166" width="704" height="86" rx="8" fill="#22272e" stroke="#39414d"/>
-    <rect x="20" y="182" width="68" height="54" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="54" cy="202" r="11" fill="#8aa3b9" opacity="0.5"/>
-    <text x="20" y="231" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.00s</text>
-    <rect x="96" y="182" width="68" height="54" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="130" cy="202" r="11" fill="#8aa3b9" opacity="0.5"/>
-    <text x="96" y="231" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.08s</text>
-    <rect x="172" y="182" width="68" height="54" rx="6" fill="#0d0f12" stroke="#8aa3b9" stroke-width="2"/>
-    <circle cx="206" cy="202" r="11" fill="#8aa3b9"/>
-    <text x="172" y="231" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.17s</text>
-    <rect x="248" y="182" width="68" height="54" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="282" cy="202" r="11" fill="#8aa3b9" opacity="0.5"/>
-    <text x="248" y="231" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.25s</text>
-    <rect x="324" y="182" width="68" height="54" rx="6" fill="#0d0f12" stroke="#c3ab7d"/>
-    <circle cx="358" cy="202" r="11" fill="#c3ab7d"/>
-    <text x="324" y="231" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">key</text>
-    <text x="410" y="206" font-size="15" fill="#98a1ad">every frame gets a thumb</text>
-    <text x="410" y="222" font-size="15" fill="#98a1ad">keyframes are gold, the current</text>
-    <text x="410" y="238" font-size="15" fill="#98a1ad">frame has a blue ring</text>
-  </svg>
+  <img class="fig-img" src="../shots/preview.png" alt="The preview canvas with the filmstrip below it" width="720">
   <figcaption>The preview canvas with the filmstrip below. Click any thumb to jump to that frame.</figcaption>
 </figure>`,
-
-  timelineLayers: `
+  timelineLayers:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 310" role="img" aria-label="The timeline with two layers, keyframe chips and a gap" class="fig-border">
-    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
-    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <text x="536" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">2s</text>
-    <rect x="8" y="36" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="36" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="36" x2="104" y2="102" stroke="#39414d"/>
-    <text x="18" y="76" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <circle cx="88" cy="66" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="73" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="80" r="1.8" fill="#98a1ad" opacity="0.6"/>
-    <rect x="120" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="122" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="142" cy="70" r="10" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-    <text x="124" y="98" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.00s</text>
-    <rect x="174" y="70" width="294" height="22" rx="5" fill="rgba(143,176,162,0.09)"/>
-    <rect x="240" y="54" width="84" height="18" rx="5" fill="#313844" stroke="#39414d"/>
-    <text x="246" y="67" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">11 frames</text>
-    <g class="fig-anim fig-dots">
-      <circle cx="196" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="236" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="296" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="336" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="376" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="416" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="456" cy="81" r="3.5" fill="#8fb0a2"/>
-    </g>
-    <rect x="468" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="470" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="490" cy="70" r="10" fill="none" stroke="#8fb0a2" stroke-width="2.5"/>
-    <text x="472" y="98" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">2.00s</text>
-    <line x1="8" y1="102" x2="712" y2="102" stroke="#39414d" opacity="0.5"/>
-    <rect x="8" y="102" width="704" height="62" fill="#1b1f25"/>
-    <rect x="8" y="102" width="96" height="62" fill="#22272e"/>
-    <line x1="104" y1="102" x2="104" y2="164" stroke="#39414d"/>
-    <text x="18" y="138" font-size="13.5" fill="#98a1ad">Color 2</text>
-    <circle cx="88" cy="128" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="135" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="142" r="1.8" fill="#98a1ad" opacity="0.6"/>
-    <rect x="180" y="109" width="140" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-    <circle cx="191" cy="120" r="6" fill="#4f8fff" stroke="rgba(255,255,255,0.35)"/>
-    <text x="202" y="124" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
-    <rect x="314" y="109" width="6" height="22" rx="3" fill="rgba(255,255,255,0.12)"/>
-    <rect x="180" y="135" width="140" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-    <circle cx="191" cy="146" r="6" fill="#c3ab7d" stroke="rgba(255,255,255,0.35)"/>
-    <text x="202" y="150" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
-    <rect x="314" y="135" width="6" height="22" rx="3" fill="rgba(255,255,255,0.12)"/>
-    <line x1="8" y1="164" x2="712" y2="164" stroke="#39414d" opacity="0.5"/>
-    <g class="fig-anim fig-playhead">
-      <line x1="330" y1="12" x2="330" y2="164" stroke="#c48181" stroke-width="2"/>
-      <path d="M326 12 h8 l-4 6 z" fill="#c48181"/>
-    </g>
-    <text x="410" y="196" font-size="15" fill="#98a1ad">chips sit on each layer track</text>
-    <text x="410" y="214" font-size="15" fill="#98a1ad">the space between chips is a gap</text>
-    <text x="410" y="232" font-size="15" fill="#98a1ad">color layers stay thin and hold dots</text>
-  </svg>
-  <figcaption>The timeline. Keyframes are chips on their layer's track; the playhead sweeps through as it plays.</figcaption>
+  <img class="fig-img" src="../shots/timeline_layers.png" alt="The timeline with a normal layer and a thin color layer holding stacked dot chips" width="720">
+  <figcaption>The timeline. Keyframes are chips on their layer track; color layers stay thin and hold dots.</figcaption>
 </figure>`,
-
-  selectionPanel: `
+  selectionPanel:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 300" role="img" aria-label="The selection panel with a selected keyframe" class="fig-border">
-    <rect x="8" y="8" width="260" height="284" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="20" y="32" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
-    <rect x="20" y="44" width="60" height="60" rx="8" fill="#0d0f12" stroke="#c3ab7d"/>
-    <circle cx="50" cy="74" r="15" fill="#8aa3b9"/>
-    <text x="92" y="68" font-size="14.5" fill="#e6e9ee" font-weight="600">hero.png</text>
-    <text x="92" y="86" font-size="12" fill="#98a1ad">0.00s</text>
-    <text x="20" y="124" font-size="12.5" fill="#98a1ad">Time (s)</text>
-    <rect x="20" y="130" width="236" height="30" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="34" y="150" font-size="13.5" fill="#e6e9ee">0.00</text>
-    <text x="20" y="182" font-size="12.5" fill="#98a1ad">Blend mode</text>
-    <rect x="20" y="188" width="236" height="30" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="34" y="208" font-size="13.5" fill="#e6e9ee">Normal</text>
-    <path d="M236 198 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <rect x="20" y="232" width="114" height="32" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="77" y="253" font-size="13.5" fill="#e6e9ee" text-anchor="middle">Replace image</text>
-    <rect x="142" y="232" width="114" height="32" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="199" y="253" font-size="13.5" fill="#c48181" text-anchor="middle">Delete</text>
-    <text x="300" y="70" font-size="16.5" fill="#e6e9ee" font-weight="600">What you can do here</text>
-    <circle cx="308" cy="100" r="3.5" fill="#8aa3b9"/><text x="320" y="104" font-size="15" fill="#98a1ad">move the frame to an exact time</text>
-    <circle cx="308" cy="126" r="3.5" fill="#8aa3b9"/><text x="320" y="130" font-size="15" fill="#98a1ad">pick one of 16 blend modes</text>
-    <circle cx="308" cy="152" r="3.5" fill="#8aa3b9"/><text x="320" y="156" font-size="15" fill="#98a1ad">swap in different art</text>
-    <circle cx="308" cy="178" r="3.5" fill="#8aa3b9"/><text x="320" y="182" font-size="15" fill="#98a1ad">remove the keyframe</text>
-  </svg>
+  <img class="fig-img" src="../shots/selection.png" alt="The selection panel showing a selected keyframe" width="720">
   <figcaption>Select a keyframe and its details appear in the right panel.</figcaption>
 </figure>`,
-
-  kfChip: `
+  kfChip:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 210" role="img" aria-label="A keyframe chip being dragged, with resize handles at its edges" class="fig-border">
-    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
-    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <text x="536" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">2s</text>
-    <rect x="8" y="36" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="36" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="36" x2="104" y2="102" stroke="#39414d"/>
-    <text x="18" y="76" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <rect x="150" y="48" width="60" height="54" rx="8" fill="none" stroke="#39414d" stroke-dasharray="4 4"/>
-    <g class="fig-anim fig-drag">
-      <rect x="250" y="48" width="60" height="54" rx="8" fill="rgba(195,171,125,0.12)" stroke="#c3ab7d" stroke-width="2"/>
-      <rect x="252" y="50" width="34" height="34" rx="5" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-      <circle cx="269" cy="67" r="8" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-      <text x="254" y="98" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">1.00s</text>
-      <rect x="302" y="48" width="8" height="54" rx="4" fill="rgba(195,171,125,0.22)"/>
-      <rect x="305" y="65" width="2" height="20" rx="1" fill="rgba(195,171,125,0.5)"/>
-    </g>
-    <text x="390" y="60" font-size="15" fill="#98a1ad">drag the body to move the frame</text>
-    <text x="390" y="80" font-size="15" fill="#98a1ad">drag the edges to change the hold</text>
-  </svg>
+  <img class="fig-img" src="../shots/kfchip.png" alt="A keyframe chip selected on the timeline" width="720">
   <figcaption>Drag the chip to retime it; drag its edges to change how long it holds.</figcaption>
 </figure>`,
-
-  gapInbetween: `
+  gapInbetween:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 230" role="img" aria-label="Two keyframes with generated inbetween frames appearing between them" class="fig-border">
-    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
-    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <rect x="8" y="36" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="36" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="36" x2="104" y2="102" stroke="#39414d"/>
-    <text x="18" y="76" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <rect x="120" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="122" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="142" cy="70" r="10" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-    <rect x="174" y="70" width="330" height="22" rx="5" fill="rgba(143,176,162,0.09)"/>
-    <rect x="272" y="54" width="84" height="18" rx="5" fill="#313844" stroke="#39414d"/>
-    <text x="278" y="67" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">11 frames</text>
-    <g class="fig-anim fig-dots">
-      <circle cx="200" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="240" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="300" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="340" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="380" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="420" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="460" cy="81" r="3.5" fill="#8fb0a2"/>
-    </g>
-    <rect x="504" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="506" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="526" cy="70" r="10" fill="none" stroke="#8fb0a2" stroke-width="2.5"/>
-    <text x="120" y="140" font-size="15" fill="#98a1ad">between two keyframes is a gap</text>
-    <text x="120" y="158" font-size="15" fill="#98a1ad">the sage band means it is generated and ready</text>
-    <text x="120" y="176" font-size="15" fill="#98a1ad">the dots are the frames the model made</text>
-  </svg>
+  <img class="fig-img" src="../shots/gap.png" alt="A gap between two keyframes with the generated inbetween frames marked" width="720">
   <figcaption>Between two keyframes is a gap. Khuwari generates the inbetween frames for it.</figcaption>
 </figure>`,
-
-  squash: `
+  squash:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 240" role="img" aria-label="A shape squashing and stretching across a gap, with the squash gap options" class="fig-border">
-    <rect x="8" y="8" width="400" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
-    <line x1="40" y1="120" x2="376" y2="120" stroke="#39414d" stroke-dasharray="4 4"/>
-    <rect x="60" y="86" width="60" height="60" rx="10" fill="#c3ab7d" opacity="0.9"/>
-    <rect x="300" y="86" width="60" height="60" rx="10" fill="#c3ab7d" opacity="0.9"/>
-    <g class="fig-anim fig-squash">
-      <rect x="165" y="98" width="60" height="34" rx="12" fill="#8aa3b9"/>
-    </g>
-    <text x="208" y="190" font-size="14" fill="#98a1ad" text-anchor="middle">squash flattens the shape mid-gap</text>
-    <rect x="416" y="8" width="296" height="210" rx="10" fill="#22272e" stroke="#39414d"/>
-    <text x="432" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">GAP</text>
-    <text x="432" y="60" font-size="12.5" fill="#98a1ad">Interpolation</text>
-    <rect x="432" y="66" width="264" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="448" y="86" font-size="13.5" fill="#e6e9ee">Squash</text>
-    <path d="M676 76 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="432" y="120" font-size="12.5" fill="#98a1ad">Squash amount <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">auto</tspan></text>
-    <rect x="432" y="126" width="264" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="432" y="126" width="110" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="542" cy="128" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="432" y="160" font-size="12.5" fill="#98a1ad">Curve</text>
-    <rect x="432" y="166" width="264" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="448" y="186" font-size="13.5" fill="#e6e9ee">Anticipation</text>
-    <path d="M676 176 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-  </svg>
+  <img class="fig-img" src="../shots/squash.png" alt="A gap in squash mode with its options in the right panel" width="720">
   <figcaption>Squash mode deforms the inbetweens for cartoon motion.</figcaption>
 </figure>`,
-
-  motionBlur: `
+  motionBlur:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 240" role="img" aria-label="A shape smearing horizontally to show motion blur, with the blur gap options" class="fig-border">
-    <rect x="8" y="8" width="400" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
-    <line x1="40" y1="120" x2="376" y2="120" stroke="#39414d" stroke-dasharray="4 4"/>
-    <circle cx="90" cy="120" r="28" fill="#c3ab7d"/>
-    <circle cx="330" cy="120" r="28" fill="#c3ab7d"/>
-    <g class="fig-anim fig-blur">
-      <circle cx="210" cy="120" r="28" fill="#8aa3b9" opacity="0.85"/>
-    </g>
-    <text x="208" y="190" font-size="14" fill="#98a1ad" text-anchor="middle">the frame stretches along its motion</text>
-    <rect x="416" y="8" width="296" height="210" rx="10" fill="#22272e" stroke="#39414d"/>
-    <text x="432" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">GAP</text>
-    <text x="432" y="60" font-size="15" fill="#e6e9ee" font-weight="600">Motion blur</text>
-    <rect x="432" y="70" width="16" height="16" rx="4" fill="#8aa3b9"/>
-    <path d="M435 78 l2.5 2.5 4.5 -4.5" stroke="#161a20" stroke-width="2" fill="none"/>
-    <text x="456" y="83" font-size="13" fill="#98a1ad">on for this gap</text>
-    <text x="432" y="114" font-size="12.5" fill="#98a1ad">Blur intensity <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">50%</tspan></text>
-    <rect x="432" y="120" width="264" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="432" y="120" width="132" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="564" cy="122" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="432" y="156" font-size="13" fill="#98a1ad">eases in and out with how much</text>
-    <text x="432" y="172" font-size="13" fill="#98a1ad">the frame changed in between</text>
-    <text x="432" y="192" font-size="13" fill="#98a1ad">hides small imperfections</text>
-  </svg>
+  <img class="fig-img" src="../shots/blur.png" alt="A gap with motion blur on and its intensity slider in the right panel" width="720">
   <figcaption>Motion blur smears the inbetweens along their movement, easing in and out.</figcaption>
 </figure>`,
-
-  colorFill: `
+  colorFill:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 290" role="img" aria-label="A dot filling the area inside a line art ring, with its chip on the color layer" class="fig-border">
-    <rect x="8" y="8" width="420" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
-    <rect x="118" y="50" width="200" height="128" rx="10" fill="none" stroke="#22272e" stroke-width="16"/>
-    <rect x="118" y="50" width="200" height="128" rx="10" fill="none" stroke="#0d0f12" stroke-width="14"/>
-    <g class="fig-anim fig-fillc">
-      <rect x="132" y="64" width="172" height="114" rx="10" fill="rgba(79,143,255,0.55)"/>
-    </g>
-    <circle cx="218" cy="114" r="7" fill="#4f8fff" stroke="#8aa3b9" stroke-width="2"/>
-    <rect x="8" y="226" width="420" height="58" fill="#1b1f25"/>
-    <rect x="8" y="226" width="96" height="58" fill="#22272e"/>
-    <line x1="104" y1="226" x2="104" y2="284" stroke="#39414d"/>
-    <text x="18" y="260" font-size="13.5" fill="#98a1ad">Color 1</text>
-    <rect x="150" y="233" width="160" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-    <circle cx="161" cy="244" r="6" fill="#4f8fff" stroke="rgba(255,255,255,0.35)"/>
-    <text x="172" y="248" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-2.00</text>
-    <rect x="304" y="233" width="6" height="22" rx="3" fill="rgba(255,255,255,0.12)"/>
-    <text x="452" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">One dot fills a region</text>
-    <circle cx="460" cy="92" r="3.5" fill="#8aa3b9"/><text x="472" y="96" font-size="15" fill="#98a1ad">place the dot inside the lines</text>
-    <circle cx="460" cy="118" r="3.5" fill="#8aa3b9"/><text x="472" y="122" font-size="15" fill="#98a1ad">it floods the connected region</text>
-    <circle cx="460" cy="144" r="3.5" fill="#8aa3b9"/><text x="472" y="148" font-size="15" fill="#98a1ad">threshold sets line strength</text>
-    <circle cx="460" cy="170" r="3.5" fill="#8aa3b9"/><text x="472" y="174" font-size="15" fill="#98a1ad">needed to block the fill</text>
-    <circle cx="460" cy="196" r="3.5" fill="#8aa3b9"/><text x="472" y="200" font-size="15" fill="#98a1ad">grow tucks color under edges</text>
-    <circle cx="460" cy="222" r="3.5" fill="#8aa3b9"/><text x="472" y="226" font-size="15" fill="#98a1ad">the chip sets its active window</text>
-  </svg>
+  <img class="fig-img" src="../shots/colorfill.png" alt="Color dots flooding the line art shapes on the canvas" width="720">
   <figcaption>Each dot flood-fills the connected area inside the nearest lines.</figcaption>
 </figure>`,
-
-  dotStack: `
+  onion:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 250" role="img" aria-label="Overlapping dot chips stacking into separate rows" class="fig-border">
-    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
-    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <rect x="8" y="36" width="704" height="92" fill="#1b1f25"/>
-    <rect x="8" y="36" width="96" height="92" fill="#22272e"/>
-    <line x1="104" y1="36" x2="104" y2="128" stroke="#39414d"/>
-    <text x="18" y="86" font-size="13.5" fill="#98a1ad">Color 1</text>
-    <circle cx="88" cy="76" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="83" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="90" r="1.8" fill="#98a1ad" opacity="0.6"/>
-    <g class="fig-anim fig-drop">
-      <rect x="180" y="43" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-      <circle cx="191" cy="54" r="6" fill="#4f8fff" stroke="rgba(255,255,255,0.35)"/>
-      <text x="202" y="58" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
-    </g>
-    <g class="fig-anim fig-drop fig-drop-1">
-      <rect x="180" y="69" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-      <circle cx="191" cy="80" r="6" fill="#c3ab7d" stroke="rgba(255,255,255,0.35)"/>
-      <text x="202" y="84" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">0.00-1.00</text>
-    </g>
-    <g class="fig-anim fig-drop fig-drop-2">
-      <rect x="180" y="95" width="130" height="22" rx="7" fill="rgba(79,143,255,0.12)" stroke="rgba(79,143,255,0.4)"/>
-      <circle cx="191" cy="106" r="6" fill="#8fb0a2" stroke="rgba(255,255,255,0.35)"/>
-      <text x="202" y="110" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#c3cbd6">1.00-2.00</text>
-    </g>
-    <text x="350" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">Dots that overlap stack</text>
-    <text x="350" y="86" font-size="15" fill="#98a1ad">each one gets its own row, so chips</text>
-    <text x="350" y="102" font-size="15" fill="#98a1ad">never cover each other</text>
-    <text x="350" y="130" font-size="15" fill="#98a1ad">the layer grows to fit however many</text>
-    <text x="350" y="146" font-size="15" fill="#98a1ad">dots you add. there is no limit</text>
-  </svg>
-  <figcaption>Overlapping dots stack into their own rows, and the layer grows to fit.</figcaption>
-</figure>`,
-
-  onion: `
-<figure class="doc-fig">
-  <svg viewBox="0 0 720 260" role="img" aria-label="Onion skinning showing ghost frames behind the current one, with the onion settings menu" class="fig-border">
-    <rect x="8" y="8" width="500" height="200" rx="8" fill="#161a20" stroke="#39414d"/>
-    <g class="fig-anim fig-fade">
-      <circle cx="150" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M124 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <g class="fig-anim fig-fade fig-fade-1">
-      <circle cx="270" cy="104" r="28" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M244 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <circle cx="390" cy="104" r="28" fill="none" stroke="#e6e9ee" stroke-width="3"/>
-    <path d="M364 158 q26 -24 52 0 l-6 32 h-40 z" fill="none" stroke="#e6e9ee" stroke-width="3"/>
-    <rect x="520" y="8" width="192" height="200" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="536" y="32" font-size="14" font-weight="600" fill="#e6e9ee">Onion skin</text>
-    <text x="536" y="60" font-size="12.5" fill="#98a1ad">Frames before <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
-    <rect x="536" y="66" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="66" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="616" cy="68" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="536" y="92" font-size="12.5" fill="#98a1ad">Frames after <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">2</tspan></text>
-    <rect x="536" y="98" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="98" width="80" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="616" cy="100" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="536" y="124" font-size="12.5" fill="#98a1ad">Opacity <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">28%</tspan></text>
-    <rect x="536" y="130" width="160" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="536" y="130" width="52" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="588" cy="132" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <rect x="536" y="150" width="16" height="16" rx="4" fill="#8aa3b9"/>
-    <path d="M539 158 l2.5 2.5 4.5 -4.5" stroke="#161a20" stroke-width="2" fill="none"/>
-    <text x="560" y="163" font-size="13" fill="#e6e9ee">Tint</text>
-    <rect x="536" y="178" width="28" height="20" rx="4" fill="#1e232a" stroke="#39414d"/>
-    <rect x="540" y="182" width="20" height="12" rx="2" fill="#ff3b30"/>
-    <text x="360" y="232" font-size="15" fill="#98a1ad" text-anchor="middle">ghosts fade in from both sides; the tint option recolors them</text>
-  </svg>
+  <img class="fig-img" src="../shots/onion.png" alt="Onion skinning with ghost frames around the current one and the settings popup" width="720">
   <figcaption>Onion skinning keeps the neighboring frames faintly visible while you work.</figcaption>
 </figure>`,
-
-  blend: `
+  blend:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 230" role="img" aria-label="Two overlapping shapes showing a blend mode" class="fig-border">
-    <rect x="8" y="8" width="400" height="200" rx="8" fill="#161a20" stroke="#39414d"/>
-    <circle cx="170" cy="108" r="60" fill="rgba(138,163,185,0.55)"/>
-    <g class="fig-anim fig-blend">
-      <circle cx="290" cy="108" r="60" fill="rgba(195,171,125,0.55)"/>
-    </g>
-    <text x="208" y="184" font-size="14" fill="#98a1ad" text-anchor="middle">the overlap changes with the blend mode</text>
-    <rect x="420" y="8" width="292" height="200" rx="10" fill="#22272e" stroke="#39414d"/>
-    <text x="436" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
-    <text x="436" y="60" font-size="12.5" fill="#98a1ad">Blend mode</text>
-    <rect x="436" y="66" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="452" y="86" font-size="13.5" fill="#e6e9ee">Multiply</text>
-    <path d="M676 76 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="436" y="118" font-size="13" fill="#98a1ad">16 modes, from normal to</text>
-    <text x="436" y="134" font-size="13" fill="#98a1ad">luminosity, per keyframe</text>
-    <text x="436" y="164" font-size="13" fill="#98a1ad">great for shading passes,</text>
-    <text x="436" y="180" font-size="13" fill="#98a1ad">highlights and overlays</text>
-  </svg>
+  <img class="fig-img" src="../shots/blend.png" alt="The selection panel with the blend mode dropdown for a keyframe" width="720">
   <figcaption>Each keyframe can blend with the layers below it in 16 different ways.</figcaption>
 </figure>`,
-
-  exportMenu: `
+  exportMenu:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 330" role="img" aria-label="The export menu with the video format dropdown open and resolution options" class="fig-border">
-    <rect x="8" y="8" width="300" height="314" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="28" y="40" font-size="13.5" fill="#98a1ad">Format</text>
-    <rect x="28" y="48" width="260" height="150" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <rect x="36" y="58" width="244" height="26" rx="6" fill="#313844"/>
-    <text x="44" y="76" font-size="14" fill="#e6e9ee">MP4 video</text>
-    <text x="44" y="102" font-size="14" fill="#e6e9ee">WebM video</text>
-    <text x="44" y="128" font-size="14" fill="#e6e9ee">MKV video</text>
-    <text x="44" y="154" font-size="14" fill="#e6e9ee">MOV video</text>
-    <text x="44" y="180" font-size="14" fill="#e6e9ee">MPEG-TS video</text>
-    <path d="M272 120 l7 7 7 -7" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="28" y="222" font-size="13.5" fill="#98a1ad">Resolution</text>
-    <rect x="28" y="230" width="260" height="34" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="252" font-size="14" fill="#e6e9ee">1920 × 1080</text>
-    <path d="M268 242 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <line x1="28" y1="278" x2="288" y2="278" stroke="#39414d"/>
-    <rect x="28" y="288" width="260" height="36" rx="8" fill="#8aa3b9"/>
-    <text x="158" y="312" font-size="16" fill="#161a20" font-weight="600" text-anchor="middle">Export</text>
-    <text x="360" y="54" font-size="16.5" fill="#e6e9ee" font-weight="600">Pick your container</text>
-    <circle cx="368" cy="88" r="3.5" fill="#8aa3b9"/><text x="380" y="92" font-size="15" fill="#98a1ad">MP4 for the widest compatibility</text>
-    <circle cx="368" cy="118" r="3.5" fill="#8aa3b9"/><text x="380" y="122" font-size="15" fill="#98a1ad">WebM and MKV for sharing and archives</text>
-    <circle cx="368" cy="148" r="3.5" fill="#8aa3b9"/><text x="380" y="152" font-size="15" fill="#98a1ad">MOV for Apple workflows</text>
-    <circle cx="368" cy="178" r="3.5" fill="#8aa3b9"/><text x="380" y="182" font-size="15" fill="#98a1ad">MPEG-TS for broadcast pipelines</text>
-    <circle cx="368" cy="208" r="3.5" fill="#8aa3b9"/><text x="380" y="212" font-size="15" fill="#98a1ad">every format picks the best codec your browser can encode</text>
-    <circle cx="368" cy="238" r="3.5" fill="#8aa3b9"/><text x="380" y="242" font-size="15" fill="#98a1ad">exports match playback exactly</text>
-  </svg>
+  <img class="fig-img" src="../shots/export.png" alt="The export menu with the format and resolution dropdowns" width="720">
   <figcaption>The export menu. Pick a format and resolution, then hit Export.</figcaption>
 </figure>`,
-
-  settingsMenu: `
+  settingsMenu:   `
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 310" role="img" aria-label="The settings menu with FPS, snapping, aspect ratio and working size" class="fig-border">
-    <rect x="8" y="8" width="320" height="294" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="28" y="44" font-size="13.5" fill="#98a1ad">FPS</text>
-    <rect x="28" y="52" width="130" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="73" font-size="14" fill="#e6e9ee">12</text>
-    <text x="28" y="112" font-size="13.5" fill="#98a1ad">Snap to frames</text>
-    <rect x="28" y="122" width="18" height="18" rx="4" fill="#8aa3b9"/>
-    <path d="M32 131 l5 5 9 -9" stroke="#161a20" stroke-width="2" fill="none"/>
-    <text x="28" y="172" font-size="13.5" fill="#98a1ad">Aspect ratio</text>
-    <rect x="28" y="180" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="201" font-size="14" fill="#e6e9ee">16:9</text>
-    <path d="M268 191 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="28" y="240" font-size="13.5" fill="#98a1ad">Working size (long edge)</text>
-    <rect x="28" y="248" width="260" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="269" font-size="14" fill="#e6e9ee">512px</text>
-    <path d="M268 259 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="380" y="80" font-size="16.5" fill="#e6e9ee" font-weight="600">Tune the timeline</text>
-    <circle cx="388" cy="112" r="3.5" fill="#8aa3b9"/><text x="400" y="116" font-size="15" fill="#98a1ad">fps sets frames per second</text>
-    <circle cx="388" cy="140" r="3.5" fill="#8aa3b9"/><text x="400" y="144" font-size="15" fill="#98a1ad">snapping keeps whole-frame times</text>
-    <circle cx="388" cy="168" r="3.5" fill="#8aa3b9"/><text x="400" y="172" font-size="15" fill="#98a1ad">aspect sets the canvas shape</text>
-    <circle cx="388" cy="196" r="3.5" fill="#8aa3b9"/><text x="400" y="200" font-size="15" fill="#98a1ad">working size sets speed vs detail</text>
-  </svg>
+  <img class="fig-img" src="../shots/settings.png" alt="The settings menu with FPS, snapping, aspect ratio and working size" width="720">
   <figcaption>The settings menu controls the pace and shape of your project.</figcaption>
 </figure>`,
-
   keys: `
 <figure class="doc-fig">
   <svg viewBox="0 0 720 190" role="img" aria-label="Keyboard keys: space, left arrow, right arrow, delete" class="fig-border">
@@ -636,7 +153,6 @@ const FIG = {
   </svg>
   <figcaption>The shortcuts are easy to reach while you work.</figcaption>
 </figure>`,
-
   privacy: ``
 };
 
@@ -667,7 +183,7 @@ const CATEGORIES = [
         ${FIG.browserBar}
       ` },
       { id: 'project-files', title: 'Project files', html: `
-        <p>Projects save as <code>.khuwari</code> files. They are plain JSON files, which makes them easy to version and share.</p>
+        <p>Projects save as <code>.khuwari</code> files that are easy to version and share.</p>
         <ul>
           <li>Use <code>File</code> in the toolbar, then <code>Save project (.khuwari)</code> to download one.</li>
           <li>Use <code>File</code>, then <code>Load project</code> to bring one back.</li>
@@ -705,7 +221,7 @@ const CATEGORIES = [
           <li>Click a chip to select it.</li>
           <li>Drag a chip to move it in time.</li>
           <li>Drag a chip's edges to change how long it holds.</li>
-          <li>Click a gap to open its interpolation options.</li>
+          <li>Click a gap to open its inbetween options.</li>
         </ul>
         ${FIG.timelineLayers}
       ` },
@@ -713,7 +229,7 @@ const CATEGORIES = [
         <p>The panel on the right shows the details of whatever you have selected, whether that is a keyframe, a gap or a color dot.</p>
         <ul>
           <li>Set exact times and blend modes for keyframes.</li>
-          <li>Choose how a gap should interpolate, and tune squash and motion blur.</li>
+          <li>Choose how a gap fills in its inbetweens, and tune squash and motion blur.</li>
           <li>Edit a color dot's color, threshold, grow and gradient.</li>
         </ul>
         ${FIG.selectionPanel}
@@ -762,8 +278,8 @@ const CATEGORIES = [
     ]
   },
   {
-    slug: 'gaps', title: 'Gaps & interpolation',
-    blurb: 'Machine learning, squash and stretch, no interpolation, motion blur and regeneration.',
+    slug: 'gaps', title: 'Gaps & inbetweens',
+    blurb: 'Machine learning, squash and stretch, no inbetweens, motion blur and regeneration.',
     sections: [
       { id: 'what-is-gap', title: 'What is a gap?', html: `
         <p>The space between two keyframes on the same layer is a gap. Click the gap chip on the timeline to open its options in the right panel, and the inbetweens are generated there.</p>
@@ -781,7 +297,7 @@ const CATEGORIES = [
         </ul>
         ${FIG.squash}
       ` },
-      { id: 'none', title: 'No interpolation', html: `
+      { id: 'none', title: 'No inbetweens', html: `
         <p>No inbetweens at all. The first keyframe simply holds until the next one starts. Good for flashes, cuts and text.</p>
       ` },
       { id: 'motion-blur', title: 'Motion blur', html: `
@@ -818,9 +334,8 @@ const CATEGORIES = [
         <ul>
           <li><strong>Fill color</strong> is what the dot pours into the area.</li>
           <li><strong>Threshold</strong> is how strong a line must be to stop the fill.</li>
-          <li><strong>Grow</strong> is a radius in pixels that tucks the color under anti-aliased edges.</li>
+          <li><strong>Grow</strong> is a radius in pixels that tucks the color under soft edges.</li>
         </ul>
-        <p>Each dot has its own values, so tune them per region.</p>
       ` },
       { id: 'gradients', title: 'Gradients', html: `
         <p>Turn on <code>Gradient</code> to give a dot a gradient instead of a flat fill.</p>
@@ -832,10 +347,6 @@ const CATEGORIES = [
       ` },
       { id: 'timing', title: 'Timing', html: `
         <p>Dots only work during the time you set. Use the start and end fields in the right panel, or drag the dot chip on the timeline and drag its edges to resize. Outside that window the dot does nothing.</p>
-      ` },
-      { id: 'stacking', title: 'Stacking', html: `
-        <p>Dots that overlap in time stack into their own rows in the timeline, so they never cover each other and stay easy to find. The color layer grows to fit the stack, no matter how many dots overlap.</p>
-        ${FIG.dotStack}
       ` }
     ]
   },
@@ -871,7 +382,7 @@ const CATEGORIES = [
         <table class="doc-table">
           <thead><tr><th>Group</th><th>Modes</th></tr></thead>
           <tbody>
-            <tr><td>Normal</td><td>source-over</td></tr>
+            <tr><td>Normal</td><td>normal</td></tr>
             <tr><td>Darken</td><td>multiply, darken, color burn</td></tr>
             <tr><td>Lighten</td><td>screen, lighten, color dodge</td></tr>
             <tr><td>Contrast</td><td>overlay, hard light, soft light</td></tr>
@@ -879,7 +390,6 @@ const CATEGORIES = [
             <tr><td>Color</td><td>hue, saturation, color, luminosity</td></tr>
           </tbody>
         </table>
-        <p>Inbetweens between two keyframes use the normal blend, so the blending itself stays stable across the gap.</p>
         ${FIG.blend}
       ` }
     ]
@@ -899,18 +409,14 @@ const CATEGORIES = [
             <tr><td>WebM video</td><td>small modern web videos</td></tr>
             <tr><td>MKV video</td><td>archival and everything inside one file</td></tr>
             <tr><td>MOV video</td><td>Apple and video editing workflows</td></tr>
-            <tr><td>MPEG-TS video</td><td>broadcast and streaming pipelines</td></tr>
+            <tr><td>MPEG-TS video</td><td>broadcast and streaming</td></tr>
             <tr><td>Current frame (PNG)</td><td>a single still</td></tr>
           </tbody>
         </table>
-        <p>Every video container picks the best codec your browser can actually encode, so you get a playable file wherever the format is supported.</p>
         ${FIG.exportMenu}
       ` },
       { id: 'resolution', title: 'Resolution', html: `
         <p>Pick the export resolution from the export menu. Exports run in the background with a progress bar, and you can stop them if you change your mind.</p>
-      ` },
-      { id: 'wysiwyg', title: 'What you see is what you get', html: `
-        <p>Exports render through the same composite as playback, so the video, GIF and sequence all match what you see in the preview, including blend modes and color fills.</p>
       ` }
     ]
   },
@@ -928,7 +434,7 @@ const CATEGORIES = [
         <p>Follow the first frame, pick a preset such as 16:9 or 1:1, or set a custom size or a manual ratio like 2.35.</p>
       ` },
       { id: 'work-size', title: 'Working size', html: `
-        <p>The long edge of the working canvas, from 512 pixels down to 320. Smaller is noticeably faster to generate, and exports still render at full resolution.</p>
+        <p>The long edge of the working canvas, from 512 pixels down to 320. Smaller is noticeably faster to generate, and exports still come out at full resolution.</p>
         ${FIG.settingsMenu}
       ` }
     ]

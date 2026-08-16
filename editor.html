@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Khuwari · frame interpolation</title>
+  <title>Khuwari · inbetween animation</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -150,7 +150,7 @@
         <div class="side-title">Gap</div>
         <div class="kf-card-name" id="gapName"></div>
         <div class="kf-card-time" id="gapTime"></div>
-        <label class="field">Interpolation
+        <label class="field">Inbetweens
           <select id="gapTypeInput">
             <option value="ai">ML</option>
             <option value="squash">Squash</option>
@@ -295,7 +295,7 @@
       <button id="btnLoop" class="btn icon" title="Loop playback">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
       </button>
-      <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide interpolated frames)">
+      <button id="btnKeysOnly" class="btn icon" title="Preview keyframes only (hide inbetweens)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
       </button>
       <div class="btn-group" id="onionWrap">
@@ -395,7 +395,7 @@
       <div class="logo big">
         <img src="logo.svg" alt="Khuwari logo">
       </div>
-      <div class="loading-title">Loading the interpolation model</div>
+      <div class="loading-title">Loading the ML model</div>
       <div class="loading-sub" id="loadingSub">Fetching the local ML engine + model (one-time, ~21 MB)…</div>
       <div class="progress">
         <div class="bar"><div class="fill" id="loadingFill"></div></div>

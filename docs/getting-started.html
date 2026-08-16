@@ -35,7 +35,7 @@
     <a href="getting-started.html" class="active">Getting started</a>
     <a href="interface.html">The interface</a>
     <a href="keyframes.html">Keyframes</a>
-    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
     <a href="color-layers.html">Color layers</a>
     <a href="onion-skinning.html">Onion skinning</a>
     <a href="blend-modes.html">Blend modes</a>
@@ -71,87 +71,7 @@
         </ul>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 480" role="img" aria-label="The Khuwari window with the toolbar on top, assets on the left, the canvas in the center, the selection panel on the right and the timeline along the bottom" class="fig-border">
-    <!-- toolbar -->
-    <rect x="8" y="8" width="704" height="44" rx="8" fill="rgba(34,39,46,0.92)" stroke="#39414d"/>
-    <circle cx="28" cy="30" r="4.5" fill="#8aa3b9"/>
-    <text x="40" y="35" font-size="14" fill="#e6e9ee" font-weight="650">Khuwari</text>
-    <rect x="448" y="16" width="60" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="478" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">File</text>
-    <rect x="516" y="16" width="66" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="549" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Settings</text>
-    <rect x="590" y="16" width="60" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="620" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Export</text>
-    <rect x="658" y="16" width="46" height="28" rx="7" fill="#2a3038" stroke="#39414d"/>
-    <text x="681" y="34" font-size="13" fill="#e6e9ee" text-anchor="middle">Help</text>
-    <!-- assets panel -->
-    <rect x="8" y="60" width="150" height="310" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="20" y="84" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">ASSETS</text>
-    <rect x="16" y="92" width="134" height="28" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="83" y="110" font-size="13" fill="#e6e9ee" text-anchor="middle">Add images…</text>
-    <rect x="16" y="130" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="44" cy="158" r="12" fill="#8aa3b9"/>
-    <rect x="80" y="130" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="108" cy="158" r="12" fill="#c3ab7d"/>
-    <rect x="16" y="194" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <rect x="26" y="212" width="36" height="24" rx="5" fill="#8fb0a2"/>
-    <rect x="80" y="194" width="56" height="56" rx="6" fill="#0d0f12" stroke="#39414d"/>
-    <circle cx="108" cy="222" r="12" fill="#c48181"/>
-    <text x="16" y="264" font-size="12" fill="#98a1ad">hero.png</text>
-    <text x="80" y="264" font-size="12" fill="#98a1ad">ball.png</text>
-    <text x="16" y="280" font-size="12" fill="#98a1ad">bg.png</text>
-    <text x="80" y="280" font-size="12" fill="#98a1ad">star.png</text>
-    <!-- canvas -->
-    <rect x="166" y="60" width="390" height="310" rx="8" fill="#161a20" stroke="#39414d"/>
-    <g class="fig-anim fig-bob">
-      <circle cx="361" cy="180" r="36" fill="none" stroke="#8aa3b9" stroke-width="3"/>
-      <path d="M327 244 q34 -30 68 0 l-8 40 h-52 z" fill="none" stroke="#c3ab7d" stroke-width="3"/>
-    </g>
-    <circle cx="343" cy="232" r="5" fill="#c3ab7d"/>
-    <circle cx="379" cy="232" r="5" fill="#c3ab7d"/>
-    <rect x="333" y="254" width="56" height="24" rx="6" fill="none" stroke="#8fb0a2" stroke-width="2"/>
-    <!-- selection panel -->
-    <rect x="564" y="60" width="148" height="310" rx="8" fill="#22272e" stroke="#39414d"/>
-    <text x="576" y="84" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">KEYFRAME</text>
-    <rect x="576" y="92" width="52" height="52" rx="6" fill="#0d0f12" stroke="#c3ab7d"/>
-    <circle cx="602" cy="118" r="14" fill="#8aa3b9"/>
-    <text x="636" y="112" font-size="13.5" fill="#e6e9ee" font-weight="600">hero.png</text>
-    <text x="636" y="128" font-size="12" fill="#98a1ad">0.00s</text>
-    <text x="576" y="154" font-size="12.5" fill="#98a1ad">Time (s)</text>
-    <rect x="576" y="160" width="124" height="28" rx="6" fill="#1e232a" stroke="#39414d"/>
-    <text x="590" y="178" font-size="13" fill="#e6e9ee">0.00</text>
-    <text x="576" y="196" font-size="12.5" fill="#98a1ad">Blend mode</text>
-    <rect x="576" y="202" width="124" height="28" rx="6" fill="#1e232a" stroke="#39414d"/>
-    <text x="590" y="220" font-size="13" fill="#e6e9ee">Normal</text>
-    <rect x="576" y="240" width="60" height="30" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="606" y="259" font-size="13" fill="#e6e9ee" text-anchor="middle">Replace</text>
-    <rect x="640" y="240" width="60" height="30" rx="6" fill="#2a3038" stroke="#39414d"/>
-    <text x="670" y="259" font-size="13" fill="#c48181" text-anchor="middle">Delete</text>
-    <!-- timeline -->
-    <rect x="8" y="378" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="406" x2="712" y2="406" stroke="#39414d"/>
-    <text x="116" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <text x="536" y="398" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">2s</text>
-    <rect x="8" y="406" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="406" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="406" x2="104" y2="472" stroke="#39414d"/>
-    <text x="18" y="446" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <circle cx="88" cy="436" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="443" r="1.8" fill="#98a1ad" opacity="0.6"/><circle cx="88" cy="450" r="1.8" fill="#98a1ad" opacity="0.6"/>
-    <rect x="120" y="418" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="122" y="420" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="142" cy="440" r="10" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-    <text x="124" y="468" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">0.00s</text>
-    <rect x="174" y="440" width="294" height="22" rx="5" fill="rgba(143,176,162,0.09)"/>
-    <rect x="468" y="418" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="470" y="420" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="490" cy="440" r="10" fill="none" stroke="#8fb0a2" stroke-width="2.5"/>
-    <text x="472" y="468" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#cfd6e2">2.00s</text>
-    <g class="fig-anim fig-playhead">
-      <line x1="330" y1="382" x2="330" y2="472" stroke="#c48181" stroke-width="2"/>
-      <path d="M326 382 h8 l-4 6 z" fill="#c48181"/>
-    </g>
-  </svg>
+  <img class="fig-img" src="../shots/win.png" alt="The Khuwari window with a project loaded: assets on the left, the canvas in the middle, the selection panel on the right, and the timeline along the bottom" width="720">
   <figcaption>The whole Khuwari window. Your image library sits on the left, the canvas is in the middle, the selection panel is on the right, and the timeline runs along the bottom.</figcaption>
 </figure>
       
@@ -169,13 +89,8 @@
         <p>From the start screen you can start a new project, load an existing <code>.khuwari</code> file, or try the bundled example project. The example project is the fastest way to see a finished animation. Load it and press play.</p>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 120" role="img" aria-label="A browser address bar showing localhost:4000" class="fig-border">
-    <rect x="8" y="34" width="704" height="52" rx="10" fill="#22272e" stroke="#39414d"/>
-    <circle cx="36" cy="60" r="5" fill="#c48181"/><circle cx="56" cy="60" r="5" fill="#c3ab7d"/><circle cx="76" cy="60" r="5" fill="#8fb0a2"/>
-    <rect x="120" y="48" width="480" height="24" rx="12" fill="#1e232a" stroke="#39414d"/>
-    <text x="200" y="64" font-size="15" fill="#98a1ad">localhost:4000</text>
-  </svg>
-  <figcaption>Serve the project folder, then open localhost:4000 in your browser.</figcaption>
+  <img class="fig-img" src="../shots/start.png" alt="The Khuwari start screen with the mascot banner and the launch buttons" width="720">
+  <figcaption>The start screen greets you with a new project, load, docs, example project, credits and GitHub buttons.</figcaption>
 </figure>
       
     </section>
@@ -183,7 +98,7 @@
     <section class="doc-sec" id="project-files">
       <h2>Project files</h2>
       
-        <p>Projects save as <code>.khuwari</code> files. They are plain JSON files, which makes them easy to version and share.</p>
+        <p>Projects save as <code>.khuwari</code> files that are easy to version and share.</p>
         <ul>
           <li>Use <code>File</code> in the toolbar, then <code>Save project (.khuwari)</code> to download one.</li>
           <li>Use <code>File</code>, then <code>Load project</code> to bring one back.</li>
@@ -201,7 +116,7 @@
     <circle cx="316" cy="118" r="3.5" fill="#8aa3b9"/><text x="328" y="122" font-size="15" fill="#e6e9ee">keyframes and gaps</text>
     <circle cx="316" cy="144" r="3.5" fill="#8aa3b9"/><text x="328" y="148" font-size="15" fill="#e6e9ee">settings</text>
   </svg>
-  <figcaption>A project is one plain JSON file, easy to save, share and version.</figcaption>
+  <figcaption>A project is one file, easy to save, share and version.</figcaption>
 </figure>
       
     </section>
@@ -226,7 +141,6 @@
       <a href="../credits.html">Credits</a>
       <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
-    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
 </footer>
 

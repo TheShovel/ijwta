@@ -2,7 +2,7 @@
 
 # Khuwari
 
-**Frame interpolation animation, right in your browser.**
+**Fill in the frames between your keyframes, right in your browser.**
 
 <div>
   <img src="https://img.shields.io/github/stars/TheShovel/khuwari?style=flat-square&logo=github" alt="Stars">&nbsp;&nbsp;
@@ -17,11 +17,11 @@ Khuwari is a browser based animation tool that fills in the frames between your 
 
 ## What you can do
 
-- **ML inbetweens.** A machine learning model generates the frames between your keyframes, with a pure JavaScript mesh warp fallback and a squash and stretch mode per gap.
+- **ML inbetweens.** A machine learning model generates the frames between your keyframes, with a built-in fallback and a squash and stretch mode per gap.
 - **Layer based timeline.** Backgrounds, characters and effects each live on their own layer, with their own keyframes and gaps.
 - **Color fill dots.** Drop dots on a color layer and they fill the line art on the layer above, each with its own threshold, grow radius, gradient and timing.
 - **Onion skinning.** See the frames around the one you are working on, as ghosts or tinted, with configurable frame counts.
-- **Motion blur.** Per gap motion blur that eases in and out with the movement, to mask small interpolation imperfections.
+- **Motion blur.** Per gap motion blur that eases in and out with the movement, to mask small glitches in the generated frames.
 - **Blend modes.** 16 blend modes per keyframe.
 - **Export.** PNG sequence, animated GIF or video (MP4, WebM, MKV, MOV or MPEG-TS), at the resolution you pick.
 - **Local and private.** The whole tool runs in your browser. No accounts, no uploads, no tracking.
@@ -59,7 +59,7 @@ Roughly ordered by dependency, so read them top to bottom: `01-header.js` opens 
 
 ## Credits
 
-Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](https://theshovel.rocks/khuwari/credits.html) for the full list.
+Khuwari is built with RIFE and ONNX Runtime Web for machine learning inbetweens, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](https://theshovel.rocks/khuwari/credits.html) for the full list.
 
 ## License
 

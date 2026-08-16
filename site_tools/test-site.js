@@ -65,7 +65,7 @@ function bootJS(dom, extraFiles) {
     const win = dom.window;
     // Feature figures inject into every shot container and rows reveal.
     const shots = win.document.querySelectorAll('.feat-shot');
-    t('H9c every feature shot got its figure', shots.length === 6 && Array.from(shots).every((s) => s.querySelector('svg')));
+    t('H9c every feature shot got its figure', shots.length === 6 && Array.from(shots).every((s) => s.querySelector('img.fig-img')));
     t('H9d rows reveal on scroll (IO present)', (function () {
       if (!('IntersectionObserver' in win)) return true;
       const r0 = win.document.querySelector('.feat-row');
@@ -153,13 +153,13 @@ function bootJS(dom, extraFiles) {
       t('P5c ' + slug + ' all links resolve', allResolve);
     });
 
-    // Figures: several pages should carry UI mockups, some animated.
+    // Figures: several pages should carry real screenshots of the editor.
     const figPages = slugs.filter((s) => loadPage('docs/' + s + '.html').window.document.querySelectorAll('.doc-fig').length > 0);
     t('P9 figures appear on multiple pages (' + figPages.length + ' pages)', figPages.length >= 5);
     const css = fs.readFileSync(path.join(SITE, 'site.css'), 'utf8');
-    t('P10 figure animations defined in CSS', css.indexOf('@keyframes fig-playhead') !== -1 && css.indexOf('fig-anim') !== -1);
-    const animPages = slugs.filter((s) => loadPage('docs/' + s + '.html').window.document.querySelectorAll('.fig-anim').length > 0);
-    t('P11 animated figures present (' + animPages.length + ' pages)', animPages.length >= 4);
+    t('P10 screenshot figures styled in CSS', css.indexOf('.fig-img') !== -1 && css.indexOf('border-radius') !== -1);
+    const shotPages = slugs.filter((s) => loadPage('docs/' + s + '.html').window.document.querySelectorAll('.doc-fig img.fig-img').length > 0);
+    t('P11 screenshot figures present (' + shotPages.length + ' pages)', shotPages.length >= 4);
     // Figure text must stay legible: no font-size under 12 in any figure.
     let smallText = false;
     slugs.forEach((s) => {
@@ -205,7 +205,7 @@ function bootJS(dom, extraFiles) {
     const { document } = dom.window;
     t('C1 credits page mentions RIFE', document.body.textContent.indexOf('RIFE') !== -1);
     t('C2 credits mention ONNX Runtime Web', document.body.textContent.indexOf('ONNX Runtime Web') !== -1);
-    t('C3 credits mention AGPL', document.body.textContent.indexOf('AGPL') !== -1);
+    t('C3 credits mention AGPL', document.body.textContent.indexOf('AGPL') !== -1 || document.body.textContent.indexOf('Affero') !== -1);
     t('C4 no em dashes in visible text', (document.body.textContent.indexOf('\u2014') === -1));
   }
 

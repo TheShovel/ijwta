@@ -16,7 +16,7 @@
 
   function onModelProgress(info) {
     if (info && info.stage === 'model') {
-      el.loadingSub.textContent = 'Downloading the interpolation model…';
+      el.loadingSub.textContent = 'Downloading the ML model…';
       setLoadingProgress('Downloading model…', info.frac * 100);
     } else if (info && info.stage === 'compile') {
       el.loadingSub.textContent = 'Compiling the model for your browser…';
@@ -36,10 +36,10 @@
     console.error('ML model load failed:', err);
     state.modelReady = false;
     if (modelGateResolve) { modelGateResolve(); modelGateResolve = null; }
-    el.loadingSub.textContent = 'Could not load the ML model (' + (err && err.message ? err.message : err) + '). Frames will use the mesh warp instead.';
+    el.loadingSub.textContent = 'Could not load the ML model (' + (err && err.message ? err.message : err) + '). Frames will use the built-in fallback instead.';
     el.loadingMeta.textContent = 'failed';
     el.btnLoadingRetry.classList.remove('hidden');
-    toast('ML model failed to load. Using mesh warp', 6000);
+    toast('ML model failed to load. Using the built-in fallback', 6000);
   }
 
   function loadModelWithOverlay() {

@@ -35,7 +35,7 @@
     <a href="getting-started.html">Getting started</a>
     <a href="interface.html">The interface</a>
     <a href="keyframes.html">Keyframes</a>
-    <a href="gaps.html">Gaps & interpolation</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
     <a href="color-layers.html">Color layers</a>
     <a href="onion-skinning.html">Onion skinning</a>
     <a href="blend-modes.html">Blend modes</a>
@@ -72,39 +72,13 @@
             <tr><td>WebM video</td><td>small modern web videos</td></tr>
             <tr><td>MKV video</td><td>archival and everything inside one file</td></tr>
             <tr><td>MOV video</td><td>Apple and video editing workflows</td></tr>
-            <tr><td>MPEG-TS video</td><td>broadcast and streaming pipelines</td></tr>
+            <tr><td>MPEG-TS video</td><td>broadcast and streaming</td></tr>
             <tr><td>Current frame (PNG)</td><td>a single still</td></tr>
           </tbody>
         </table>
-        <p>Every video container picks the best codec your browser can actually encode, so you get a playable file wherever the format is supported.</p>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 330" role="img" aria-label="The export menu with the video format dropdown open and resolution options" class="fig-border">
-    <rect x="8" y="8" width="300" height="314" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="28" y="40" font-size="13.5" fill="#98a1ad">Format</text>
-    <rect x="28" y="48" width="260" height="150" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <rect x="36" y="58" width="244" height="26" rx="6" fill="#313844"/>
-    <text x="44" y="76" font-size="14" fill="#e6e9ee">MP4 video</text>
-    <text x="44" y="102" font-size="14" fill="#e6e9ee">WebM video</text>
-    <text x="44" y="128" font-size="14" fill="#e6e9ee">MKV video</text>
-    <text x="44" y="154" font-size="14" fill="#e6e9ee">MOV video</text>
-    <text x="44" y="180" font-size="14" fill="#e6e9ee">MPEG-TS video</text>
-    <path d="M272 120 l7 7 7 -7" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="28" y="222" font-size="13.5" fill="#98a1ad">Resolution</text>
-    <rect x="28" y="230" width="260" height="34" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="252" font-size="14" fill="#e6e9ee">1920 × 1080</text>
-    <path d="M268 242 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <line x1="28" y1="278" x2="288" y2="278" stroke="#39414d"/>
-    <rect x="28" y="288" width="260" height="36" rx="8" fill="#8aa3b9"/>
-    <text x="158" y="312" font-size="16" fill="#161a20" font-weight="600" text-anchor="middle">Export</text>
-    <text x="360" y="54" font-size="16.5" fill="#e6e9ee" font-weight="600">Pick your container</text>
-    <circle cx="368" cy="88" r="3.5" fill="#8aa3b9"/><text x="380" y="92" font-size="15" fill="#98a1ad">MP4 for the widest compatibility</text>
-    <circle cx="368" cy="118" r="3.5" fill="#8aa3b9"/><text x="380" y="122" font-size="15" fill="#98a1ad">WebM and MKV for sharing and archives</text>
-    <circle cx="368" cy="148" r="3.5" fill="#8aa3b9"/><text x="380" y="152" font-size="15" fill="#98a1ad">MOV for Apple workflows</text>
-    <circle cx="368" cy="178" r="3.5" fill="#8aa3b9"/><text x="380" y="182" font-size="15" fill="#98a1ad">MPEG-TS for broadcast pipelines</text>
-    <circle cx="368" cy="208" r="3.5" fill="#8aa3b9"/><text x="380" y="212" font-size="15" fill="#98a1ad">every format picks the best codec your browser can encode</text>
-    <circle cx="368" cy="238" r="3.5" fill="#8aa3b9"/><text x="380" y="242" font-size="15" fill="#98a1ad">exports match playback exactly</text>
-  </svg>
+  <img class="fig-img" src="../shots/export.png" alt="The export menu with the format and resolution dropdowns" width="720">
   <figcaption>The export menu. Pick a format and resolution, then hit Export.</figcaption>
 </figure>
       
@@ -114,13 +88,6 @@
       <h2>Resolution</h2>
       
         <p>Pick the export resolution from the export menu. Exports run in the background with a progress bar, and you can stop them if you change your mind.</p>
-      
-    </section>
-
-    <section class="doc-sec" id="wysiwyg">
-      <h2>What you see is what you get</h2>
-      
-        <p>Exports render through the same composite as playback, so the video, GIF and sequence all match what you see in the preview, including blend modes and color fills.</p>
       
     </section>
 
@@ -144,7 +111,6 @@
       <a href="../credits.html">Credits</a>
       <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
-    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
 </footer>
 

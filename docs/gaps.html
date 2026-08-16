@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gaps & interpolation · Khuwari</title>
-<meta name="description" content="Machine learning, squash and stretch, no interpolation, motion blur and regeneration.">
+<title>Gaps & inbetweens · Khuwari</title>
+<meta name="description" content="Machine learning, squash and stretch, no inbetweens, motion blur and regeneration.">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
@@ -35,7 +35,7 @@
     <a href="getting-started.html">Getting started</a>
     <a href="interface.html">The interface</a>
     <a href="keyframes.html">Keyframes</a>
-    <a href="gaps.html" class="active">Gaps & interpolation</a>
+    <a href="gaps.html" class="active">Gaps & inbetweens</a>
     <a href="color-layers.html">Color layers</a>
     <a href="onion-skinning.html">Onion skinning</a>
     <a href="blend-modes.html">Blend modes</a>
@@ -50,12 +50,12 @@
     <nav class="crumbs rise" aria-label="Breadcrumb">
       <a href="../docs.html">Docs</a>
       <span class="crumb-sep">/</span>
-      <span>Gaps & interpolation</span>
+      <span>Gaps & inbetweens</span>
     </nav>
 
     <header class="doc-head rise-1">
-      <h1>Gaps & interpolation</h1>
-      <p>Machine learning, squash and stretch, no interpolation, motion blur and regeneration.</p>
+      <h1>Gaps & inbetweens</h1>
+      <p>Machine learning, squash and stretch, no inbetweens, motion blur and regeneration.</p>
     </header>
 
     
@@ -65,37 +65,7 @@
         <p>The space between two keyframes on the same layer is a gap. Click the gap chip on the timeline to open its options in the right panel, and the inbetweens are generated there.</p>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 230" role="img" aria-label="Two keyframes with generated inbetween frames appearing between them" class="fig-border">
-    <rect x="8" y="8" width="704" height="28" fill="#191d23"/>
-    <line x1="8" y1="36" x2="712" y2="36" stroke="#39414d"/>
-    <text x="116" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">0s</text>
-    <text x="326" y="28" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">1s</text>
-    <rect x="8" y="36" width="704" height="66" fill="#1b1f25"/>
-    <rect x="8" y="36" width="96" height="66" fill="#22272e"/>
-    <line x1="104" y1="36" x2="104" y2="102" stroke="#39414d"/>
-    <text x="18" y="76" font-size="13.5" fill="#e6e9ee">Layer 1</text>
-    <rect x="120" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="122" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="142" cy="70" r="10" fill="none" stroke="#8aa3b9" stroke-width="2.5"/>
-    <rect x="174" y="70" width="330" height="22" rx="5" fill="rgba(143,176,162,0.09)"/>
-    <rect x="272" y="54" width="84" height="18" rx="5" fill="#313844" stroke="#39414d"/>
-    <text x="278" y="67" font-size="12" font-family="ui-monospace,Menlo,monospace" fill="#98a1ad">11 frames</text>
-    <g class="fig-anim fig-dots">
-      <circle cx="200" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="240" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="300" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="340" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="380" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="420" cy="81" r="3.5" fill="#8fb0a2"/>
-      <circle cx="460" cy="81" r="3.5" fill="#8fb0a2"/>
-    </g>
-    <rect x="504" y="48" width="54" height="54" rx="9" fill="rgba(195,171,125,0.09)" stroke="rgba(195,171,125,0.35)"/>
-    <rect x="506" y="50" width="40" height="40" rx="6" fill="#0d0f12" stroke="#c3ab7d" stroke-width="2"/>
-    <circle cx="526" cy="70" r="10" fill="none" stroke="#8fb0a2" stroke-width="2.5"/>
-    <text x="120" y="140" font-size="15" fill="#98a1ad">between two keyframes is a gap</text>
-    <text x="120" y="158" font-size="15" fill="#98a1ad">the sage band means it is generated and ready</text>
-    <text x="120" y="176" font-size="15" fill="#98a1ad">the dots are the frames the model made</text>
-  </svg>
+  <img class="fig-img" src="../shots/gap.png" alt="A gap between two keyframes with the generated inbetween frames marked" width="720">
   <figcaption>Between two keyframes is a gap. Khuwari generates the inbetween frames for it.</figcaption>
 </figure>
       
@@ -119,37 +89,14 @@
         </ul>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 240" role="img" aria-label="A shape squashing and stretching across a gap, with the squash gap options" class="fig-border">
-    <rect x="8" y="8" width="400" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
-    <line x1="40" y1="120" x2="376" y2="120" stroke="#39414d" stroke-dasharray="4 4"/>
-    <rect x="60" y="86" width="60" height="60" rx="10" fill="#c3ab7d" opacity="0.9"/>
-    <rect x="300" y="86" width="60" height="60" rx="10" fill="#c3ab7d" opacity="0.9"/>
-    <g class="fig-anim fig-squash">
-      <rect x="165" y="98" width="60" height="34" rx="12" fill="#8aa3b9"/>
-    </g>
-    <text x="208" y="190" font-size="14" fill="#98a1ad" text-anchor="middle">squash flattens the shape mid-gap</text>
-    <rect x="416" y="8" width="296" height="210" rx="10" fill="#22272e" stroke="#39414d"/>
-    <text x="432" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">GAP</text>
-    <text x="432" y="60" font-size="12.5" fill="#98a1ad">Interpolation</text>
-    <rect x="432" y="66" width="264" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="448" y="86" font-size="13.5" fill="#e6e9ee">Squash</text>
-    <path d="M676 76 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="432" y="120" font-size="12.5" fill="#98a1ad">Squash amount <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">auto</tspan></text>
-    <rect x="432" y="126" width="264" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="432" y="126" width="110" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="542" cy="128" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="432" y="160" font-size="12.5" fill="#98a1ad">Curve</text>
-    <rect x="432" y="166" width="264" height="32" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="448" y="186" font-size="13.5" fill="#e6e9ee">Anticipation</text>
-    <path d="M676 176 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-  </svg>
+  <img class="fig-img" src="../shots/squash.png" alt="A gap in squash mode with its options in the right panel" width="720">
   <figcaption>Squash mode deforms the inbetweens for cartoon motion.</figcaption>
 </figure>
       
     </section>
 
     <section class="doc-sec" id="none">
-      <h2>No interpolation</h2>
+      <h2>No inbetweens</h2>
       
         <p>No inbetweens at all. The first keyframe simply holds until the next one starts. Good for flashes, cuts and text.</p>
       
@@ -166,29 +113,7 @@
         </ul>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 240" role="img" aria-label="A shape smearing horizontally to show motion blur, with the blur gap options" class="fig-border">
-    <rect x="8" y="8" width="400" height="210" rx="8" fill="#161a20" stroke="#39414d"/>
-    <line x1="40" y1="120" x2="376" y2="120" stroke="#39414d" stroke-dasharray="4 4"/>
-    <circle cx="90" cy="120" r="28" fill="#c3ab7d"/>
-    <circle cx="330" cy="120" r="28" fill="#c3ab7d"/>
-    <g class="fig-anim fig-blur">
-      <circle cx="210" cy="120" r="28" fill="#8aa3b9" opacity="0.85"/>
-    </g>
-    <text x="208" y="190" font-size="14" fill="#98a1ad" text-anchor="middle">the frame stretches along its motion</text>
-    <rect x="416" y="8" width="296" height="210" rx="10" fill="#22272e" stroke="#39414d"/>
-    <text x="432" y="34" font-size="12" fill="#98a1ad" font-weight="700" letter-spacing="1">GAP</text>
-    <text x="432" y="60" font-size="15" fill="#e6e9ee" font-weight="600">Motion blur</text>
-    <rect x="432" y="70" width="16" height="16" rx="4" fill="#8aa3b9"/>
-    <path d="M435 78 l2.5 2.5 4.5 -4.5" stroke="#161a20" stroke-width="2" fill="none"/>
-    <text x="456" y="83" font-size="13" fill="#98a1ad">on for this gap</text>
-    <text x="432" y="114" font-size="12.5" fill="#98a1ad">Blur intensity <tspan fill="#c3cbd6" font-family="ui-monospace,Menlo,monospace">50%</tspan></text>
-    <rect x="432" y="120" width="264" height="5" rx="2.5" fill="#39414d"/>
-    <rect x="432" y="120" width="132" height="5" rx="2.5" fill="#8aa3b9"/>
-    <circle cx="564" cy="122" r="8" fill="#8aa3b9" stroke="#161a20" stroke-width="2"/>
-    <text x="432" y="156" font-size="13" fill="#98a1ad">eases in and out with how much</text>
-    <text x="432" y="172" font-size="13" fill="#98a1ad">the frame changed in between</text>
-    <text x="432" y="192" font-size="13" fill="#98a1ad">hides small imperfections</text>
-  </svg>
+  <img class="fig-img" src="../shots/blur.png" alt="A gap with motion blur on and its intensity slider in the right panel" width="720">
   <figcaption>Motion blur smears the inbetweens along their movement, easing in and out.</figcaption>
 </figure>
       
@@ -221,7 +146,6 @@
       <a href="../credits.html">Credits</a>
       <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
-    <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
 </footer>
 
