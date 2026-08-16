@@ -51,6 +51,12 @@ The website lives at [theshovel.rocks/khuwari](https://theshovel.rocks/khuwari/)
 
 Projects save as single `.khuwari` files, which are plain JSON.
 
+## Development
+
+The editor code lives in `src/` as plain scripts, one file per concern (state, elements, workers, timeline, generation, export, and so on). No build step: `editor.html` loads them in order, and the whole editor shares one global scope. Edit a file in `src/` and refresh the page.
+
+Roughly ordered by dependency, so read them top to bottom: `01-header.js` opens the app and pulls in the vendor globals, `24-footer.js` starts it (`boot()`).
+
 ## Credits
 
 Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](https://theshovel.rocks/khuwari/credits.html) for the full list.

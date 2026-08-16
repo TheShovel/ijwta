@@ -1,0 +1,233 @@
+'use strict';
+
+
+  function projectData() {
+    return {
+      v: 10,
+      settings: {
+        fps: state.fps, snap: state.snap, zoom: state.zoom,
+        res: state.res, keysOnly: state.keysOnly, onion: state.onion, onionCfg: state.onionCfg,
+        aspect: state.aspect, aspectRatio: state.aspectRatio,
+        customW: state.customW, customH: state.customH
+      },
+      layers: state.layers.map(function (l) {
+        return l.type === 'fill'
+          ? { id: l.id, name: l.name, visible: l.visible, type: 'fill', dots: l.dots }
+          : { id: l.id, name: l.name, visible: l.visible };
+      }),
+      activeLayerId: state.activeLayerId,
+      assets: state.assets.map(function (a) {
+        return { img: a.img, name: a.name, w: a.w, h: a.h };
+      }),
+      keyframes: state.keyframes.map(function (k) {
+        return { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h, mix: k.mix || 'source-over' };
+      }),
+      generated: state.generated,
+      gapMeta: state.gapMeta,
+      gapType: state.gapType,
+      gapSquash: state.gapSquash,
+      gapBlur: state.gapBlur
+    };
+  }
+
+  function applyProjectData(data) {
+    var s = data.settings || {};
+    state.fps = clamp(parseFloat(s.fps) || 12, 1, 60);
+    state.snap = s.snap !== false;
+    state.zoom = clamp(parseFloat(s.zoom) || 90, 12, 4000);
+    state.res = [512, 448, 384, 320].indexOf(parseInt(s.res, 10)) >= 0 ? parseInt(s.res, 10) : 512;
+    state.keysOnly = !!s.keysOnly;
+    // Onion prefs: the toggle and its settings are UI prefs (persisted to
+    // localStorage on every change). A project file only overrides them when it
+    // explicitly carries onion settings; otherwise the user's current prefs
+    // (already restored at boot) stay, so loading a project never wipes them.
+    if (s.hasOwnProperty('onion')) state.onion = !!s.onion;
+    if (s.onionCfg && typeof s.onionCfg === 'object') {
+      var c = s.onionCfg;
+      state.onionCfg = {
+        before: clamp(parseInt(c.before, 10) || 1, 0, 4),
+        after: clamp(parseInt(c.after, 10) || 1, 0, 4),
+        opacity: clamp(parseFloat(c.opacity) || 0.28, 0.05, 0.9),
+        tint: !!c.tint,
+        tintColor: (typeof c.tintColor === 'string' && /^#?[0-9a-f]{6}$/i.test(c.tintColor)) ? (c.tintColor[0] === '#' ? c.tintColor : '#' + c.tintColor) : '#ff3b30',
+        tintOpacity: clamp(parseFloat(c.tintOpacity) || 0.35, 0.05, 1)
+      };
+    }
+    state.aspect = ['auto', '16:9', '9:16', '4:3', '3:4', '1:1', 'custom', 'manual'].indexOf(s.aspect) >= 0 ? s.aspect : 'auto';
+    var ar = parseRatio(s.aspectRatio);
+    state.aspectRatio = ar;
+    state.customW = clamp(parseInt(s.customW, 10) || 1920, 8, 4096);
+    state.customH = clamp(parseInt(s.customH, 10) || 1080, 8, 4096);
+    // Layers: projects saved before layers existed are wrapped in one layer.
+    var savedLayers = Array.isArray(data.layers) && data.layers.length ? data.layers : null;
+    if (savedLayers) {
+      state.layers = savedLayers.map(function (l) {
+        var base = {
+          id: l.id,
+          name: l.name || 'Layer',
+          visible: l.visible !== false
+        };
+        if (l.type === 'fill') {
+          // Fill layers hold color dots; sanitize every field so a hand-edited
+          // project can't crash the renderer.
+          base.type = 'fill';
+          base.dots = (Array.isArray(l.dots) ? l.dots : []).map(function (d) {
+            return {
+              id: d && d.id ? String(d.id) : 'D' + (++idSeq),
+              x: clamp(parseFloat(d && d.x) || 0, 0, 1),
+              y: clamp(parseFloat(d && d.y) || 0, 0, 1),
+              color: (typeof (d && d.color) === 'string' && /^#?[0-9a-f]{6}$/i.test(d.color)) ? d.color : '#4f8fff',
+              threshold: clamp(parseFloat(d && d.threshold) || 0.5, 0, 1),
+              grow: clamp(Math.round(parseFloat(d && d.grow) || 0), 0, 200),
+              gradOn: !!(d && d.gradOn),
+              gradColor: (typeof (d && d.gradColor) === 'string' && /^#?[0-9a-f]{6}$/i.test(d.gradColor)) ? d.gradColor : '#ffffff',
+              gradHeight: clamp(Math.round(parseFloat(d && d.gradHeight) || 24), 4, 400),
+              gradDir: ['top', 'bottom', 'left', 'right'].indexOf(d && d.gradDir) >= 0 ? d.gradDir : 'bottom',
+              start: Math.max(0, parseFloat(d && d.start) || 0),
+              end: Math.max(0, parseFloat(d && d.end) || 0)
+            };
+          });
+          // Normalize: end must be after start (swap/raise as needed).
+          base.dots.forEach(function (d) {
+            if (d.end <= d.start) d.end = d.start + 1 / state.fps;
+          });
+        }
+        return base;
+      });
+      state.activeLayerId = state.layers.some(function (l) { return l.id === data.activeLayerId; })
+        ? data.activeLayerId : state.layers[0].id;
+    } else {
+      state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
+      state.activeLayerId = 'L1';
+    }
+    layerSeq = state.layers.reduce(function (m, l) {
+      var n = parseInt(String(l.id).replace(/\D/g, ''), 10);
+      return Math.max(m, isFinite(n) ? n + 1 : 1);
+    }, 1);
+    state.keyframes = (data.keyframes || []).filter(function (k) { return k && k.img; }).map(function (k) {
+      if (!k.layer || !state.layers.some(function (l) { return l.id === k.layer; })) k.layer = state.layers[0].id;
+      if (typeof k.mix !== 'string' || ['source-over','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity'].indexOf(k.mix) < 0) {
+        k.mix = 'source-over';
+      }
+      return k;
+    });
+    state.generated = (data.generated && typeof data.generated === 'object') ? data.generated : {};
+    state.gapMeta = (data.gapMeta && typeof data.gapMeta === 'object') ? data.gapMeta : {};
+    state.gapType = (data.gapType && typeof data.gapType === 'object') ? data.gapType : {};
+    state.gapSquash = (data.gapSquash && typeof data.gapSquash === 'object') ? data.gapSquash : {};
+    state.gapBlur = (data.gapBlur && typeof data.gapBlur === 'object') ? data.gapBlur : {};
+    // The image library: saved with the project (v5+), otherwise derived from
+    // the keyframe images so older projects still show their images. Any
+    // keyframe image missing from the library (e.g. promoted composites) is
+    // added in keyframe order.
+    state.assets = Array.isArray(data.assets)
+      ? data.assets.filter(function (a) { return a && a.img; }).map(function (a) {
+        return { img: a.img, name: a.name, w: a.w, h: a.h };
+      })
+      : [];
+    state.keyframes.forEach(function (k) {
+      if (!k.img || state.assets.some(function (a) { return a.img === k.img; })) return;
+      state.assets.push({ img: k.img, name: k.name, w: k.w, h: k.h });
+    });
+    idSeq = state.keyframes.reduce(function (m, k) {
+      var n = parseInt(String(k.id).replace(/\D/g, ''), 10);
+      return Math.max(m, isFinite(n) ? n + 1 : 1);
+    }, 1);
+    // Dots share the id sequence; count them too so new dots never collide
+    // with loaded ones (a project could hold only dots).
+    state.layers.forEach(function (l) {
+      if (l.type === 'fill' && l.dots) {
+        l.dots.forEach(function (d) {
+          var n = parseInt(String(d.id).replace(/\D/g, ''), 10);
+          if (isFinite(n) && n + 1 > idSeq) idSeq = n + 1;
+        });
+      }
+    });
+  }
+
+  // File menu: export the project as a .khuwari file (Save) / import one (Load).
+  function saveProjectFile() {
+    var blob = new Blob([JSON.stringify(projectData(), null, 2)], { type: 'application/json' });
+    downloadBlob(blob, 'khuwari-project.khuwari', 'application/json');
+    toast('Project saved (.khuwari)');
+  }
+
+  function loadProjectFile(file) {
+    enterApp();
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.keyframes)) throw new Error('not a project file');
+        cancelRun();
+        restoringProject = true;
+        try {
+          applyProjectData(data);
+          state.selectedId = null;
+          state.playhead = 0;
+          state.curIndex = 0;
+          pause();
+          applyWorkSize();
+        } finally {
+          restoringProject = false;
+        }
+        refreshDirty();
+        renderAll();
+        syncInputs();
+        // Frames saved in the file are reused when valid (same stamps);
+        // anything invalidated by the load (different endpoint images, a
+        // different frame count) is regenerated automatically.
+        scheduleGenerate(100);
+        toast('Project loaded');
+      } catch (e) {
+        toast('Could not load project file. Choose a .khuwari file saved from this app.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---- start screen ----
+
+  function enterApp() {
+    el.startScreen.classList.add('hidden');
+  }
+
+  // Wipe everything back to a fresh empty project.
+  function newProject() {
+    cancelRun();
+    pause();
+    state.keyframes = [];
+    state.assets = [];
+    state.layers = [{ id: 'L1', name: 'Layer 1', visible: true }];
+    state.activeLayerId = 'L1';
+    state.generated = {};
+    state.gapMeta = {};
+    state.gapType = {};
+    state.gapSquash = {};
+    state.gapBlur = {};
+    state.dirty = new Set();
+    state.selectedId = null;
+    state.selectedGapId = null;
+    state.selectedDotId = null;
+    state.playhead = 0;
+    state.curIndex = 0;
+    applyWorkSize();
+    refreshDirty();
+    renderAll();
+    syncInputs();
+    enterApp();
+  }
+
+  // Load the bundled example project (example.khuwari) from the start screen's
+  // example button (served locally, so no cross-origin fetch restrictions), via
+  // the same load path as a user-picked .khuwari.
+  function openExample() {
+    fetch('example.khuwari').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    }).then(function (blob) {
+      loadProjectFile(new File([blob], 'example.khuwari', { type: 'application/json' }));
+    }).catch(function (e) {
+      toast('Could not load the example project: ' + (e && e.message ? e.message : e));
+    });
+  }
