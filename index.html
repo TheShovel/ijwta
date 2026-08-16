@@ -189,6 +189,21 @@
         <label class="field">Grow: <span id="dotGrowValue" class="mono">1px</span>
           <input id="dotGrow" class="slider" type="range" min="0" max="40" step="1" value="1">
         </label>
+        <label class="field check"><input id="dotGradOn" type="checkbox"> Gradient</label>
+        <div id="dotGradGroup" class="squash-group hidden">
+          <label class="field">Gradient color <input id="dotGradColor" type="color" value="#ffffff"></label>
+          <label class="field">Height: <span id="dotGradHeightValue" class="mono">24px</span>
+            <input id="dotGradHeight" class="slider" type="range" min="4" max="200" step="1" value="24">
+          </label>
+          <label class="field">Direction
+            <select id="dotGradDir">
+              <option value="bottom">Bottom</option>
+              <option value="top">Top</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+        </div>
         <div class="field-row">
           <label class="field">Start (s) <input id="dotStart" type="number" min="0" step="0.01" value="0"></label>
           <label class="field">End (s) <input id="dotEnd" type="number" min="0" step="0.01" value="1"></label>

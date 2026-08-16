@@ -160,6 +160,12 @@
     dotThresholdValue: byId('dotThresholdValue'),
     dotGrow: byId('dotGrow'),
     dotGrowValue: byId('dotGrowValue'),
+    dotGradOn: byId('dotGradOn'),
+    dotGradGroup: byId('dotGradGroup'),
+    dotGradColor: byId('dotGradColor'),
+    dotGradHeight: byId('dotGradHeight'),
+    dotGradHeightValue: byId('dotGradHeightValue'),
+    dotGradDir: byId('dotGradDir'),
     dotStart: byId('dotStart'),
     dotEnd: byId('dotEnd'),
     btnDotDelete: byId('btnDotDelete'),
@@ -534,7 +540,7 @@
   }
 
   function dotDefaults() {
-    return { color: '#4f8fff', threshold: 0.5, grow: 1, dur: 1 };
+    return { color: '#4f8fff', threshold: 0.5, grow: 1, dur: 1, gradOn: false, gradColor: '#ffffff', gradHeight: 24, gradDir: 'bottom' };
   }
 
   // Add a dot at normalized canvas coords (0..1) to a fill layer, active from
@@ -554,6 +560,10 @@
       color: def.color,
       threshold: def.threshold,
       grow: def.grow,
+      gradOn: false,
+      gradColor: def.gradColor,
+      gradHeight: def.gradHeight,
+      gradDir: def.gradDir,
       start: start,
       end: Math.max(end, start + 0.05)
     };
@@ -588,7 +598,8 @@
       if (L.type !== 'fill' || L.visible === false) return;
       activeDots(L, t).forEach(function (d) {
         parts.push(d.id + ':' + d.x.toFixed(4) + ':' + d.y.toFixed(4) + ':' + d.color + ':' +
-          (Math.round(d.threshold * 100) / 100) + ':' + d.grow);
+          (Math.round(d.threshold * 100) / 100) + ':' + d.grow + ':' +
+          (d.gradOn ? '1:' + (d.gradColor || '') + ':' + d.gradHeight + ':' + d.gradDir : '0'));
       });
     });
     return parts.join('|');
@@ -617,7 +628,8 @@
     fillsForLayer(layerId).forEach(function (F) {
       activeDots(F, t).forEach(function (d) {
         parts.push(F.id + ':' + d.id + ':' + d.x.toFixed(4) + ':' + d.y.toFixed(4) + ':' + d.color + ':' +
-          (Math.round(d.threshold * 100) / 100) + ':' + d.grow);
+          (Math.round(d.threshold * 100) / 100) + ':' + d.grow + ':' +
+          (d.gradOn ? '1:' + (d.gradColor || '') + ':' + d.gradHeight + ':' + d.gradDir : '0'));
       });
     });
     return parts.join('|');
@@ -653,12 +665,15 @@
       activeDots(F, time).forEach(function (d) {
         var rgb = morph.parseHexColor(d.color);
         if (!rgb) return;
-        // Flood against the ORIGINAL line art (same barrier as live rendering).
         var mask = morph.floodFillMask(base, W, H, d.x * W, d.y * H, d.threshold);
         if (!mask) return;
         var grow = Math.round(d.grow) || 0;
         if (grow > 0) mask = morph.dilateMask(mask, W, H, grow, mask.bounds || null);
-        morph.paintMask(fillData, mask, n, rgb, W, mask.bounds || null);
+        if (d.gradOn) {
+          var rgb2 = morph.parseHexColor(d.gradColor);
+          if (rgb2) morph.paintGradient(fillData, mask, n, rgb2, rgb, d.gradDir || 'bottom', Math.round(d.gradHeight) || 24, W, mask.bounds || null);
+          else morph.paintMask(fillData, mask, n, rgb, W, mask.bounds || null);
+        } else morph.paintMask(fillData, mask, n, rgb, W, mask.bounds || null);
         any = true;
       });
     });
@@ -706,7 +721,8 @@
     var parts = [L.id, srcKey || '', W, H];
     activeDots(L, t).forEach(function (d) {
       parts.push(d.id, d.x.toFixed(4), d.y.toFixed(4), d.color,
-        (Math.round(d.threshold * 100) / 100), d.grow);
+        (Math.round(d.threshold * 100) / 100), d.grow,
+        d.gradOn ? '1:' + d.gradColor + ':' + d.gradHeight + ':' + d.gradDir : '0');
     });
     return parts.join('|');
   }
@@ -738,10 +754,12 @@
       var mask = morph.floodFillMask(srcData, W, H, d.x * W, d.y * H, d.threshold);
       if (!mask) return;
       var grow = Math.round(d.grow) || 0;
-      // Grow and paint stay inside the region's bbox — same pixels, but the
-      // cost scales with the filled area instead of the whole canvas.
       if (grow > 0) mask = morph.dilateMask(mask, W, H, grow, mask.bounds || null);
-      morph.paintMask(out.data, mask, n, rgb, W, mask.bounds || null);
+      if (d.gradOn) {
+        var rgb2 = morph.parseHexColor(d.gradColor);
+        if (rgb2) morph.paintGradient(out.data, mask, n, rgb2, rgb, d.gradDir || 'bottom', Math.round(d.gradHeight) || 24, W, mask.bounds || null);
+        else morph.paintMask(out.data, mask, n, rgb, W, mask.bounds || null);
+      } else morph.paintMask(out.data, mask, n, rgb, W, mask.bounds || null);
     });
     ctx.putImageData(out, 0, 0);
     if (key) {
@@ -1816,6 +1834,13 @@
       el.dotGrow.value = String(Math.round(dot.grow));
       syncSlider(el.dotGrow);
       el.dotGrowValue.textContent = Math.round(dot.grow) + 'px';
+      el.dotGradOn.checked = !!dot.gradOn;
+      el.dotGradGroup.classList.toggle('hidden', !dot.gradOn);
+      el.dotGradColor.value = dot.gradColor || '#ffffff';
+      el.dotGradHeight.value = String(Math.round(dot.gradHeight || 24));
+      syncSlider(el.dotGradHeight);
+      el.dotGradHeightValue.textContent = Math.round(dot.gradHeight || 24) + 'px';
+      el.dotGradDir.value = dot.gradDir || 'bottom';
       el.dotStart.value = (Math.round(dot.start * 100) / 100).toFixed(2);
       el.dotEnd.value = (Math.round(dot.end * 100) / 100).toFixed(2);
       return;
@@ -4046,7 +4071,7 @@
 
   function projectData() {
     return {
-      v: 8,
+      v: 9,
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
         res: state.res, keysOnly: state.keysOnly,
@@ -4106,6 +4131,10 @@
               color: (typeof (d && d.color) === 'string' && /^#?[0-9a-f]{6}$/i.test(d.color)) ? d.color : '#4f8fff',
               threshold: clamp(parseFloat(d && d.threshold) || 0.5, 0, 1),
               grow: clamp(Math.round(parseFloat(d && d.grow) || 0), 0, 200),
+              gradOn: !!(d && d.gradOn),
+              gradColor: (typeof (d && d.gradColor) === 'string' && /^#?[0-9a-f]{6}$/i.test(d.gradColor)) ? d.gradColor : '#ffffff',
+              gradHeight: clamp(Math.round(parseFloat(d && d.gradHeight) || 24), 4, 400),
+              gradDir: ['top', 'bottom', 'left', 'right'].indexOf(d && d.gradDir) >= 0 ? d.gradDir : 'bottom',
               start: Math.max(0, parseFloat(d && d.start) || 0),
               end: Math.max(0, parseFloat(d && d.end) || 0)
             };
@@ -4392,6 +4421,22 @@
       clearTimeout(dotDebounce);
       var v = parseFloat(el.dotGrow.value);
       if (isFinite(v)) patchDot({ grow: v });
+    });
+    el.dotGradOn.addEventListener('change', function () { patchDot({ gradOn: el.dotGradOn.checked }); });
+    el.dotGradColor.addEventListener('input', function () { patchDot({ gradColor: el.dotGradColor.value }); });
+    el.dotGradDir.addEventListener('change', function () { patchDot({ gradDir: el.dotGradDir.value }); });
+    el.dotGradHeight.addEventListener('input', function () {
+      var v = parseFloat(el.dotGradHeight.value);
+      if (!isFinite(v)) return;
+      syncSlider(el.dotGradHeight);
+      el.dotGradHeightValue.textContent = Math.round(v) + 'px';
+      clearTimeout(dotDebounce);
+      dotDebounce = setTimeout(function () { patchDot({ gradHeight: v }); }, 120);
+    });
+    el.dotGradHeight.addEventListener('change', function () {
+      clearTimeout(dotDebounce);
+      var v = parseFloat(el.dotGradHeight.value);
+      if (isFinite(v)) patchDot({ gradHeight: v });
     });
     el.dotStart.addEventListener('change', function () {
       var d = dotById(state.selectedDotId);

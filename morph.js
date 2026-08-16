@@ -1736,6 +1736,63 @@
     return rgba;
   }
 
+  function fillPaintGradient(rgba, mask, n, colorA, colorB, dir, gradH, w, bounds) {
+    if (!gradH || gradH <= 0 || !colorB) return fillPaint(rgba, mask, n, colorA, w, bounds);
+    var rTop = colorA[0], gTop = colorA[1], bTop = colorA[2];
+    var rBot = colorB[0], gBot = colorB[1], bBot = colorB[2];
+    var h = gradH | 0;
+    if (h < 1) h = 1;
+    var x0 = bounds ? bounds.x0 : 0;
+    var y0 = bounds ? bounds.y0 : 0;
+    var x1 = bounds ? bounds.x1 : w - 1;
+    var y1 = bounds ? bounds.y1 : 0;
+    if (!bounds) {
+      var bb = maskBounds(mask, w, Math.floor(n / w));
+      if (bb) { x0 = bb.x0; y0 = bb.y0; x1 = bb.x1; y1 = bb.y1; }
+    }
+    if (dir === 'top' || dir === 'bottom' || dir === 'left' || dir === 'right') {
+      if (bounds && w) {
+        for (var y = y0; y <= y1; y++) {
+          var row = y * w;
+          for (var x = x0; x <= x1; x++) {
+            var p = row + x;
+            if (!mask[p]) continue;
+            var t;
+            if (dir === 'top') t = (y - y0) / h;
+            else if (dir === 'bottom') t = (y1 - y) / h;
+            else if (dir === 'left') t = (x - x0) / h;
+            else t = (x1 - x) / h;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            var u = 1 - t;
+            var q = p * 4;
+            rgba[q] = (rTop * u + rBot * t) | 0;
+            rgba[q + 1] = (gTop * u + gBot * t) | 0;
+            rgba[q + 2] = (bTop * u + bBot * t) | 0;
+            rgba[q + 3] = 255;
+          }
+        }
+      } else {
+        for (var p2 = 0, q2 = 0; p2 < n; p2++, q2 += 4) {
+          if (!mask[p2]) continue;
+          var yy = (p2 / w) | 0, xx = p2 % w;
+          var tt;
+          if (dir === 'top') tt = (yy - y0) / h;
+          else if (dir === 'bottom') tt = (y1 - yy) / h;
+          else if (dir === 'left') tt = (xx - x0) / h;
+          else tt = (x1 - xx) / h;
+          if (tt < 0) tt = 0; else if (tt > 1) tt = 1;
+          var uu = 1 - tt;
+          rgba[q2] = (rTop * uu + rBot * tt) | 0;
+          rgba[q2 + 1] = (gTop * uu + gBot * tt) | 0;
+          rgba[q2 + 2] = (bTop * uu + bBot * tt) | 0;
+          rgba[q2 + 3] = 255;
+        }
+      }
+      return rgba;
+    }
+    return fillPaint(rgba, mask, n, colorA, w, bounds);
+  }
+
   // Parse "#rrggbb" into [r, g, b]; returns null for anything else.
   function parseHexColor(hex) {
     if (typeof hex !== 'string') return null;
@@ -1774,6 +1831,7 @@
     floodFillMask: fillFlood,
     dilateMask: fillDilate,
     paintMask: fillPaint,
+    paintGradient: fillPaintGradient,
     maskBounds: maskBounds,
     parseHexColor: parseHexColor
   };
