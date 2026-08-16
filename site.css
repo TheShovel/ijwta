@@ -39,6 +39,43 @@ body::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* Home page animated background: sketch lines keep drawing themselves, like an
+   animator's line test. Each doodle draws on, holds, un-draws, then glides to a
+   new random spot with a random tilt and draws again (driven by site.js).
+   Stroke-only and faint so it never fights the text; reduced motion leaves the
+   sketches fully drawn and still. */
+.bg-scene {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.bg-doodles {
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+.bg-doodles .d-unit {
+  transition: transform 1.1s cubic-bezier(0.33, 1, 0.36, 1);
+}
+.bg-doodles .d-path {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.9s ease-in-out;
+}
+.d-gold .d-path  { stroke: var(--gold); }
+.d-blue .d-path  { stroke: var(--accent); }
+.d-sage .d-path  { stroke: var(--accent-2); }
+@media (prefers-reduced-motion: reduce) {
+  .bg-doodles .d-path { transition: none; stroke-dashoffset: 0; }
+  .bg-doodles .d-unit { transition: none; }
+}
+
 .hidden { display: none !important; }
 .mono { font-family: var(--mono); }
 .muted { color: var(--muted); }
