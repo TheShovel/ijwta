@@ -2274,10 +2274,18 @@
 
   function renderAssets() {
     var imgs = state.assets;
-    // Skip the DOM rebuild when the panel already matches: same tile count
-    // (an empty panel shows one placeholder) and the same image set.
-    assetImgs = new Set(imgs.map(function (a) { return a.img; }));
-    if (el.assetGrid.childElementCount === (imgs.length || 1)) return;
+    // Rebuild only when the actual image set changed (compare srcs, not the
+    // tile count: remove one and add another of the same size otherwise keeps
+    // a stale panel).
+    var srcs = imgs.map(function (a) { return a.img; });
+    var changed = srcs.length !== assetImgs.size;
+    if (!changed) {
+      for (var i = 0; i < srcs.length; i++) {
+        if (!assetImgs.has(srcs[i])) { changed = true; break; }
+      }
+    }
+    assetImgs = new Set(srcs);
+    if (!changed) return;
     assetCache = imgs.slice();
     el.assetGrid.innerHTML = '';
     if (!imgs.length) {
@@ -2561,21 +2569,29 @@
   // Keyframes are created by dragging an asset from the panel onto the
   // timeline (see addAssetKeyframe).
   function addImageFiles(files) {
-    if (!files || !files.length) return Promise.resolve(0);
-    var chain = Promise.resolve();
+    if (!files || !files.length) return Promise.resolve({ added: 0, failed: 0 });
+    var list = Array.prototype.slice.call(files);
     var added = 0;
-    Array.prototype.forEach.call(files, function (file) {
-      chain = chain.then(function () {
-        return readImageFile(file).then(function (data) {
-          if (state.assets.some(function (a) { return a.img === data.img; })) return;
-          state.assets.push({ img: data.img, name: data.name, w: data.w, h: data.h });
-          added++;
-        });
-      });
-    });
-    return chain.then(function () {
+    var failed = 0;
+    var idx = 0;
+    function next() {
+      if (idx >= list.length) return;
+      var file = list[idx++];
+      return readImageFile(file).then(function (data) {
+        if (state.assets.some(function (a) { return a.img === data.img; })) return;
+        state.assets.push({ img: data.img, name: data.name, w: data.w, h: data.h });
+        added++;
+      }).catch(function () {
+        // One bad file must not drop the rest of the batch.
+        failed++;
+      }).then(next);
+    }
+    var workers = [];
+    var concurrency = Math.min(3, list.length);
+    for (var i = 0; i < concurrency; i++) workers.push(next());
+    return Promise.all(workers).then(function () {
       renderAssets();
-      return added;
+      return { added: added, failed: failed };
     });
   }
   // Place a keyframe reusing an image already in the library (asset drag & drop).
@@ -4516,8 +4532,13 @@
     byId('btnEmptyAdd').addEventListener('click', function () { el.fileInput.click(); });
     // Loading images only fills the library; place keyframes by dragging an
     // asset from the panel onto the timeline.
-    function libraryToast(n) {
-      if (n > 0) toast(n + (n === 1 ? ' image added to your library' : ' images added to your library'));
+    function libraryToast(r) {
+      if (!r) return;
+      if (r.added > 0) {
+        toast(r.added + (r.added === 1 ? ' image added' : ' images added') + ' to your library' + (r.failed ? ', ' + r.failed + ' skipped' : ''));
+      } else if (r.failed > 0) {
+        toast(r.failed + (r.failed === 1 ? ' image could not be read' : ' images could not be read'));
+      }
     }
     el.fileInput.addEventListener('change', function () {
       if (el.fileInput.files && el.fileInput.files.length) {
