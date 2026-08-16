@@ -5161,7 +5161,7 @@
       window.open('docs.html', '_blank');
     });
     el.btnStartGithub.addEventListener('click', function () {
-      window.open('https://github.com/TheShovel/ijwta', '_blank');
+      window.open('https://github.com/TheShovel/khuwari', '_blank');
     });
     el.btnStartCredits.addEventListener('click', function () {
       window.open('credits.html', '_blank');

@@ -5,10 +5,10 @@
 **Frame interpolation animation, right in your browser.**
 
 <div>
-  <img src="https://img.shields.io/github/stars/TheShovel/ijwta?style=flat-square&logo=github" alt="Stars">&nbsp;&nbsp;
-  <img src="https://img.shields.io/github/languages/top/TheShovel/ijwta?style=flat-square&logo=javascript&label=language" alt="Language">&nbsp;&nbsp;
-  <img src="https://img.shields.io/github/license/TheShovel/ijwta?style=flat-square" alt="License">&nbsp;&nbsp;
-  <img src="https://img.shields.io/github/last-commit/TheShovel/ijwta?style=flat-square&logo=git" alt="Last Commit">
+  <img src="https://img.shields.io/github/stars/TheShovel/khuwari?style=flat-square&logo=github" alt="Stars">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/languages/top/TheShovel/khuwari?style=flat-square&logo=javascript&label=language" alt="Language">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/license/TheShovel/khuwari?style=flat-square" alt="License">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/last-commit/TheShovel/khuwari?style=flat-square&logo=git" alt="Last Commit">
 </div>
 
 </div>
@@ -28,7 +28,7 @@ Khuwari is a browser based animation tool that fills in the frames between your 
 
 ## Try it
 
-The easiest way is to open Khuwari straight from the website in your browser. No install, nothing to set up, everything runs in the tab.
+The easiest way is to open Khuwari straight from the [website](https://theshovel.rocks/khuwari/) in your browser. No install, nothing to set up, everything runs in the tab.
 
 You can also host it yourself. Khuwari is a static site, so any file server works:
 
@@ -40,7 +40,7 @@ Then open http://localhost:4000 to browse the site, and http://localhost:4000/ed
 
 ## Documentation
 
-The website lives at the root of the repo: the home page is `index.html`, the docs hub is [docs.html](docs.html) with a live search across every category, each category has its own page under [docs/](docs/), and the credits page is [credits.html](credits.html).
+The website lives at [theshovel.rocks/khuwari](https://theshovel.rocks/khuwari/): the home page, the [docs hub](https://theshovel.rocks/khuwari/docs.html) with a live search across every category, each category's own [page](https://theshovel.rocks/khuwari/docs/getting-started.html) under the docs section, and the [credits page](https://theshovel.rocks/khuwari/credits.html).
 
 ## How it works
 
@@ -53,7 +53,7 @@ Projects save as single `.khuwari` files, which are plain JSON.
 
 ## Credits
 
-Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](credits.html) for the full list.
+Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](https://theshovel.rocks/khuwari/credits.html) for the full list.
 
 ## License
 

@@ -17,7 +17,7 @@ const NAV = `<nav class="nav">
     <a href="../index.html">Home</a>
     <a href="../docs.html" class="active">Docs</a>
     <a href="../credits.html">Credits</a>
-    <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+    <a href="https://github.com/TheShovel/khuwari">GitHub</a>
   </div>
   <div class="nav-cta">
     <a class="btn primary" href="../editor.html">Open Khuwari</a>
@@ -34,7 +34,7 @@ const FOOTER = `<footer class="footer">
       <a href="../index.html">Home</a>
       <a href="../docs.html">Docs</a>
       <a href="../credits.html">Credits</a>
-      <a href="https://github.com/TheShovel/ijwta">GitHub</a>
+      <a href="https://github.com/TheShovel/khuwari">GitHub</a>
     </div>
     <p class="footer-license">Khuwari is open source under the AGPL-3.0 license. Frame interpolation animation, right in your browser.</p>
   </div>
@@ -657,7 +657,7 @@ const CATEGORIES = [
         ${FIG.appWindow}
       ` },
       { id: 'open-app', title: 'Open the app', html: `
-        <p>The easiest way is to open the app straight from the Khuwari website in your browser. No install, nothing to set up, everything runs in the tab. This is the recommended way to use Khuwari.</p>
+        <p>The easiest way is to open the app straight from the <a href="https://theshovel.rocks/khuwari/" target="_blank" rel="noopener">Khuwari website</a> in your browser. No install, nothing to set up, everything runs in the tab. This is the recommended way to use Khuwari.</p>
         <p>You can also host it yourself. Khuwari is a static site, so any file server works.</p>
         <ol>
           <li>Serve the project folder, for example with <code>python3 -m http.server 4000</code>.</li>

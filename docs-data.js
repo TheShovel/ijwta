@@ -6,7 +6,7 @@ window.KHUWARI_DOCS = [
     text: 'Khuwari is a browser based animation tool that fills in the frames between your keyframes using machine learning. You draw or import the important poses, place them on the timeline, and Khuwari generates everything in between. It runs entirely in your browser. The machine learning model is downloaded once, and your art never leaves your machine.',
     url: 'docs/getting-started.html' },
   { cat: 'Getting started', slug: 'getting-started', id: 'open-app', title: 'Open the app',
-    text: 'The easiest way is to use Khuwari straight from the website in your browser, no install. You can also host it yourself with any static file server and open index.html. From the start screen you can start a new project, load an existing .khuwari file, or try the bundled example project. The example project is the fastest way to see what a finished animation looks like. Load it and press play.',
+    text: 'The easiest way is to use Khuwari straight from the website at theshovel.rocks/khuwari, in your browser, no install. You can also host it yourself with any static file server and open index.html. From the start screen you can start a new project, load an existing .khuwari file, or try the bundled example project. The example project is the fastest way to see what a finished animation looks like. Load it and press play.',
     url: 'docs/getting-started.html' },
   { cat: 'Getting started', slug: 'getting-started', id: 'project-files', title: 'Project files',
     text: 'Projects save as .khuwari files. They are plain JSON files that hold your layers, keyframes, gaps and settings, so they are easy to version and share. Use File in the toolbar, then Save project (.khuwari) to download one, and Load project to bring one back.',
