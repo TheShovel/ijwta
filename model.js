@@ -11,7 +11,7 @@
  *
  * Swap ORT_VERSION / ORT_CDN / MODEL_URL below to change sources.
  */
-(typeof self !== 'undefined' ? self : window).IJWTA_MODEL = (function () {
+(typeof self !== 'undefined' ? self : window).KHUWARI_MODEL = (function () {
   'use strict';
 
   var root = (typeof self !== 'undefined' ? self : window);

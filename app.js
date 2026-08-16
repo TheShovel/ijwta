@@ -1,4 +1,4 @@
-/* app.js — Ijwta timeline app
+/* app.js — Khuwari timeline app
  *
  * Places keyframe images on a timeline at arbitrary times; a pure-JS morph engine
  * (see morph.js) fills each gap with interpolated frames: one per tick of the gap,
@@ -9,9 +9,9 @@
 (function () {
   'use strict';
 
-  var morph = window.IJWTA_MORPH;
+  var morph = window.KHUWARI_MORPH;
   var gifenc = window.gifenc;
-  var model = window.IJWTA_MODEL;
+  var model = window.KHUWARI_MODEL;
 
   var state = {
     keyframes: [],        // { id, layer, time, img, name, w, h }
@@ -60,11 +60,11 @@
   var GUTTER_W = 96; // px at the left of the timeline reserved for layer names
   var TL_H_DEFAULT = 188; // px, initial timeline height (see .timeline-col)
   var TL_H_MIN = 96;      // px, smallest the timeline can be dragged to
-  var TL_H_KEY = 'ijwta-timeline-h'; // UI preference, not part of the project file
+  var TL_H_KEY = 'khuwari-timeline-h'; // UI preference, not part of the project file
   var SIDE_W_DEFAULT = 212; // px, initial side panel width (see .side-col)
   var SIDE_W_MIN = 140;     // px, smallest a side panel can be dragged to
-  var SIDE_W_KEY_L = 'ijwta-side-w-l'; // UI preferences, not part of the project file
-  var SIDE_W_KEY_R = 'ijwta-side-w-r';
+  var SIDE_W_KEY_L = 'khuwari-side-w-l'; // UI preferences, not part of the project file
+  var SIDE_W_KEY_R = 'khuwari-side-w-r';
   var toastTimer = null;
   var WARN_GEN_COUNT = 5; // gaps needing more inbetweens than this get a red warning
 
@@ -4194,11 +4194,11 @@
     });
   }
 
-  // File menu: export the project as an .ijwta file (Save) / import one (Load).
+  // File menu: export the project as a .khuwari file (Save) / import one (Load).
   function saveProjectFile() {
     var blob = new Blob([JSON.stringify(projectData(), null, 2)], { type: 'application/json' });
-    downloadBlob(blob, 'ijwta-project.ijwta', 'application/json');
-    toast('Project saved (.ijwta)');
+    downloadBlob(blob, 'khuwari-project.khuwari', 'application/json');
+    toast('Project saved (.khuwari)');
   }
 
   function loadProjectFile(file) {
@@ -4229,7 +4229,7 @@
         scheduleGenerate(100);
         toast('Project loaded');
       } catch (e) {
-        toast('Could not load project file. Choose an .ijwta file saved from this app.');
+        toast('Could not load project file. Choose a .khuwari file saved from this app.');
       }
     };
     reader.readAsText(file);
@@ -4267,22 +4267,22 @@
     enterApp();
   }
 
-  // Load the bundled example project (example.ijwta) from the start screen's
-  // "Example project" button. It is a normal project file, so it goes through
-  // the same load path as a user-picked .ijwta.
+  // Load the bundled example project (example.khuwari) from the start screen's
+  // example button (served locally, so no cross-origin fetch restrictions), via
+  // the same load path as a user-picked .khuwari.
   function openExample() {
-    fetch('example.ijwta').then(function (r) {
+    fetch('example.khuwari').then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
     }).then(function (blob) {
-      loadProjectFile(new File([blob], 'example.ijwta', { type: 'application/json' }));
+      loadProjectFile(new File([blob], 'example.khuwari', { type: 'application/json' }));
     }).catch(function (e) {
       toast('Could not load the example project: ' + (e && e.message ? e.message : e));
     });
   }
 
   function openCredits() {
-    el.creditsText.innerHTML = 'Ijwta · I just want to animate.<br><br>' +
+    el.creditsText.innerHTML = 'Khuwari · I just want to animate.<br><br>' +
       'Frame interpolation: RIFE (ONNX Runtime Web) with a pure-JS mesh-warp fallback.<br>' +
       'Encoding: gifenc (GIF) · mp4-muxer (MP4).<br>' +
       'Built as a local, serverless tool. Nothing leaves your browser.';
@@ -4849,7 +4849,7 @@
     wireMenu(el.btnExport, el.exportMenu, populateExportRes);
     document.addEventListener('click', closeMenus);
 
-    // File menu: save / load project .ijwta files
+    // File menu: save / load project .khuwari files
     el.btnSaveProject.addEventListener('click', saveProjectFile);
     el.btnLoadProject.addEventListener('click', function () { el.projectInput.click(); });
     el.projectInput.addEventListener('change', function () {
@@ -4865,10 +4865,10 @@
     el.btnStartLoad.addEventListener('click', function () { el.projectInput.click(); });
     el.btnStartExample.addEventListener('click', openExample);
     el.btnStartDocs.addEventListener('click', function () {
-      window.open('https://github.com/TheShovel/ijwta#readme', '_blank');
+      window.open('https://github.com/TheShovel/khuwari#readme', '_blank');
     });
     el.btnStartGithub.addEventListener('click', function () {
-      window.open('https://github.com/TheShovel/ijwta', '_blank');
+      window.open('https://github.com/TheShovel/khuwari', '_blank');
     });
     el.btnStartCredits.addEventListener('click', openCredits);
     el.btnCreditsClose.addEventListener('click', function () { el.creditsOverlay.classList.add('hidden'); });

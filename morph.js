@@ -18,7 +18,7 @@
  * cleans mask islands/holes, then regenerates that inbetween from the warped
  * endpoints. Deterministic and fully offline.
  */
-(typeof self !== 'undefined' ? self : window).IJWTA_MORPH = (function () {
+(typeof self !== 'undefined' ? self : window).KHUWARI_MORPH = (function () {
   'use strict';
 
   // Image helpers (single-channel Float32Array luma)

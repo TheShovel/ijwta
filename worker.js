@@ -30,8 +30,8 @@ var yieldToEventLoop = (typeof MessageChannel !== 'undefined')
     })()
   : function () { return new Promise(function (r) { setTimeout(r, 0); }); };
 
-var morph = self.IJWTA_MORPH;
-var model = self.IJWTA_MODEL;
+var morph = self.KHUWARI_MORPH;
+var model = self.KHUWARI_MODEL;
 var cancelled = false;
 var upscaleCancelled = false;
 
