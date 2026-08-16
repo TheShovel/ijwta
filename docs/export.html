@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Export — Khuwari</title>
-<meta name="description" content="PNG sequences, GIFs, MP4 videos and exporting the current frame.">
+<title>Export · Khuwari</title>
+<meta name="description" content="PNG sequences, GIFs, video in five containers and exporting the current frame.">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
@@ -55,45 +55,55 @@
 
     <header class="doc-head rise-1">
       <h1>Export</h1>
-      <p>PNG sequences, GIFs, MP4 videos and exporting the current frame.</p>
+      <p>PNG sequences, GIFs, video in five containers and exporting the current frame.</p>
     </header>
 
     
     <section class="doc-sec" id="formats">
       <h2>Formats</h2>
       
-        <p>The <code>Export</code> button in the toolbar offers four formats.</p>
+        <p>The <code>Export</code> button in the toolbar offers stills, a GIF, video in five containers and the current frame.</p>
         <table class="doc-table">
           <thead><tr><th>Format</th><th>Use it for</th></tr></thead>
           <tbody>
             <tr><td>PNG sequence (.zip)</td><td>frame by frame work, other tools</td></tr>
             <tr><td>Animated GIF</td><td>quick loops and web embeds</td></tr>
-            <tr><td>MP4 video</td><td>full animation with sound ready to share</td></tr>
+            <tr><td>MP4 video</td><td>the widest compatibility</td></tr>
+            <tr><td>WebM video</td><td>small modern web videos</td></tr>
+            <tr><td>MKV video</td><td>archival and everything inside one file</td></tr>
+            <tr><td>MOV video</td><td>Apple and video editing workflows</td></tr>
+            <tr><td>MPEG-TS video</td><td>broadcast and streaming pipelines</td></tr>
             <tr><td>Current frame (PNG)</td><td>a single still</td></tr>
           </tbody>
         </table>
+        <p>Every video container picks the best codec your browser can actually encode, so you get a playable file wherever the format is supported.</p>
         
 <figure class="doc-fig">
-  <svg viewBox="0 0 720 290" role="img" aria-label="The export menu with format and resolution options" class="fig-border">
-    <rect x="8" y="8" width="300" height="274" rx="10" fill="#2a3038" stroke="#39414d"/>
-    <text x="28" y="44" font-size="13.5" fill="#98a1ad">Format</text>
-    <rect x="28" y="52" width="260" height="34" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="74" font-size="14" fill="#e6e9ee">Animated GIF</text>
-    <path d="M268 64 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <text x="28" y="116" font-size="13.5" fill="#98a1ad">Resolution</text>
-    <rect x="28" y="124" width="260" height="34" rx="7" fill="#1e232a" stroke="#39414d"/>
-    <text x="44" y="146" font-size="14" fill="#e6e9ee">1920 × 1080</text>
-    <path d="M268 136 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
-    <line x1="28" y1="176" x2="288" y2="176" stroke="#39414d"/>
-    <rect x="28" y="192" width="260" height="40" rx="8" fill="#8aa3b9"/>
-    <text x="158" y="218" font-size="16" fill="#161a20" font-weight="600" text-anchor="middle">Export</text>
-    <text x="360" y="60" font-size="16.5" fill="#e6e9ee" font-weight="600">One menu, four formats</text>
-    <circle cx="368" cy="92" r="3.5" fill="#8aa3b9"/><text x="380" y="96" font-size="15" fill="#98a1ad">PNG sequence in a zip</text>
-    <circle cx="368" cy="118" r="3.5" fill="#8aa3b9"/><text x="380" y="122" font-size="15" fill="#98a1ad">animated GIF</text>
-    <circle cx="368" cy="144" r="3.5" fill="#8aa3b9"/><text x="380" y="148" font-size="15" fill="#98a1ad">MP4 video</text>
-    <circle cx="368" cy="170" r="3.5" fill="#8aa3b9"/><text x="380" y="174" font-size="15" fill="#98a1ad">the current frame as a PNG</text>
-    <circle cx="368" cy="196" r="3.5" fill="#8aa3b9"/><text x="380" y="200" font-size="15" fill="#98a1ad">pick any resolution, any time</text>
-    <circle cx="368" cy="222" r="3.5" fill="#8aa3b9"/><text x="380" y="226" font-size="15" fill="#98a1ad">exports match playback exactly</text>
+  <svg viewBox="0 0 720 330" role="img" aria-label="The export menu with the video format dropdown open and resolution options" class="fig-border">
+    <rect x="8" y="8" width="300" height="314" rx="10" fill="#2a3038" stroke="#39414d"/>
+    <text x="28" y="40" font-size="13.5" fill="#98a1ad">Format</text>
+    <rect x="28" y="48" width="260" height="150" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <rect x="36" y="58" width="244" height="26" rx="6" fill="#313844"/>
+    <text x="44" y="76" font-size="14" fill="#e6e9ee">MP4 video</text>
+    <text x="44" y="102" font-size="14" fill="#e6e9ee">WebM video</text>
+    <text x="44" y="128" font-size="14" fill="#e6e9ee">MKV video</text>
+    <text x="44" y="154" font-size="14" fill="#e6e9ee">MOV video</text>
+    <text x="44" y="180" font-size="14" fill="#e6e9ee">MPEG-TS video</text>
+    <path d="M272 120 l7 7 7 -7" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <text x="28" y="222" font-size="13.5" fill="#98a1ad">Resolution</text>
+    <rect x="28" y="230" width="260" height="34" rx="7" fill="#1e232a" stroke="#39414d"/>
+    <text x="44" y="252" font-size="14" fill="#e6e9ee">1920 × 1080</text>
+    <path d="M268 242 l6 6 10 -10" stroke="#8aa3b9" stroke-width="2" fill="none"/>
+    <line x1="28" y1="278" x2="288" y2="278" stroke="#39414d"/>
+    <rect x="28" y="288" width="260" height="36" rx="8" fill="#8aa3b9"/>
+    <text x="158" y="312" font-size="16" fill="#161a20" font-weight="600" text-anchor="middle">Export</text>
+    <text x="360" y="54" font-size="16.5" fill="#e6e9ee" font-weight="600">Pick your container</text>
+    <circle cx="368" cy="88" r="3.5" fill="#8aa3b9"/><text x="380" y="92" font-size="15" fill="#98a1ad">MP4 for the widest compatibility</text>
+    <circle cx="368" cy="118" r="3.5" fill="#8aa3b9"/><text x="380" y="122" font-size="15" fill="#98a1ad">WebM and MKV for sharing and archives</text>
+    <circle cx="368" cy="148" r="3.5" fill="#8aa3b9"/><text x="380" y="152" font-size="15" fill="#98a1ad">MOV for Apple workflows</text>
+    <circle cx="368" cy="178" r="3.5" fill="#8aa3b9"/><text x="380" y="182" font-size="15" fill="#98a1ad">MPEG-TS for broadcast pipelines</text>
+    <circle cx="368" cy="208" r="3.5" fill="#8aa3b9"/><text x="380" y="212" font-size="15" fill="#98a1ad">every format picks the best codec your browser can encode</text>
+    <circle cx="368" cy="238" r="3.5" fill="#8aa3b9"/><text x="380" y="242" font-size="15" fill="#98a1ad">exports match playback exactly</text>
   </svg>
   <figcaption>The export menu. Pick a format and resolution, then hit Export.</figcaption>
 </figure>

@@ -1,21 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none" role="img" aria-label="Khuwari logo">
-  <defs>
-    <radialGradient id="khuwari-glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#8aa3b9" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#8aa3b9" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="khuwari-star" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#9ab2c6"/>
-      <stop offset="100%" stop-color="#7792aa"/>
-    </linearGradient>
-  </defs>
-  <!-- soft halo -->
-  <circle cx="48" cy="48" r="46" fill="url(#khuwari-glow)"/>
-  <!-- trailing keyframes, like inbetween ghosts -->
-  <path d="M48 14 L63 33 L82 48 L63 63 L48 82 L33 63 L14 48 L33 33 Z" fill="#c3ab7d" opacity="0.16" transform="translate(-14 10)"/>
-  <path d="M48 14 L63 33 L82 48 L63 63 L48 82 L33 63 L14 48 L33 33 Z" fill="#8fb0a2" opacity="0.30" transform="translate(-7 5)"/>
-  <!-- main mark -->
-  <path d="M48 14 L63 33 L82 48 L63 63 L48 82 L33 63 L14 48 L33 33 Z" fill="url(#khuwari-star)" stroke="#c9d8e4" stroke-width="5" stroke-linejoin="round"/>
-  <!-- the seed dot, the point that grows into motion -->
-  <circle cx="48" cy="48" r="5.5" fill="#c3ab7d"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Khuwari logo">
+  <!-- the frame: one keyframe, the canvas -->
+  <rect x="9" y="9" width="46" height="46" rx="10" fill="none" stroke="#8aa3b9" stroke-width="3.5"/>
+  <!-- the interpolation mesh, warped toward the pull -->
+  <path d="M9 40 C 20 38, 32 34, 44 28" fill="none" stroke="#8fb0a2" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M32 9 C 34 18, 38 24, 44 28" fill="none" stroke="#8fb0a2" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <!-- the inbetween keyframe, tugging the mesh out of the frame -->
+  <path d="M40 22 L52 16 L62 28 L50 36 Z" fill="#c3ab7d" stroke="#1b1f25" stroke-width="1.5" stroke-linejoin="round"/>
 </svg>

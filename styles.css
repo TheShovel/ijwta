@@ -1,4 +1,4 @@
-/* Khuwari — smooth matte Nordic editor UI */
+/* Khuwari, smooth matte Nordic editor UI */
 
 :root {
   --bg: #1b1f25;          /* deep slate */
@@ -31,7 +31,7 @@ body {
   flex-direction: column;
 }
 
-/* subtle grain over everything — smooth matte texture */
+/* subtle grain over everything, a smooth matte texture */
 body::after {
   content: "";
   position: fixed;

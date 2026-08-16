@@ -1,4 +1,4 @@
-/* morph.js — pure-JS image morphing engine (no ML model, no GPU, no network).
+/* morph.js: pure-JS image morphing engine (no ML model, no GPU, no network).
  *
  * Interpolates between two keyframe images by:
  *   1. estimating dense optical flow A->B and B->A (coarse-to-fine block matching
@@ -10,7 +10,7 @@
  *   3. for each intermediate time t, deforming A forward and B backward along the
  *      mesh flow and cross-dissolving the two deformations (a classic morph: both
  *      sides render the same intermediate shape, so the dissolve is invisible),
- *      with holes — content revealed between the keyframes — filled from B.
+ *      with holes (content revealed between the keyframes) filled from B.
  *
  * Everything runs on the CPU with typed arrays; a gap's flow is computed once,
  * then every frame is a cheap warp+blend. Some frames can additionally use the
@@ -70,7 +70,7 @@
   }
 
   // Same as applyGrayAlpha but reads the model's RAW [1,3,H,W] float output
-  // (r=g=b planes for a gray input) instead of a converted RGBA buffer — skips
+  // (r=g=b planes for a gray input) instead of a converted RGBA buffer; this skips
   // the intermediate per-channel conversion of the alpha pass entirely. The
   // current RGBA path also only ever reads the R channel, so this is
   // byte-identical. `tensor` is the raw Float32Array output data.
@@ -81,7 +81,7 @@
       var a = t[p];
       if (a < 0) a = 0; else if (a > 1) a = 1;
       // Round to 8-bit FIRST and derive the strip factor from the rounded
-      // value — identical to the RGBA path (which rounds in the tensor→RGBA
+      // value: identical to the RGBA path (which rounds in the tensor→RGBA
       // conversion, then divides by 255) so output is byte-for-byte the same.
       var a8 = Math.round(a * 255);
       var inv = 1 - a8 / 255;
@@ -301,7 +301,7 @@
         }
         if (!len) { ou[p] = u[p]; ov[p] = v[p]; continue; }
         // Uniform window (static background, flat interiors): the median is the
-        // value itself — skip the sort entirely. Otherwise insertion sort: the
+        // value itself, so skip the sort entirely. Otherwise insertion sort: the
         // window overlaps almost fully between adjacent pixels, so the values
         // are nearly sorted and insertion sort beats Array#sort (no comparator
         // callbacks, no garbage) with the same median.
@@ -348,7 +348,7 @@
   // Dense flow via coarse-to-fine block matching. The source patch around
   // (x,y) is gathered once per pixel (row-major, matching the old per-offset
   // loops exactly), then each candidate offset walks it skipping out-of-bounds
-  // targets. Same arithmetic order as before, so results are identical — but
+  // targets. Same arithmetic order as before, so results are identical, but
   // no per-offset function calls and no patch re-gathering.
   function blockMatch(a, b, wa, ha, uIn, vIn, searchR, patchR, isCancelled) {
     var n = wa * ha;
@@ -393,7 +393,7 @@
         // Start from the current estimate so ties in flat regions keep it
         // (otherwise every refinement pass drifts toward the first candidate).
         // Candidate order matches the original: the (0,0) estimate is evaluated
-        // first, then every offset in scan order — strict < keeps the first
+        // first, then every offset in scan order; strict < keeps the first
         // (earliest) minimum on ties, so results are identical.
         var k, offx, offy, sum, cnt, d, s, ty, tx;
         offx = cu; offy = cv;
@@ -473,7 +473,7 @@
 
   // Level-walking core of computeFlowGray, given prebuilt pyramids. Both
   // directions of a flow pair build the SAME two pyramids (swapped), so
-  // computeFlowBoth builds them once and reuses them here — identical output,
+  // computeFlowBoth builds them once and reuses them here: identical output,
   // two fewer pyramid builds per pair.
   function computeFlowGrayLevels(levelsA, levelsB, opts, onStep, isCancelled) {
     opts = opts || {};
@@ -580,7 +580,7 @@
   // against the sharp line art beneath, and noisy flow at object edges stops
   // producing single-pixel color speckles.
   // Sliding-window sums make this O(n) instead of O(n·r); channel values are
-  // integers so the running sum is exact — byte-identical to the old loop.
+  // integers so the running sum is exact: byte-identical to the old loop.
   function smoothRGBA(rgba, w, h, r) {
     var n = w * h;
     var tmp = new Uint8ClampedArray(rgba.length);
@@ -650,7 +650,7 @@
 
   // Limit a warped color pass's alpha to the source frame's silhouette: the
   // fill only shows where the source layer is opaque, so colors never bleed
-  // outside the drawing — no matter the line art's style or color. What is
+  // outside the drawing, no matter the line art's style or color. What is
   // "line" vs "paper" inside the silhouette is left to the multiply blend
   // (dark stays dark, light gets tinted), so fluffy soft edges and any-color
   // line art both work.
@@ -666,7 +666,7 @@
   // Used by color layers: the colored pass of one frame is warped to follow
   // the line-art frame it colors, so colors track the animation. A positive
   // radius smooths the result (feathered edges) to avoid jagged color edges.
-  // Bilinear sampling is inlined — no per-pixel function calls or allocation.
+  // Bilinear sampling is inlined: no per-pixel function calls or allocation.
   function warpFrame(src, flowAB, width, height, radius) {
     var u = flowAB.u, v = flowAB.v;
     var out = new Uint8ClampedArray(src.length);
@@ -792,12 +792,12 @@
 
   // Each vertex of a coarse grid samples the (already edge-aware-median-smoothed)
   // dense flow bilinearly; bilinear interpolation between vertices makes the warp
-  // behave like deforming a mesh — nearby pixels always move coherently and
+  // behave like deforming a mesh: nearby pixels always move coherently and
   // per-pixel strays/tearing are impossible. Crucially the vertex values are NOT
   // smoothed afterwards: the dense flow's occlusion completion (repairFlow)
   // extends the object's motion across the occluded band, and averaging that away
   // at vertices made the warp mis-read the object's trailing half (cut/slice
-  // look). The completion taper is left intact — the render's dissolve + hole-fill
+  // look). The completion taper is left intact; the render's dissolve + hole-fill
   // keeps the completed band invisible.
   function buildMesh(u, v, w, h, cell) {
     cell = Math.max(4, Math.round(cell));
@@ -849,7 +849,7 @@
   // Classic morph render: each side is deformed toward the other along the mesh
   // flow, and the two deformations are cross-dissolved by t. When the flows are
   // right (translation, rotation, deformation) both warps produce the SAME
-  // intermediate shape, so the dissolve is invisible — no seams, no cuts, and
+  // intermediate shape, so the dissolve is invisible: no seams, no cuts, and
   // no per-pixel occlusion weights to ghost rotations. Where A's deformation
   // doesn't cover (content revealed between the keyframes, plus rounding
   // cracks), the pixel is filled from B using the un-repaired flow, so revealed
@@ -862,8 +862,8 @@
   // Interpolate ONLY the alpha channel for an AI frame (RGB model, alpha 255)
   // so it can borrow the layer's transparency. Each endpoint's alpha is warped
   // to time t along the mesh flow and the two are UNIONED (max): a moving
-  // silhouette stays fully opaque through its whole path — the leading edge is
-  // covered by A's warp, the trailing edge by B's — instead of cross-dissolving
+  // silhouette stays fully opaque through its whole path; the leading edge is
+  // covered by A's warp, the trailing edge by B's, instead of cross-dissolving
   // into a semi-transparent ghost. Revealed background stays clear.
   function warpAlpha(aData, bData, meshes, width, height, t) {
     var meshAB = meshes.meshAB, meshBA = meshes.meshBA;
@@ -1392,7 +1392,7 @@
   // motion direction (the mesh flow), with the amount scaling with the pixel's
   // motion magnitude and easing in and out across the gap (sin(pi·t): no blur at
   // the keyframes, peak mid-gap). Static regions are copied untouched, so only
-  // content that actually moved gets a streak — that is what makes it accurate
+  // content that actually moved gets a streak; that is what makes it accurate
   // motion blur (and what masks warp/AI imperfections along the motion path).
   function motionBlurFrame(rgba, meshes, width, height, t, intensity) {
     var n = width * height;
@@ -1481,7 +1481,7 @@
   }
 
   // True when every pixel's alpha channel is 255 (no transparency). Lets the AI
-  // path skip the mesh-warped alpha pass entirely — RIFE already renders alpha
+  // path skip the mesh-warped alpha pass entirely; RIFE already renders alpha
   // 255, so the result is byte-identical while saving a full mesh warp per frame.
   function isOpaque(rgba) {
     for (var i = 3; i < rgba.length; i += 4) {
@@ -1491,7 +1491,7 @@
   }
 
   // Byte equality of two RGBA buffers (fast-fail on length). Used to detect
-  // duplicate keyframes — every inbetween of such a gap is the keyframe itself.
+  // duplicate keyframes; every inbetween of such a gap is the keyframe itself.
   function buffersEqual(a, b) {
     if (!a || !b || a.length !== b.length) return false;
     for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -1499,7 +1499,7 @@
   }
 
   // Whether two keyframes share the same alpha mask (silhouette didn't move or
-  // reshape) — then the interpolated alpha is that static mask and the second
+  // reshape); then the interpolated alpha is that static mask and the second
   // (alpha) model pass can be skipped. Only every 4th byte is compared.
   function sameAlpha(a, b, n) {
     if (!a || !b) return false;
@@ -1518,7 +1518,7 @@
 
   // Pick a key color for the matte: a general (not just pure) color that is
   // rare in both frames' OPAQUE content. Histogram the opaque pixels at 4 bits
-  // per channel and take the least-used bucket's center — realistic frames have
+  // per channel and take the least-used bucket's center; realistic frames have
   // small palettes, so that bucket is far from almost all content and the
   // decoder's keyness stays near zero for content (opaque) and near one for the
   // painted background. Transparent pixels are excluded: their RGB is garbage.
@@ -1576,7 +1576,7 @@
   //
   // The fill functions carry a `.bounds` property on the mask ({ x0, y0, x1,
   // y1 }, inclusive) so the grow and paint steps can stay inside the region
-  // instead of re-scanning the whole canvas — byte-identical output, but the
+  // instead of re-scanning the whole canvas; byte-identical output, but the
   // cost scales with the filled area instead of the canvas.
 
   // Flood-fill mask from a seed pixel. Returns a Uint8Array(n) mask (1 = fill)
@@ -1658,7 +1658,7 @@
   // regardless of how large grow is (iterative dilation would be O(n·grow)).
   // Chamfer distance units are 3 per orthogonal step, so a pixel is included
   // when its distance is at most grow*3. When `bounds` is given the transform
-  // runs only inside the bbox padded by `grow` — byte-identical to running on
+  // runs only inside the bbox padded by `grow`; byte-identical to running on
   // the whole canvas (pixels further than grow from the mask are untouched),
   // but the cost scales with the region, not the canvas.
   function fillDilate(mask, w, h, grow, bounds) {

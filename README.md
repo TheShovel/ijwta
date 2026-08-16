@@ -1,25 +1,36 @@
+<div align="center">
+
 # Khuwari
 
-Frame interpolation animation, right in your browser.
+**Frame interpolation animation, right in your browser.**
+
+<div>
+  <img src="https://img.shields.io/github/stars/TheShovel/ijwta?style=flat-square&logo=github" alt="Stars">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/languages/top/TheShovel/ijwta?style=flat-square&logo=javascript&label=language" alt="Language">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/license/TheShovel/ijwta?style=flat-square" alt="License">&nbsp;&nbsp;
+  <img src="https://img.shields.io/github/last-commit/TheShovel/ijwta?style=flat-square&logo=git" alt="Last Commit">
+</div>
+
+</div>
 
 Khuwari is a browser based animation tool that fills in the frames between your keyframes with machine learning. You bring the art, it brings the inbetweens. Everything runs locally, so your images and projects never leave your machine.
 
-> I just want to animate.
-
 ## What you can do
 
-- **ML inbetweens** — a machine learning model generates the frames between your keyframes, with a pure JavaScript mesh warp fallback and a squash and stretch mode per gap.
-- **Layer based timeline** — backgrounds, characters and effects each live on their own layer, with their own keyframes and gaps.
-- **Color fill dots** — drop dots on a color layer and they fill the line art on the layer above, each with its own threshold, grow radius, gradient and timing.
-- **Onion skinning** — see the frames around the one you are working on, as ghosts or tinted, with configurable frame counts.
-- **Motion blur** — per gap motion blur that eases in and out with the movement, to mask small interpolation imperfections.
-- **Blend modes** — 16 blend modes per keyframe.
-- **Export** — PNG sequence, animated GIF or MP4, at the resolution you pick.
-- **Local and private** — the whole tool runs in your browser. No accounts, no uploads, no tracking.
+- **ML inbetweens.** A machine learning model generates the frames between your keyframes, with a pure JavaScript mesh warp fallback and a squash and stretch mode per gap.
+- **Layer based timeline.** Backgrounds, characters and effects each live on their own layer, with their own keyframes and gaps.
+- **Color fill dots.** Drop dots on a color layer and they fill the line art on the layer above, each with its own threshold, grow radius, gradient and timing.
+- **Onion skinning.** See the frames around the one you are working on, as ghosts or tinted, with configurable frame counts.
+- **Motion blur.** Per gap motion blur that eases in and out with the movement, to mask small interpolation imperfections.
+- **Blend modes.** 16 blend modes per keyframe.
+- **Export.** PNG sequence, animated GIF or video (MP4, WebM, MKV, MOV or MPEG-TS), at the resolution you pick.
+- **Local and private.** The whole tool runs in your browser. No accounts, no uploads, no tracking.
 
 ## Try it
 
-Khuwari is a static site, so any file server works:
+The easiest way is to open Khuwari straight from the website in your browser. No install, nothing to set up, everything runs in the tab.
+
+You can also host it yourself. Khuwari is a static site, so any file server works:
 
 ```sh
 python3 -m http.server 4000
@@ -42,7 +53,7 @@ Projects save as single `.khuwari` files, which are plain JSON.
 
 ## Credits
 
-Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and mp4-muxer for MP4 muxing. Everything else was written for Khuwari. See the [credits page](credits.html) for the full list.
+Khuwari is built with RIFE and ONNX Runtime Web for machine learning interpolation, gifenc for GIF encoding and Mediabunny for video muxing. Everything else was written for Khuwari. See the [credits page](credits.html) for the full list.
 
 ## License
 

@@ -1,10 +1,12 @@
-/* app.js — Khuwari timeline app
+/* app.js, the Khuwari timeline app
  *
- * Places keyframe images on a timeline at arbitrary times; a pure-JS morph engine
- * (see morph.js) fills each gap with interpolated frames: one per tick of the gap,
- * i.e. gapSeconds * FPS - 1 frames. Most frames are optical-flow mesh warps; every
- * fourth generated slot is locally synthesized from recognized/cleaned warped
- * regions. Static site, no server, no GPU, no model downloads.
+ * Places keyframe images on a timeline at arbitrary times; each gap between
+ * two keyframes is filled with interpolated frames, one per tick of the gap
+ * (gapSeconds * FPS - 1 frames). The default gap mode runs a local machine
+ * learning model (RIFE via ONNX Runtime Web, see model.js) in the browser;
+ * a pure-JS mesh warp engine (see morph.js) is the fallback when the model
+ * can't be loaded, and squash-and-stretch and no-interpolation modes are
+ * per-gap options. Static site, no server, no GPU.
  */
 (function () {
   'use strict';
@@ -15,11 +17,11 @@
 
   var state = {
     keyframes: [],        // { id, layer, time, img, name, w, h }
-    assets: [],           // { img, name, w, h } — the image library (assets panel)
+    assets: [],           // { img, name, w, h }: the image library (assets panel)
     layers: [{ id: 'L1', name: 'Layer 1', visible: true }], // top → bottom draw order (first = topmost)
     activeLayerId: 'L1',  // layer new keyframes go into
     generated: {},        // gapId -> [{ idx, t, time, img, ai }]
-    gapMeta: {},          // gapId -> { h, count } — what the frames were made from
+    gapMeta: {},          // gapId -> { h, count }: what the frames were made from
     gapType: {},          // gapId -> 'ai' | 'squash' | 'none' (per-gap interpolation)
     gapSquash: {},        // gapId -> { amount, curve, preserve }
     gapBlur: {},          // gapId -> { on, intensity } (per-gap motion blur)
@@ -38,7 +40,7 @@
     playing: false,
     loop: true,
     keysOnly: false,   // viewport shows keyframes only (no interpolated frames)
-    onion: false,      // onion skin — ghosts of neighboring keyframes
+    onion: false,      // onion skin: ghosts of neighboring keyframes
     onionCfg: { before: 1, after: 1, opacity: 0.28, tint: false, tintColor: '#ff3b30', tintOpacity: 0.35 },
     selectedId: null,
     selectedGapId: null,   // gap selected in the timeline (right panel shows it)
@@ -55,7 +57,7 @@
   var workW = 512, workH = 512;
   var restoringProject = false; // true while loading a project (skip size invalidation)
   var imgCache = new Map();
-  var assetCache = [];    // [{ img, name, w, h }] — assets panel contents
+  var assetCache = [];    // [{ img, name, w, h }]: assets panel contents
   var assetImgs = new Set(); // img srcs already in the panel (change detection)
   var idSeq = 1;
   var layerSeq = 2;
@@ -252,7 +254,7 @@
 
   // With cross-origin isolation (COOP/COEP headers) one worker can use every
   // CPU core via threaded WASM. Without it, ORT runs single-threaded, so we
-  // spawn several workers and hand each gap to a different one — the ML
+  // spawn several workers and hand each gap to a different one; the ML
   // inference scales near-linearly across cores, with zero quality change.
   var workers = [];          // active Worker instances
   var workerBusy = [];       // parallel to workers: active gap jobs per worker
@@ -299,7 +301,7 @@
       try { w.terminate(); } catch (err) {}
       var idx = workers.indexOf(w);
       if (idx !== -1) { workers.splice(idx, 1); workerBusy.splice(idx, 1); workerModelBroken.splice(idx, 1); }
-      // A worker that dies mid-load has settled by dying — count it so the
+      // A worker that dies mid-load has settled by dying; count it so the
       // launch-overlay gate can resolve even when not every worker reports back.
       workersFailed++;
       settleModelGate();
@@ -322,7 +324,7 @@
   }
 
   // Index of the worker with the fewest active gap jobs, preferring workers
-  // whose model loaded — chunks of one gap must all use the same method (ML or
+  // whose model loaded: chunks of one gap must all use the same method (ML or
   // mesh) or the quality would visibly differ at chunk boundaries. Falls back
   // to any worker when every one is broken.
   function pickWorker() {
@@ -345,7 +347,7 @@
   }
 
   // The launch overlay waits for every worker's model load to SETTLE (ready or
-  // failed) — a single stuck worker must not hang generation forever. If any
+  // failed): a single stuck worker must not hang generation forever. If any
   // worker has the model, the app proceeds (broken workers are skipped by
   // pickWorker); only when ALL fail does it fall back to the mesh warp message.
   function settleModelGate() {
@@ -381,7 +383,7 @@
       var jf = workerJobs[m.jobId];
       if (!jf) return;
       if (m.img) {
-        // Worker encoded the frame (OffscreenCanvas) — nothing to do here.
+        // Worker encoded the frame (OffscreenCanvas), so nothing to do here.
         jf.onFrame({
           idx: m.idx, t: m.t, time: m.time, ai: m.ai, img: m.img
         });
@@ -539,7 +541,7 @@
   // A "fill" layer holds user-placed dots instead of keyframes. Each dot
   // carries a color, a threshold (how opaque a pixel must be to act as a line
   // barrier), a grow radius (px, tucks the color under anti-aliased edges) and
-  // an active window [start, end] on the timeline — dots do NOT interpolate;
+  // an active window [start, end] on the timeline. Dots do NOT interpolate;
   // they simply stop affecting the frame outside their window. The dot fills
   // the connected transparent region of the layer ABOVE the fill layer.
 
@@ -663,12 +665,12 @@
 
   // Bake the color fills into a keyframe raster: the line-art keyframe with
   // every active fill composited UNDER it (the fill raster is painted first,
-  // then the line art is drawn over it through its alpha — exactly like the
+  // then the line art is drawn over it through its alpha, exactly like the
   // live render, so the fill never covers the line art). Interpolating these
   // composites makes the colors warp WITH the line art (no per-frame flood,
   // so nothing leaks or floods when something moves). Returns the baked RGBA,
   // or null when no fill applies (caller uses the raw raster). Cached by
-  // (keyframe image, size, fill signature) — chunked jobs of one gap all hit
+  // (keyframe image, size, fill signature): chunked jobs of one gap all hit
   // the same entry.
   var bakeCache = new Map();
   var bakeCacheOrder = [];
@@ -737,7 +739,7 @@
   // is deterministic, so holds, scrubbing back and forth, and the filmstrip's
   // per-time thumbs reuse one canvas instead of re-running the flood fill.
   // Only modest sizes are cached (the cache caps at 16 entries × 4MB = 64MB
-  // worst case); huge canvases recompute — the bbox path keeps that cheap.
+  // worst case); huge canvases recompute; the bbox path keeps that cheap.
   var fillCache = new Map();
   var fillCacheOrder = [];
   var FILL_CACHE_MAX = 16;
@@ -802,7 +804,7 @@
   // Render every visible layer into its own bitmap at (W,H), top-down so a
   // fill layer can read the layer above it. Returns the visible layers
   // bottom-up as { layer, canvas, img } entries: normal layers carry their
-  // frame image (drawn directly by drawComposite — no per-layer canvas
+  // frame image (drawn directly by drawComposite, so no per-layer canvas
   // allocation), fill layers carry their computed fill canvas. canvas/img are
   // null when a layer contributes nothing.
   function layerBitmaps(t, keysOnly, W, H) {
@@ -1003,7 +1005,7 @@
   function stampMatches(g, stamp) {
     if (!stamp) return false;
     var cur = gapStamp(g);
-    // Older projects saved stamps without the blur/fill keys — treat those as
+    // Older projects saved stamps without the blur/fill keys; treat those as
     // the defaults (blur off, no fills) so existing frames stay valid.
     var stampBlur = stamp.blur === undefined ? 'none' : stamp.blur;
     var stampFill = stamp.fill === undefined ? '|' : stamp.fill;
@@ -1013,7 +1015,7 @@
 
   // Which frame indices (1..genCount) are still missing for this gap. When the
   // stamp matches (same endpoint images + count), existing frames are valid
-  // and only absent indices are returned — so a cancelled gap resumes from its
+  // and only absent indices are returned, so a cancelled gap resumes from its
   // tail instead of redoing finished frames. On a stamp mismatch every frame
   // is stale, so all indices come back missing.
   function computeMissing(g) {
@@ -1102,7 +1104,7 @@
 
   // Live-only re-timing used while dragging/resizing: moves every generated
   // frame's timestamp to its current gap position so the lane dots and gap
-  // overlays follow the mouse. No dirty-set or stamp side effects — the real
+  // overlays follow the mouse. No dirty-set or stamp side effects; the real
   // validation happens on drop via refreshDirty().
   function retimeAllFrames() {
     allGaps().forEach(function (g) {
@@ -1177,7 +1179,7 @@
   // Applies the current working size to the canvas. Returns the applied size
   // so callers can react (e.g. warn about very large custom resolutions).
   // While a project is being restored the canvas is sized to match, but the
-  // freshly-loaded frames are NOT invalidated — they were generated at exactly
+  // freshly-loaded frames are NOT invalidated, since they were generated at exactly
   // this size, and refreshDirty() re-checks their stamps afterwards.
   function applyWorkSize() {
     var s = workingSize();
@@ -1248,8 +1250,8 @@
   }
 
   // The image each visible layer contributes to the composite at time t, in
-  // bottom-to-top draw order (the last layer is drawn first, the first layer
-  // — the topmost — last). Each image keeps its own alpha channel, so
+  // bottom-to-top draw order (the last layer is drawn first; the first layer
+  // (the topmost) is drawn last). Each image keeps its own alpha channel, so
   // transparent keyframes (e.g. a character cut out on clear) composite over
   // the layers below it. Undecoded images are skipped by the drawing functions
   // (callers wait for them when needed).
@@ -1290,7 +1292,7 @@
   }
 
   // Filmstrip thumbs are displayed at ~66×74 px, but were composited at FULL
-  // work resolution — a full-res canvas render + toDataURL per thumb, per
+  // work resolution: a full-res canvas render + toDataURL per thumb, per
   // refresh, on the MAIN thread during generation (canvas.toDataURL is the
   // exact Firefox-slow op the worker encode path avoids). Composite at thumb
   // scale instead (2× for retina, capped): visually identical on a 66×74 img,
@@ -1622,7 +1624,7 @@
   // frame); cache by the composite's identity so re-rendering the filmstrip
   // during generation doesn't recompute frames that haven't changed. The
   // composite itself renders at THUMB scale, not work resolution (see
-  // compositeThumb) — the filmstrip only ever shows ~66×74 thumbs.
+  // compositeThumb); the filmstrip only ever shows ~66×74 thumbs.
   var thumbCache = {};
   var thumbCacheOrder = [];
   function thumbURL(t) {
@@ -2470,8 +2472,8 @@
 
   // Time-based playback: the playhead advances in real time (1 second of
   // timeline per 1 second of wall clock) and the frame under the playhead is
-  // displayed. Keyframe holds and gap lengths are therefore respected — a
-  // keyframe that holds for 0.5s really stays on screen 0.5s — instead of
+  // displayed. Keyframe holds and gap lengths are therefore respected: a
+  // keyframe that holds for 0.5s really stays on screen 0.5s, instead of
   // every frame being force-fit to exactly 1/fps.
   var playStart = 0, playStartTime = 0;
   function playbackEnd() {
@@ -2483,7 +2485,7 @@
     if (state.playing || !buildPlaybackFrames().length) return;
     if (state.playhead >= playbackEnd()) state.playhead = 0; // at the end: restart
     state.playing = true;
-    lastPreview = null; // force a clean redraw — clears editor-only ghosts/markers
+    lastPreview = null; // force a clean redraw, clearing editor-only ghosts/markers
     playStart = state.playhead;
     playStartTime = performance.now();
     updateTransport();
@@ -2555,7 +2557,7 @@
     return t;
   }
 
-  // Add files to the image library only — nothing is placed on the timeline.
+  // Add files to the image library only; nothing is placed on the timeline.
   // Keyframes are created by dragging an asset from the panel onto the
   // timeline (see addAssetKeyframe).
   function addImageFiles(files) {
@@ -2712,10 +2714,10 @@
     el.genMeta.textContent = Math.round(pct) + '%';
   }
 
-  // Generation — runs in the background worker; only missing frames are
-  // generated, and auto-runs (debounced) after every change.
+  // Generation runs in the background worker; only missing frames are
+  // generated, and it auto-runs (debounced) after every change.
 
-  // Reused rasterization canvas — allocating one per frame is GC churn during
+  // Reused rasterization canvas; allocating one per frame is GC churn during
   // generation (dataToDataURL runs once per generated frame).
   var encodeCanvas = null;
   var encodeCtx = null;
@@ -2738,7 +2740,7 @@
   // transparent so cut-out characters keep their alpha through interpolation).
   // Buffers are cached by (image src, size): with gap chunking the same
   // keyframe pair is rasterized once per chunk, so without this a 4-chunk gap
-  // redraws both canvases 4×. Capped small — each entry is a full frame's RGBA.
+  // redraws both canvases 4×. Capped small: each entry is a full frame's RGBA.
   var drawCache = new Map();
   function drawImageToData(img, w, h) {
     var key = (img.src || img) + '|' + w + 'x' + h;
@@ -2777,7 +2779,7 @@
   // background is painted a key color absent from the frame (encodeMatte), the
   // model interpolates a clean opaque image, and afterwards the frame's alpha is
   // taken from the mesh-union alpha warp of the ORIGINAL keyframes (crisp
-  // silhouette) while the key tint is removed from the RGB (removeKey) — so
+  // silhouette) while the key tint is removed from the RGB (removeKey), so
   // cut-out characters get model-quality colors without the transparent-pixel
   // garbage. Dispatches to the worker when available; otherwise runs inline
   // (mesh warp fallback path).
@@ -2854,7 +2856,7 @@
     var n = workW * workH;
     // The matte (opaque) input is used for the model so it never sees
     // transparent pixels; the original buffers feed the alpha warp. The OPTICAL
-    // FLOW runs on texture-extended originals (extendTexture) — thin line art
+    // FLOW runs on texture-extended originals (extendTexture), because thin line art
     // on a uniform background starves block matching and would otherwise give
     // ~0 flow → a double-exposed crossfade.
     var aFlow = matteK ? morph.encodeMatte(new Uint8ClampedArray(aData), n, matteK) : aData;
@@ -2873,7 +2875,7 @@
       for (var p = 0, i = 3; p < n; p++, i += 4) sa[p] = aData[i];
       staticAlpha = sa;
     }
-    // Textured flow inputs built lazily inside ensureMeshes — the ML path never
+    // Textured flow inputs are built lazily inside ensureMeshes; the ML path never
     // needs the flow and extendTexture is an expensive distance transform.
     var flowBg = null;
     var aFlowTex = null, bFlowTex = null;
@@ -2937,7 +2939,7 @@
       }
       // The model interpolates the matte (opaque) input; transparency comes from
       // the mesh-union alpha warp of the original keyframes (crisp silhouette).
-      // Fully opaque gaps skip all of it — the result is byte-identical and a
+      // Fully opaque gaps skip all of it: the result is byte-identical and a
       // full mesh warp per frame is avoided. Thin line art renders with the
       // dense per-pixel morph (the coarse mesh averages strokes to ~0 → ghosting).
       var renderMorph = function () {
@@ -2945,7 +2947,7 @@
         return morph.morphFrame(aFlow, bFlow, meshes.flowAB, meshes.flowBA, workW, workH, t);
       };
       if (cbs.aiReady()) {
-        // Duplicate keyframes: every inbetween IS the keyframe — ship a copy
+        // Duplicate keyframes: every inbetween IS the keyframe, so ship a copy
         // and skip both model passes.
         if (framesIdentical) {
           return finish(new Uint8ClampedArray(aData), true);
@@ -2961,7 +2963,7 @@
           }
           if (aGray) {
             // Model-driven alpha: interpolate the alpha channel as grayscale.
-            // Output consumed raw (channel 0) — no RGBA conversion needed.
+            // Output consumed raw (channel 0), so no RGBA conversion needed.
             return model.interpolate(aGray, bGray, workW, workH, t, true).then(function (alphaTensor) {
               if (cbs.cancelled()) return;
               morph.applyGrayAlphaRaw(aiOut, alphaTensor, n, matteK);
@@ -3015,7 +3017,7 @@
   var modelGate = null;          // promise resolving when model load settles
   var modelGateResolve = null;   // resolve() for the gate above
   // Coalesced view refresh during generation: rebuilding the lane + filmstrip on
-  // every completed frame is O(frames²) with async thumb composites — heavy edits
+  // every completed frame is O(frames²) with async thumb composites; heavy edits
   // (many cancels/restarts) make it crawl. Updates are throttled to ~150ms and a
   // final flush happens when the run finishes.
   var genViewTimer = null;
@@ -3092,7 +3094,7 @@
     // A gap's missing frames are split across the worker pool: each chunk runs
     // as its own job on a different worker, so a timeline with one big gap (the
     // common case) renders on every core instead of a single worker. Chunks of
-    // the same gap recompute the same deterministic optical flow — flow is a
+    // the same gap recompute the same deterministic optical flow; flow is a
     // small share of a gap's cost and the rendered frames are byte-identical.
     var tasks = [];
     var total = 0;
@@ -3368,8 +3370,8 @@
   }
 
   // Upscale one composite canvas to the target size. When the target is larger
-  // than the working size the ML upscaler (worker) runs first — a 4x ESRGAN-
-  // style model — and the result is resized to the exact target with high-
+  // than the working size the ML upscaler (worker) runs first, using a 4x
+  // ESRGAN-style model, and the result is resized to the exact target with high-
   // quality smoothing. Falls back to a plain high-quality resize if the model
   // can't be loaded (offline / blocked), so exports never stall.
   var upscaleModelWarned = false;
@@ -3437,7 +3439,7 @@
         reject(err);
       }
     }).then(function (r) {
-      // r = { data: ArrayBuffer, width, height } — build a canvas from it.
+      // r = { data: ArrayBuffer, width, height }: build a canvas from it.
       var c = document.createElement('canvas');
       c.width = r.width; c.height = r.height;
       var cctx = c.getContext('2d');
@@ -3592,12 +3594,47 @@
   // MediaRecorder H.264 is known to silently produce empty recordings for very
   // large (4K-class) canvases, so for big targets prefer WebM/VP9, which
   // handles large frames reliably.
-  function pickVideoMime(large) {
+  // Video container formats for export. Each maps to a Mediabunny output
+  // format class, the codec families that container accepts (tried in order,
+  // probed for real encoder support per browser), and download metadata.
+  var EXPORT_FORMATS = {
+    mp4:  { label: 'MP4',     fmt: 'Mp4OutputFormat',    ext: 'mp4',  mime: 'video/mp4',        codecs: ['avc', 'vp9', 'av1'], opts: { fastStart: 'in-memory' }, recordable: true  },
+    webm: { label: 'WebM',    fmt: 'WebMOutputFormat',   ext: 'webm', mime: 'video/webm',       codecs: ['vp9', 'av1', 'vp8'], opts: {}, recordable: true, preferWebm: true },
+    mkv:  { label: 'MKV',     fmt: 'MkvOutputFormat',    ext: 'mkv',  mime: 'video/x-matroska', codecs: ['avc', 'vp9', 'av1'], opts: {} },
+    mov:  { label: 'MOV',     fmt: 'MovOutputFormat',    ext: 'mov',  mime: 'video/quicktime',  codecs: ['avc', 'vp9', 'av1'], opts: { fastStart: 'in-memory' } },
+    ts:   { label: 'MPEG-TS', fmt: 'MpegTsOutputFormat', ext: 'ts',   mime: 'video/MP2T',       codecs: ['avc', 'hevc'], opts: {} }
+  };
+
+  // Build the codec candidate list for a container from its allowed codec
+  // family names. Each candidate is { codec, muxerCodec } where codec is the
+  // WebCodecs string and muxerCodec the short name Mediabunny wants.
+  function codecCandidates(names) {
+    var avcLevels = ['640033', '64002a', '640028', '64001f', '42001f', '42E01E'];
+    var list = [];
+    names.forEach(function (n) {
+      if (n === 'avc') avcLevels.forEach(function (l) { list.push({ codec: 'avc1.' + l, muxerCodec: 'avc' }); });
+      else if (n === 'hevc') {
+        list.push({ codec: 'hev1.1.6.L123.B0', muxerCodec: 'hevc' });
+        list.push({ codec: 'hvc1.1.6.L123.B0', muxerCodec: 'hevc' });
+      }
+      else if (n === 'vp9') {
+        list.push({ codec: 'vp09.00.10.08', muxerCodec: 'vp9' });
+        list.push({ codec: 'vp09.00.41.08', muxerCodec: 'vp9' });
+      }
+      else if (n === 'av1') list.push({ codec: 'av01.0.04M.08', muxerCodec: 'av1' });
+      else if (n === 'vp8') list.push({ codec: 'vp8', muxerCodec: 'vp8' });
+    });
+    return list;
+  }
+
+  function pickVideoMime(large, webm) {
     if (typeof window.MediaRecorder === 'undefined') return null;
-    var candidates = large
+    var candidates = webm
       ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-      : ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1.64001f', 'video/mp4',
-         'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+      : large
+        ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+        : ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1.64001f', 'video/mp4',
+           'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
     for (var i = 0; i < candidates.length; i++) {
       try {
         if (window.MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
@@ -3620,133 +3657,184 @@
     return durs;
   }
 
-  function exportMP4(target) {
+  function exportVideo(target, fmtName) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { toast('Nothing to export.'); return; }
+    var fmt = EXPORT_FORMATS[fmtName] || EXPORT_FORMATS.mp4;
     // WebCodecs encodes each frame as it's produced (composite → ML-upscale →
-    // encode → discard), so only one frame is in memory at a time — no matter
+    // encode → discard), so only one frame is in memory at a time, no matter
     // how large the export resolution is. It also handles 4K+ frames that
     // Chrome's MediaRecorder H.264 silently fails on. MediaRecorder is kept as
-    // a fallback for browsers without WebCodecs.
-    if (window.VideoEncoder && window.Mp4Muxer) {
-      exportMP4WebCodecs(frames, target);
+    // a fallback for browsers without WebCodecs (MP4/WebM only; the other
+    // containers need WebCodecs muxing).
+    if (window.VideoEncoder && window.Mediabunny) {
+      exportVideoWebCodecs(frames, target, fmt);
       return;
     }
-    exportMP4Recorder(frames, target);
+    if (!fmt.recordable) {
+      hideExportOverlay();
+      endExport();
+      setGenStatus('error', fmt.label + ' export needs WebCodecs in this browser.');
+      toast(fmt.label + ' export needs a browser with WebCodecs (Chrome, Edge or Safari).');
+      return;
+    }
+    exportVideoRecorder(frames, target, fmt);
   }
 
-  // Pick the first codec the browser's VideoEncoder supports at this
-  // resolution, preferring H.264 (most compatible), then VP9, then AV1 — all
-  // of which mp4-muxer can put in an MP4 container. Chrome's H.264 encoder
-  // often doesn't support 4096-wide frames, so VP9/AV1 matter for 8x exports.
+  // Pick the first codec the browser's VideoEncoder really accepts for this
+  // container, from the format's allowed codec families. Some browsers lie at
+  // isConfigSupported/configure (notably H.264 on Firefox/Linux), so probing
+  // encodes one real frame at the target size with a throwaway encoder and
+  // only accepts a codec whose encoded output actually arrives.
   // Resolves with { codec, muxerCodec } or null if none are supported.
-  function pickVideoCodec(w, h) {
-    var avcLevels = ['640033', '64002a', '640028', '64001f', '42001f', '42E01E'];
-    var candidates = avcLevels.map(function (l) { return { codec: 'avc1.' + l, muxerCodec: 'avc' }; })
-      .concat([
-        { codec: 'vp09.00.10.08', muxerCodec: 'vp9' },
-        { codec: 'vp09.00.41.08', muxerCodec: 'vp9' },
-        { codec: 'av01.0.04M.08', muxerCodec: 'av1' }
-      ]);
+  function probeCodec(codec, w, h) {
+    return new Promise(function (resolve) {
+      var enc = null;
+      var finished = false;
+      var sawOutput = false;
+      var timer = setTimeout(function () { finish(false); }, 8000);
+      function finish(ok) {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        try { if (enc) enc.close(); } catch (e) {}
+        resolve(ok);
+      }
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(0, 0, w, h);
+        enc = new VideoEncoder({
+          output: function () { sawOutput = true; },
+          error: function () { finish(false); }
+        });
+        enc.configure({ codec: codec, width: w, height: h, bitrate: 10 * 1000 * 1000 });
+        var frame = new VideoFrame(canvas, { timestamp: 0 });
+        enc.encode(frame, { keyFrame: true });
+        frame.close();
+        enc.flush().then(function () { finish(sawOutput); }).catch(function () { finish(false); });
+      } catch (e) {
+        finish(false);
+      }
+    });
+  }
+
+  function pickVideoCodec(w, h, codecNames) {
+    var candidates = codecCandidates(codecNames);
     var i = 0;
     function next() {
       if (i >= candidates.length) return Promise.resolve(null);
       var c = candidates[i++];
-      if (typeof VideoEncoder.isConfigSupported !== 'function') {
-        return Promise.resolve(c);
-      }
-      return VideoEncoder.isConfigSupported({ codec: c.codec, width: w, height: h, bitrate: 10 * 1000 * 1000 })
-        .then(function (r) { return r && r.supported ? c : next(); })
-        .catch(next);
+      return probeCodec(c.codec, w, h).then(function (ok) { return ok ? c : next(); });
     }
     return next();
   }
 
-  // Encode the animation with WebCodecs + mp4-muxer: each frame is composited,
-  // ML-upscaled to the target size, encoded, and immediately discarded — so
-  // even 8x exports never hold more than one frame in memory. Timestamps come
-  // from each frame's real duration (holds + gap spacing), matching playback.
-  function exportMP4WebCodecs(frames, target) {
+  // Encode the animation with WebCodecs + Mediabunny into the requested
+  // container: each frame is composited, ML-upscaled to the target size,
+  // encoded, and immediately discarded, so even 8x exports never hold more
+  // than one frame in memory. Timestamps come from each frame's real duration
+  // (holds + gap spacing), matching playback.
+  function exportVideoWebCodecs(frames, target, fmt) {
     var durs = playbackDurations(frames);
     var memMB = Math.round(target.w * target.h * 4 / (1024 * 1024)); // one frame at a time
     if (memMB > 256) toast('One 4K-class frame is large; encoding may use ~' + memMB + ' MB.', 6000);
-    setExportProgress('Encoding MP4…', 1);
-    pickVideoCodec(target.w, target.h).then(function (pick) {
+    setExportProgress('Encoding ' + fmt.label + '…', 1);
+    pickVideoCodec(target.w, target.h, fmt.codecs).then(function (pick) {
       if (!pick) {
-        // No WebCodecs encoder at all for this size: last-resort MediaRecorder.
-        exportMP4Recorder(frames, target);
+        if (fmt.recordable) { exportVideoRecorder(frames, target, fmt); return; }
+        hideExportOverlay();
+        endExport();
+        setGenStatus('error', 'This browser has no encoder for ' + fmt.label + '.');
+        toast('No ' + fmt.label + ' encoder in this browser. Try MP4 or WebM instead.');
         return;
       }
-      var isAvc = pick.muxerCodec === 'avc';
-      var muxer = new window.Mp4Muxer.Muxer({
-        target: new window.Mp4Muxer.ArrayBufferTarget(),
-        video: { codec: pick.muxerCodec, width: target.w, height: target.h, frameRate: Math.max(1, state.fps) },
-        fastStart: 'in-memory'
+      var MB = window.Mediabunny;
+      var muxer = new MB.Output({
+        format: new MB[fmt.fmt](fmt.opts),
+        target: new MB.BufferTarget()
       });
+      var videoSource = new MB.EncodedVideoPacketSource(pick.muxerCodec);
+      muxer.addVideoTrack(videoSource);
       var encodeError = null;
+      var addChain = Promise.resolve(); // drains Mediabunny's backpressure in order
       var encoder = new VideoEncoder({
         output: function (chunk, meta) {
-          // mp4-muxer needs a colorSpace in the decoder config (VP9/AV1 in
+          // Mediabunny needs a colorSpace in the decoder config (VP9/AV1 in
           // particular); some encoders omit it, so supply a sane default.
           if (meta && meta.decoderConfig && !meta.decoderConfig.colorSpace) {
             meta.decoderConfig.colorSpace = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
           }
-          muxer.addVideoChunk(chunk, meta);
+          var packet = MB.EncodedPacket.fromEncodedChunk(chunk);
+          addChain = addChain
+            .then(function () { return videoSource.add(packet, meta); })
+            .catch(function (e) { if (!encodeError) encodeError = e; });
         },
         error: function (e) { encodeError = e; }
       });
       encoder.configure({ codec: pick.codec, width: target.w, height: target.h, bitrate: 10 * 1000 * 1000 });
 
       var ts = 0; // microseconds
-      var chain = Promise.resolve();
-      frames.forEach(function (f, i) {
-        chain = chain.then(function () {
-          if (state.exportCancel) throw new Error('Export cancelled');
-          if (encodeError) throw encodeError;
-          return exportCanvas(f, target).then(function (canvas) {
-            var frame = new VideoFrame(canvas, { timestamp: ts });
-            encoder.encode(frame, { keyFrame: i % (Math.max(1, state.fps) * 2) === 0 });
-            frame.close();
-            ts += Math.round(durs[i] * 1e6);
-            setExportProgress('Encoding frame ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
+      var chain = muxer.start().then(function () {
+        var seq = Promise.resolve();
+        frames.forEach(function (f, i) {
+          seq = seq.then(function () {
+            if (state.exportCancel) throw new Error('Export cancelled');
+            if (encodeError) throw encodeError;
+            return exportCanvas(f, target).then(function (canvas) {
+              var frame = new VideoFrame(canvas, { timestamp: ts });
+              encoder.encode(frame, { keyFrame: i % (Math.max(1, state.fps) * 2) === 0 });
+              frame.close();
+              ts += Math.round(durs[i] * 1e6);
+              setExportProgress('Encoding frame ' + (i + 1) + '/' + frames.length, ((i + 1) / frames.length) * 100);
+            });
           });
         });
-      });
-      chain.then(function () {
+        return seq;
+      }).then(function () {
         if (state.exportCancel) throw new Error('Export cancelled');
         return encoder.flush();
       }).then(function () {
+        // Wait for every encoded chunk to be muxed before finalizing.
+        return addChain;
+      }).then(function () {
         if (encodeError) throw encodeError;
-        muxer.finalize();
+        return muxer.finalize();
+      }).then(function () {
         var buf = muxer.target.buffer;
         if (!buf || !buf.byteLength) throw new Error('Encoding produced no data');
-        downloadBlob(new Blob([buf], { type: 'video/mp4' }), 'animation.mp4');
+        downloadBlob(new Blob([buf], { type: fmt.mime }), 'animation.' + fmt.ext);
         hideExportOverlay();
         endExport();
-        setGenStatus('ready', 'MP4 exported \u2713');
+        setGenStatus('ready', fmt.label + ' exported \u2713');
       }).catch(function (err) {
         try { encoder.close(); } catch (e2) {}
+        try { muxer.cancel().catch(function () {}); } catch (e3) {}
         endExport();
         hideExportOverlay();
         if (err && err.message === 'Export cancelled') setGenStatus('error', 'Export cancelled');
-        else setGenStatus('error', 'MP4 export failed: ' + err.message);
+        else setGenStatus('error', fmt.label + ' export failed: ' + err.message);
       });
     }).catch(function (err) {
       endExport();
       hideExportOverlay();
-      setGenStatus('error', 'MP4 export failed: ' + err.message);
+      setGenStatus('error', fmt.label + ' export failed: ' + err.message);
     });
   }
 
   // Fallback: MediaRecorder canvas capture (browsers without WebCodecs).
-  function exportMP4Recorder(frames, target) {
+  // Only MP4 and WebM can be produced this way.
+  function exportVideoRecorder(frames, target, fmt) {
     var large = target.w * target.h > 1920 * 1080; // H.264 MediaRecorder is fragile at 4K+
-    var mime = pickVideoMime(large);
+    var mime = pickVideoMime(large, fmt.preferWebm);
     if (!mime) {
       setGenStatus('error', 'Video recording is not supported in this browser.');
       hideExportOverlay();
       endExport();
-      toast('This browser cannot record video. Use Chrome, Edge or Safari for MP4 export.');
+      toast('This browser cannot record video. Use Chrome, Edge or Safari for ' + fmt.label + ' export.');
       return;
     }
     var isMp4 = mime.indexOf('mp4') !== -1;
@@ -3766,7 +3854,7 @@
     var memMB = Math.round(target.w * target.h * 4 * frames.length / (1024 * 1024));
     if (memMB > 512) toast('This export may use ~' + memMB + ' MB of memory. A lower resolution is faster.', 7000);
 
-    setExportProgress(isMp4 ? 'Recording MP4…' : 'Recording video…', 1);
+    setExportProgress((isMp4 ? 'Recording MP4…' : 'Recording WebM…'), 1);
 
     // Composite (and ML-upscale) every layer per frame time, then record.
     // Frames are rendered one at a time (the worker runs one upscale job at a
@@ -3819,15 +3907,13 @@
           setGenStatus('error', 'Export cancelled');
           return;
         }
-        var blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : mime });
+        var blob = new Blob(chunks, { type: isMp4 ? 'video/mp4' : 'video/webm' });
         if (!blob.size) {
           setGenStatus('error', 'Recording produced no data. Try again.');
           return;
         }
         downloadBlob(blob, isMp4 ? 'animation.mp4' : 'animation.webm', blob.type);
-        setGenStatus('ready', isMp4
-          ? 'MP4 exported \u2713'
-          : 'Saved as WebM. This browser cannot mux MP4 (Chrome, Edge or Safari can). \u2713');
+        setGenStatus('ready', fmt.label + ' exported \u2713');
       };
       recorder.onerror = function () {
         endExport();
@@ -3955,17 +4041,18 @@
     if (fmt === 'gif' && !gifenc) { toast('GIF encoder not available.'); return; }
     closeMenus();
     beginExport();
+    var fmtLabel = EXPORT_FORMATS[fmt] ? EXPORT_FORMATS[fmt].label : fmt.toUpperCase();
     showExportOverlay(
-      fmt === 'frame' ? 'Exporting current frame' : 'Exporting ' + fmt.toUpperCase(),
-      opt.label + (opt.ai ? ' \u00b7 ML upscale' : '')
+      fmt === 'frame' ? 'Exporting current frame' : 'Exporting ' + fmtLabel,
+      opt.label + (opt.ai ? ' · ML upscale' : '')
     );
     setExportProgress('Waiting for frames to finish generating…', 0);
     waitForGeneration().then(function () {
       if (state.exportCancel) throw new Error('Export cancelled');
       if (fmt === 'png') exportPNGZip(target);
       else if (fmt === 'gif') exportGIF(target);
-      else if (fmt === 'mp4') exportMP4(target);
-      else exportCurrentFrame(target);
+      else if (fmt === 'frame') exportCurrentFrame(target);
+      else exportVideo(target, fmt);
     }).catch(function (err) {
       endExport();
       hideExportOverlay();
@@ -4097,7 +4184,7 @@
   }
 
   // Drag a color-dot chip on the timeline: the body moves the whole active
-  // window, the edges resize start/end. Dots never interpolate — only their
+  // window, the edges resize start/end. Dots never interpolate; only their
   // window shifts.
   function startDotDrag(e, chip) {
     var id = chip.dataset.dot;
@@ -4221,7 +4308,7 @@
     state.keysOnly = !!s.keysOnly;
     // Onion prefs: the toggle and its settings are UI prefs (persisted to
     // localStorage on every change). A project file only overrides them when it
-    // explicitly carries onion settings — otherwise the user's current prefs
+    // explicitly carries onion settings; otherwise the user's current prefs
     // (already restored at boot) stay, so loading a project never wipes them.
     if (s.hasOwnProperty('onion')) state.onion = !!s.onion;
     if (s.onionCfg && typeof s.onionCfg === 'object') {
@@ -4747,7 +4834,7 @@
       scheduleGenerate(300);
     });
     // Keyframe blend mode: only affects the live/export composite (the inbetween
-    // composites bake fills at source-over), so a change just re-renders — no
+    // composites bake fills at source-over), so a change just re-renders; no
     // gap regeneration needed.
     el.kfMixInput.addEventListener('change', function () {
       var kf = state.keyframes.find(function (k) { return k.id === state.selectedId; });
@@ -5156,7 +5243,7 @@
       if (savedW) pair[1].style.width = clamp(savedW, SIDE_W_MIN, maxSideWidth()) + 'px';
     });
     // Restore onion-skin prefs (overrides the project-file defaults only when
-    // nothing is loaded from a file — project settings win once a project is
+    // nothing is loaded from a file; project settings win once a project is
     // opened, see applyProjectData).
     try {
       var onionSaved = JSON.parse(localStorage.getItem(ONION_KEY) || 'null');

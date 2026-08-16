@@ -1,13 +1,13 @@
-/* model.js — local ML frame interpolation (RIFE, ONNX) for Keyframe Studio.
+/* model.js: local ML frame interpolation (RIFE, ONNX) for Keyframe Studio.
  *
  * No server, no API: when the user enables "ML inbetweens" the app downloads two
- * things in-browser —
+ * things in-browser:
  *   1. ONNX Runtime Web (wasm inference engine) from a CDN, and
  *   2. a small RIFE-style frame-interpolation ONNX model (concatenated-frame
  *      tensor in [1,6,H,W], interpolated frame out [1,3,H,W]).
  * After that everything runs locally in the page; nothing is sent anywhere.
  * If the runtime or model cannot be fetched (offline / blocked), the app falls
- * back to the pure mesh morph — ML inbetweens are strictly optional.
+ * back to the pure mesh morph; ML inbetweens are strictly optional.
  *
  * Swap ORT_VERSION / ORT_CDN / MODEL_URL below to change sources.
  */
@@ -58,7 +58,7 @@
   // Multi-threaded WASM needs cross-origin isolation (SharedArrayBuffer). When
   // the page is served with COOP/COEP headers we let ORT use the CPU's cores;
   // otherwise ORT would try to load the threaded build and fail, so stay on a
-  // single thread. Quality is identical either way — this is pure speed.
+  // single thread. Quality is identical either way; this is pure speed.
   function workerThreads() {
     try {
       if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated &&
@@ -193,12 +193,12 @@
     return state.loadPromise;
   }
 
-  // A gap's frames all interpolate the SAME two keyframes — only t changes.
+  // A gap's frames all interpolate the SAME two keyframes; only t changes.
   // The prepared feed tensors (concat of the two frames) are identical for
   // every frame of a job, so build them once per (buffers, size) pair and
   // reuse: saves the 6n-float concat write per frame. Two slots cover the
   // worker's RGB pass + alpha-as-gray pass (they alternate per frame, so a
-  // single entry would thrash). Each entry owns its input buffer — a cached
+  // single entry would thrash). Each entry owns its input buffer; a cached
   // tensor must not alias a buffer another entry later overwrites.
   var feedCache = [null, null]; // [{ a, b, n, plan, feeds, w, h }, ...]
   function feedsFor(aData, bData, n, plan, w, h) {
@@ -230,7 +230,7 @@
   // written into a preallocated buffer so no per-call allocation happens.
   // RGB is premultiplied by alpha: transparent pixels (RGB is undefined/garbage
   // in PNGs) contribute 0 so RIFE interpolates only the visible painted pixels.
-  // For fully opaque images this is exactly rgb/255 — byte-identical behaviour.
+  // For fully opaque images this is exactly rgb/255 (byte-identical behaviour).
   function rgbaToRifefloatInto(out, rgba, n) {
     for (var p = 0, i = 0; p < n; p++, i += 4) {
       var a = rgba[i + 3] / 255;
@@ -273,7 +273,7 @@
     var r = tensorData, g = tensorData.subarray ? tensorData.subarray(n, 2 * n) : tensorData.slice(n, 2 * n);
     var b = tensorData.subarray ? tensorData.subarray(2 * n, 3 * n) : tensorData.slice(2 * n, 3 * n);
     // (x*255 + 0.5)|0 rounds exactly like Math.round for 0..1 and out-of-range
-    // values are clamped by the Uint8ClampedArray assignment itself — this
+    // values are clamped by the Uint8ClampedArray assignment itself, so this
     // drops two branches + two Math calls per pixel.
     for (var p = 0, i = 0; p < n; p++, i += 4) {
       out[i] = (r[p] * 255 + 0.5) | 0;
@@ -286,7 +286,7 @@
 
   // RIFE exports come in a few flavours and we handle all of them:
   //   A) one 6-channel input [1,6,H,W]  (frameA RGB ++ frameB RGB)
-  //   B) two 3-channel inputs          (frameA, frameB) — e.g. named
+  //   B) two 3-channel inputs          (frameA, frameB), e.g. named
   //      'frame0'/'frame1', 'img0'/'img1', or 'x'/'y'
   //   C) two 3-channel inputs + a scalar 'timestep' input (t in [0,1])
   // The interpolated frame is the first 3-channel output.
@@ -301,7 +301,7 @@
 
   // Figure out the model's input layout ONCE, after loading. interpolate() then
   // builds only the tensors that layout needs (the previous code built all
-  // three candidates — a wasted 6n float fill on every frame for layout C).
+  // three candidates, a wasted 6n float fill on every frame for layout C).
   function detectFeedPlan(session) {
     var names = [];
     try { names = session.inputNames || []; } catch (e) {}
@@ -353,7 +353,7 @@
     }
 
     // Pre-flight check: ONNX Runtime errors are cryptic when feed data length
-    // doesn't match the input's expected size — catch it here with a clear message.
+    // doesn't match the input's expected size, so catch it here with a clear message.
     var feedNames = Object.keys(feeds);
     for (var fn = 0; fn < feedNames.length; fn++) {
       var feed = feeds[feedNames[fn]];

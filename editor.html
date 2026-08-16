@@ -78,6 +78,10 @@
               <option value="png">PNG sequence (.zip)</option>
               <option value="gif">Animated GIF</option>
               <option value="mp4">MP4 video</option>
+              <option value="webm">WebM video</option>
+              <option value="mkv">MKV video</option>
+              <option value="mov">MOV video</option>
+              <option value="ts">MPEG-TS video</option>
               <option value="frame">Current frame (PNG)</option>
             </select>
           </label>
@@ -295,7 +299,7 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5"/></svg>
       </button>
       <div class="btn-group" id="onionWrap">
-        <button id="btnOnion" class="btn icon" title="Onion skin — show neighboring keyframes as ghosts" style="border-top-right-radius:0; border-bottom-right-radius:0; height:32px">
+        <button id="btnOnion" class="btn icon" title="Onion skin: show neighboring keyframes as ghosts" style="border-top-right-radius:0; border-bottom-right-radius:0; height:32px">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 20c-5 0-8.4-3.4-8.4-8 0-4.6 3.6-8.1 8.4-9 4.8.9 8.4 4.4 8.4 9 0 4.6-3.4 8-8.4 8z"/>
             <path d="M7.4 6.4 C8.3 9.4 7.2 13.8 9.4 17.8"/>
@@ -427,7 +431,7 @@
   <input type="file" id="projectInput" accept=".khuwari,application/json" hidden>
 
   <script src="vendor/gifenc.js"></script>
-  <script src="vendor/mp4-muxer.js"></script>
+  <script src="vendor/mediabunny.js"></script>
   <script src="morph.js?v=20260816c"></script>
   <script src="model.js?v=20260816c"></script>
   <script src="app.js?v=20260816j"></script>

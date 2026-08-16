@@ -1,4 +1,4 @@
-/* worker.js — background frame interpolation for Keyframe Studio.
+/* worker.js: background frame interpolation for Keyframe Studio.
  *
  * Runs off the main thread so generating inbetweens never freezes the UI:
  * the ML model (RIFE via ONNX Runtime Web) is downloaded+compiled here, and
@@ -7,7 +7,7 @@
  * frame's RGBA buffer (transferred, zero-copy) plus progress messages.
  *
  * Falls back to the pure mesh morph per-frame if the model isn't ready or a
- * single inference fails — generation never stalls.
+ * single inference fails, so generation never stalls.
  */
 'use strict';
 
@@ -61,7 +61,7 @@ function loadModel() {
 
 // Encode a finished frame to a PNG data URL inside the worker (OffscreenCanvas),
 // so the main thread never runs the (Firefox-slow) canvas.toDataURL per frame.
-// Falls back to null when unsupported — the caller then ships the raw RGBA.
+// Falls back to null when unsupported; the caller then ships the raw RGBA.
 // Each encode SLOT owns one [canvas, ctx, imageData] triple, pooled across
 // frames of the same size: the slot's previous encode has fully resolved
 // before it is reused (the encode queue in generateGap guarantees it), so this
@@ -85,7 +85,7 @@ function encodePNG(rgba, width, height, slot) {
 
 // Post a finished frame, encoding to a PNG data URL in the worker when
 // possible. Any encode failure (unsupported codec, memory pressure) falls back
-// to shipping the raw RGBA buffer — generation never stalls on encoding.
+// to shipping the raw RGBA buffer, so generation never stalls on encoding.
 function postFrame(jobId, frame, rgba, width, height, slot) {
   var enc = encodePNG(rgba, width, height, slot);
   if (!enc) {
@@ -152,7 +152,7 @@ function generateGap(msg) {
   // thin line art on a uniform background starves block matching, and the flow
   // comes back ~0 → the morph crossfades into a double-exposed ghost. `opaque`
   // reflects the ORIGINAL keyframes: a matte gap still needs the alpha pass.
-  // The main thread already computed this (its matte memo) — pass it through so
+  // The main thread already computed this (its matte memo); pass it through so
   // the worker doesn't re-scan both buffers; tests that send raw messages get
   // the fallback scan.
   var opaque = msg.opaque !== undefined ? msg.opaque : (morph.isOpaque(aData) && morph.isOpaque(bData));
@@ -182,7 +182,7 @@ function generateGap(msg) {
   // tracked; the flow opts widen the coarsest search radius for big gaps.
   // Built lazily inside ensureMeshes: the ML path never needs the flow (the
   // model handles motion + alpha), and extendTexture is an expensive distance
-  // transform — running it eagerly on every transparent gap is wasted work
+  // transform; running it eagerly on every transparent gap is wasted work
   // when the flow never gets computed.
   var flowBg = null;
   var aFlowTex = null, bFlowTex = null;
@@ -223,7 +223,7 @@ function generateGap(msg) {
       else if (info && info.stage === 'compile') post({ type: 'model-progress', stage: 'compile', frac: 1 });
     }).catch(function (err) {
       // Model unavailable (offline etc.): the per-frame fallback below will use
-      // the mesh warp, matching the old behaviour — generation never stalls.
+      // the mesh warp, matching the old behaviour, so generation never stalls.
       console.error('ML model load failed in worker, using mesh warp:', err && err.message ? err.message : err);
     });
   };
@@ -253,7 +253,7 @@ function generateGap(msg) {
       });
     };
     // Transparency for a rendered frame: union of the two flow-warped alpha
-    // channels of the ORIGINAL keyframes (dense flow — the mesh dilutes thin
+    // channels of the ORIGINAL keyframes (dense flow; the mesh dilutes thin
     // strokes), plus stripping the key tint from the RGB for matte gaps.
     var applyAlpha = function (rgba) {
       var alpha = morph.warpAlphaDense(aData, bData, meshes.flowAB, meshes.flowBA, width, height, t);
@@ -264,7 +264,7 @@ function generateGap(msg) {
     };
     // The model interpolates the matte (opaque) input; transparency comes from
     // the mesh-union alpha warp of the ORIGINAL keyframes (crisp silhouette).
-    // Fully opaque gaps skip all of it — the result is byte-identical and a
+    // Fully opaque gaps skip all of it; the result is byte-identical and a
     // full mesh warp per frame is avoided.
     var renderMorph = function () {
       if (opaque) return morph.morphFrameMesh(aFlow, bFlow, meshes, width, height, t);
@@ -280,7 +280,7 @@ function generateGap(msg) {
       });
     }
     if (model.isReady()) {
-      // Duplicate keyframes: every inbetween IS the keyframe — ship a copy
+      // Duplicate keyframes: every inbetween IS the keyframe; ship a copy
       // (never transfer/mutate the shared original) and skip both model passes.
       if (framesIdentical) {
         return finish(new Uint8ClampedArray(aData), true);
@@ -289,14 +289,14 @@ function generateGap(msg) {
         if (cancelled) return;
         if (opaque) return finish(aiOut, true);
         // Static silhouette: the interpolated alpha is the keyframes' shared
-        // mask — stamp it with removeKey (identical math to applyGrayAlphaRaw)
+        // mask; stamp it with removeKey (identical math to applyGrayAlphaRaw)
         // and skip the alpha model pass entirely.
         if (staticAlpha) {
           morph.removeKey(aiOut, n, matteK, staticAlpha);
           return finish(aiOut, true);
         }
         // Model-driven alpha: interpolate the alpha channel as grayscale. The
-        // output is consumed raw (channel 0) — no RGBA conversion needed.
+        // output is consumed raw (channel 0); no RGBA conversion needed.
         if (aGray) {
           return model.interpolate(aGray, bGray, width, height, t, true).then(function (alphaTensor) {
             if (cancelled) return;
