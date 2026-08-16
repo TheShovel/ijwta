@@ -1,7 +1,7 @@
 /* worker.js — background frame interpolation for Keyframe Studio.
  *
  * Runs off the main thread so generating inbetweens never freezes the UI:
- * the AI model (RIFE via ONNX Runtime Web) is downloaded+compiled here, and
+ * the ML model (RIFE via ONNX Runtime Web) is downloaded+compiled here, and
  * every gap is rendered in this worker. The main thread sends two keyframe
  * RGBA buffers + a list of missing frame indices; we reply with each finished
  * frame's RGBA buffer (transferred, zero-copy) plus progress messages.
@@ -180,7 +180,7 @@ function generateGap(msg) {
   }
   // Textured, opaque flow inputs (extended originals) so large/thin motion is
   // tracked; the flow opts widen the coarsest search radius for big gaps.
-  // Built lazily inside ensureMeshes: the AI path never needs the flow (the
+  // Built lazily inside ensureMeshes: the ML path never needs the flow (the
   // model handles motion + alpha), and extendTexture is an expensive distance
   // transform — running it eagerly on every transparent gap is wasted work
   // when the flow never gets computed.
@@ -212,19 +212,19 @@ function generateGap(msg) {
   // keyframes, plus (for matte gaps) stripping the key tint from the RGB.
   // Defined inside emit (needs t).
 
-  // Make sure the AI model is loaded before generating, so a worker that gets
-  // a gap before its model finished downloading still AI-generates instead of
+  // Make sure the ML model is loaded before generating, so a worker that gets
+  // a gap before its model finished downloading still ML-generates instead of
   // silently falling back to the mesh warp for the whole gap.
   var ensureModel = function () {
     if (model.isReady()) return Promise.resolve();
-    post({ type: 'gap-progress', jobId: jobId, label: 'Loading AI model…', gapFrac: 0 });
+    post({ type: 'gap-progress', jobId: jobId, label: 'Loading ML model…', gapFrac: 0 });
     return model.loadModel(function (info) {
       if (info && info.stage === 'model') post({ type: 'model-progress', stage: 'model', frac: info.frac });
       else if (info && info.stage === 'compile') post({ type: 'model-progress', stage: 'compile', frac: 1 });
     }).catch(function (err) {
       // Model unavailable (offline etc.): the per-frame fallback below will use
       // the mesh warp, matching the old behaviour — generation never stalls.
-      console.error('AI model load failed in worker, using mesh warp:', err && err.message ? err.message : err);
+      console.error('ML model load failed in worker, using mesh warp:', err && err.message ? err.message : err);
     });
   };
 
@@ -244,7 +244,7 @@ function generateGap(msg) {
       return queuePost(jobId, { idx: m.idx, t: t, time: time, ai: ai }, rgba, width, height);
     };
     // Motion blur needs the flow, so it forces the (lazily-computed) meshes
-    // even for the opaque-AI path that would otherwise skip them entirely.
+    // even for the opaque-ML path that would otherwise skip them entirely.
     var finish = function (rgba, ai) {
       if (!blurOn) return send(rgba, ai);
       return ensureMeshes().then(function () {
@@ -319,7 +319,7 @@ function generateGap(msg) {
         });
       }).catch(function (err) {
         if (cancelled) return;
-        console.error('AI inbetween failed, using mesh warp:', err);
+        console.error('ML inbetween failed, using mesh warp:', err);
         return ensureMeshes().then(function () {
           var frame = renderMorph();
           if (!opaque) applyAlpha(frame);
@@ -338,7 +338,7 @@ function generateGap(msg) {
   var next = function () {
     if (cancelled || i >= missing.length) return Promise.resolve();
     var m = missing[i];
-    var label = (mode === 'squash' ? 'squash frame ' : (model.isReady() ? 'AI inbetween ' : 'mesh warp ')) + (i + 1) + '/' + missing.length;
+    var label = (mode === 'squash' ? 'squash frame ' : (model.isReady() ? 'ML inbetween ' : 'mesh warp ')) + (i + 1) + '/' + missing.length;
     i++;
     return emit(m).then(function () {
       if (cancelled) return;

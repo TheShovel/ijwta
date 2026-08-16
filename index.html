@@ -138,7 +138,7 @@
         <div class="kf-card-time" id="gapTime"></div>
         <label class="field">Interpolation
           <select id="gapTypeInput">
-            <option value="ai">AI</option>
+            <option value="ai">ML</option>
             <option value="squash">Squash</option>
             <option value="none">None</option>
           </select>
@@ -303,14 +303,14 @@
     </div>
   </div>
 
-  <!-- Model loading overlay: shown while the AI model downloads+compiles on launch -->
+  <!-- Model loading overlay: shown while the ML model downloads+compiles on launch -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-box">
       <div class="logo big">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
       </div>
       <div class="loading-title">Loading the interpolation model</div>
-      <div class="loading-sub" id="loadingSub">Fetching the local AI engine + model (one-time, ~21 MB)…</div>
+      <div class="loading-sub" id="loadingSub">Fetching the local ML engine + model (one-time, ~21 MB)…</div>
       <div class="progress">
         <div class="bar"><div class="fill" id="loadingFill"></div></div>
         <div class="bar-meta"><span id="loadingLabel"></span><span id="loadingMeta"></span></div>

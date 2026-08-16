@@ -1,13 +1,13 @@
-/* model.js — local AI frame interpolation (RIFE, ONNX) for Keyframe Studio.
+/* model.js — local ML frame interpolation (RIFE, ONNX) for Keyframe Studio.
  *
- * No server, no API: when the user enables "AI inbetweens" the app downloads two
+ * No server, no API: when the user enables "ML inbetweens" the app downloads two
  * things in-browser —
  *   1. ONNX Runtime Web (wasm inference engine) from a CDN, and
  *   2. a small RIFE-style frame-interpolation ONNX model (concatenated-frame
  *      tensor in [1,6,H,W], interpolated frame out [1,3,H,W]).
  * After that everything runs locally in the page; nothing is sent anywhere.
  * If the runtime or model cannot be fetched (offline / blocked), the app falls
- * back to the pure mesh morph — AI inbetweens are strictly optional.
+ * back to the pure mesh morph — ML inbetweens are strictly optional.
  *
  * Swap ORT_VERSION / ORT_CDN / MODEL_URL below to change sources.
  */
@@ -182,7 +182,7 @@
             var m = session.outputMetadata ? session.outputMetadata[n] : null;
             outputMeta.push(n + (m && m.dims ? ' ' + JSON.stringify(m.dims) : ''));
           });
-          console.log('[AI] model inputs:', meta.join(', ') || '(unknown)', '| outputs:', outputMeta.join(', ') || '(unknown)');
+          console.log('[ML] model inputs:', meta.join(', ') || '(unknown)', '| outputs:', outputMeta.join(', ') || '(unknown)');
         } catch (e) { /* optional */ }
         return session;
       })
@@ -405,7 +405,7 @@
       })
       .then(function (session) {
         srState.session = session;
-        console.log('[AI] upscaler ready (scale ' + SR_SCALE + 'x)');
+        console.log('[ML] upscaler ready (scale ' + SR_SCALE + 'x)');
         return session;
       })
       .finally(function () {

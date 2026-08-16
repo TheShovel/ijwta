@@ -66,8 +66,6 @@
   var SIDE_W_KEY_L = 'ijwta-side-w-l'; // UI preferences, not part of the project file
   var SIDE_W_KEY_R = 'ijwta-side-w-r';
   var toastTimer = null;
-  var saveTimer = null;
-  var STORE_KEY = 'ijwta-project-v1';
   var WARN_GEN_COUNT = 5; // gaps needing more inbetweens than this get a red warning
 
   // Inline SVG icons for the buttons that are (re)built at runtime. Stroke-based
@@ -222,7 +220,7 @@
 
   // With cross-origin isolation (COOP/COEP headers) one worker can use every
   // CPU core via threaded WASM. Without it, ORT runs single-threaded, so we
-  // spawn several workers and hand each gap to a different one — the AI
+  // spawn several workers and hand each gap to a different one — the ML
   // inference scales near-linearly across cores, with zero quality change.
   var workers = [];          // active Worker instances
   var workerBusy = [];       // parallel to workers: active gap jobs per worker
@@ -292,7 +290,7 @@
   }
 
   // Index of the worker with the fewest active gap jobs, preferring workers
-  // whose model loaded — chunks of one gap must all use the same method (AI or
+  // whose model loaded — chunks of one gap must all use the same method (ML or
   // mesh) or the quality would visibly differ at chunk boundaries. Falls back
   // to any worker when every one is broken.
   function pickWorker() {
@@ -321,7 +319,7 @@
   function settleModelGate() {
     if (state.modelReady || !modelGate || !workers.length) return;
     if (workersReady + workersFailed >= workers.length) {
-      if (workersReady === 0) onModelError(new Error('All workers failed to load the AI model'));
+      if (workersReady === 0) onModelError(new Error('All workers failed to load the ML model'));
       else onModelReady();
     }
   }
@@ -1455,7 +1453,6 @@
             renderLane();
             renderSelectedPanel();
             renderPreview();
-            save();
             invalidateDots();
           });
           content.appendChild(chip);
@@ -1847,7 +1844,7 @@
         el.gapSquashPreserve.value = squash.preserve;
       }
       // Motion blur applies to any gap that actually generates inbetweens
-      // (AI or squash).
+      // (ML or squash).
       var isBlurable = gap.mode === 'ai' || gap.mode === 'squash';
       var blur = gapBlurOpts(gap.id);
       el.gapBlurGroup.classList.toggle('hidden', !isBlurable);
@@ -1904,7 +1901,6 @@
     renderLayerPanel();
     renderSelectedPanel();
     renderLane();
-    save();
   }
 
   // A generative color-fill layer: holds dots that flood-fill the layer ABOVE
@@ -1929,7 +1925,6 @@
     renderSelectedPanel();
     renderLane();
     renderPreview();
-    save();
     toast('Color layer added. Click the preview to place a color dot');
   }
 
@@ -1947,7 +1942,6 @@
     applyWorkSize();
     refreshDirty();
     renderAll();
-    save();
     scheduleGenerate();
   }
 
@@ -2136,7 +2130,6 @@
       renderLane();
       renderPreview();
       renderFilmstrip();
-      save();
       // Reordering changes which fills color each layer, so the baked gap
       // composites (and their stamps) change: regenerate.
       refreshDirty();
@@ -2196,7 +2189,6 @@
     if (i === -1) return;
     state.assets.splice(i, 1);
     renderAssets();
-    save();
   }
 
   function selectGap(id) {
@@ -2232,7 +2224,6 @@
     delete state.gapMeta[id];
     refreshDirty();
     renderAll();
-    save();
     scheduleGenerate(50);
   }
 
@@ -2245,7 +2236,6 @@
     refreshDirty();
     renderSelectedPanel();
     renderLane();
-    save();
     scheduleGenerate(50);
   }
 
@@ -2258,7 +2248,6 @@
     refreshDirty();
     renderSelectedPanel();
     renderLane();
-    save();
     scheduleGenerate(50);
   }
 
@@ -2453,7 +2442,6 @@
     });
     return chain.then(function () {
       renderAssets();
-      save();
       return added;
     });
   }
@@ -2488,7 +2476,6 @@
     applyWorkSize();
     invalidateAll();
     renderAll();
-    save();
     scheduleGenerate();
   }
 
@@ -2524,7 +2511,6 @@
         invalidateAround(id);
         applyWorkSize();
         renderAll();
-        save();
         scheduleGenerate();
       }).catch(function (e) { toast(e.message); });
     };
@@ -2540,7 +2526,6 @@
     applyWorkSize();
     refreshDirty();
     renderAll();
-    save();
     scheduleGenerate();
   }
 
@@ -2563,7 +2548,6 @@
       applyWorkSize();
       refreshDirty();
       renderAll();
-      save();
       scheduleGenerate();
       toast('Promoted to keyframe at ' + fmtTime(f.time));
     });
@@ -2732,7 +2716,7 @@
     var meshes = null;
     var flowPromise = null;
     // Flow is needed for the mesh fallback and the alpha warp. Matte-encoded
-    // inputs are opaque, so the AI path skips its own alpha handling; the frame
+    // inputs are opaque, so the ML path skips its own alpha handling; the frame
     // alpha then comes from warpAlpha of the ORIGINAL keyframes. `opaque`
     // reflects the ORIGINAL keyframes: a matte gap still needs the alpha pass.
     var opaque = morph.isOpaque(aData) && morph.isOpaque(bData);
@@ -2758,7 +2742,7 @@
       for (var p = 0, i = 3; p < n; p++, i += 4) sa[p] = aData[i];
       staticAlpha = sa;
     }
-    // Textured flow inputs built lazily inside ensureMeshes — the AI path never
+    // Textured flow inputs built lazily inside ensureMeshes — the ML path never
     // needs the flow and extendTexture is an expensive distance transform.
     var flowBg = null;
     var aFlowTex = null, bFlowTex = null;
@@ -2801,7 +2785,7 @@
       };
       // Motion blur post-process: smears the frame along its motion, easing
       // in/out over the gap. Needs the meshes, so it forces the lazy flow even
-      // on the opaque-AI path that would otherwise skip it.
+      // on the opaque-ML path that would otherwise skip it.
       var blur = gapBlurOpts(gap.id);
       var blurOn = !!(blur.on && blur.intensity > 0);
       var finish = function (rgba, ai) {
@@ -2867,7 +2851,7 @@
           });
         }).catch(function (err) {
           if (cbs.cancelled()) return;
-          console.error('AI inbetween failed, using mesh warp:', err);
+          console.error('ML inbetween failed, using mesh warp:', err);
           return ensureMeshes().then(function () {
             var frame = renderMorph();
             if (!opaque) applyAlpha(frame);
@@ -2885,7 +2869,7 @@
     var next = function () {
       if (cbs.cancelled() || i >= missingList.length) return Promise.resolve();
       var m = missingList[i];
-      var label = (gap.mode === 'squash' ? 'squash frame ' : (cbs.aiReady() ? 'AI inbetween ' : 'mesh warp ')) + m.idx + '/' + gap.genCount;
+      var label = (gap.mode === 'squash' ? 'squash frame ' : (cbs.aiReady() ? 'ML inbetween ' : 'mesh warp ')) + m.idx + '/' + gap.genCount;
       i++;
       return emit(m).then(function () {
         if (cbs.onProgress) cbs.onProgress(label, i / missingList.length);
@@ -2927,7 +2911,7 @@
     var token = ++genSeq;
     genTimer = setTimeout(function () {
       // Wait for the model download/compile to settle so gaps are generated
-      // with AI when possible (the launch overlay blocks interaction anyway).
+      // with ML when possible (the launch overlay blocks interaction anyway).
       (modelGate || Promise.resolve()).then(function () {
         if (token !== genSeq) return; // superseded by a newer schedule
         if (state.genRun) { state.pendingRegen = true; cancelRun(); }
@@ -3027,7 +3011,7 @@
           else { gen.push(frame); genIndex[frame.idx] = frame; }
           done++;
           setGenProgress(
-            label + ' · ' + (frame.ai ? 'AI frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
+            label + ' · ' + (frame.ai ? 'ML frame ' : 'warp ') + frame.idx + '/' + gap.genCount,
             (done / total) * 100
           );
         }
@@ -3084,7 +3068,6 @@
       el.btnCancel.classList.add('hidden');
       flushGenProgress();
       el.genProgress.classList.add('hidden');
-      save();
       flushGenView();
       if (state.pendingRegen) {
         state.pendingRegen = false;
@@ -3194,10 +3177,10 @@
     return s;
   }
 
-  // Export resolution + AI upscaling
+  // Export resolution + ML upscaling
 
   // The available export resolutions: the working size itself, integer
-  // multiples of it (AI upscale when > 1x), and common fixed short-edge
+  // multiples of it (ML upscale when > 1x), and common fixed short-edge
   // targets (720p/1080p/1440p/2160p/4K, matching the project's aspect).
   // The long edge is capped at 8K so exports stay within browser memory.
   function exportResolutionOptions() {
@@ -3233,7 +3216,7 @@
     opts.forEach(function (o, i) {
       var opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = o.label + (o.ai ? ' \u00b7 AI upscale' : '');
+      opt.textContent = o.label + (o.ai ? ' \u00b7 ML upscale' : '');
       el.exportRes.appendChild(opt);
     });
     var keep = -1;
@@ -3246,7 +3229,7 @@
   }
 
   // Upscale one composite canvas to the target size. When the target is larger
-  // than the working size the AI upscaler (worker) runs first — a 4x ESRGAN-
+  // than the working size the ML upscaler (worker) runs first — a 4x ESRGAN-
   // style model — and the result is resized to the exact target with high-
   // quality smoothing. Falls back to a plain high-quality resize if the model
   // can't be loaded (offline / blocked), so exports never stall.
@@ -3266,7 +3249,7 @@
       return c;
     }
     if (!bigger) return Promise.resolve(drawScaled(canvas));
-    // Target is larger: try the AI upscaler first.
+    // Target is larger: try the ML upscaler first.
     if (workers.length) {
       return upscaleViaWorker(canvas).then(function (hi) {
         return drawScaled(hi);
@@ -3274,7 +3257,7 @@
         if (err && err.message === 'Cancelled') throw err;
         if (!upscaleModelWarned) {
           upscaleModelWarned = true;
-          toast('AI upscaler unavailable (' + err.message + '), using high-quality resize');
+          toast('ML upscaler unavailable (' + err.message + '), using high-quality resize');
         }
         return drawScaled(canvas);
       });
@@ -3282,7 +3265,7 @@
     return Promise.resolve(drawScaled(canvas));
   }
 
-  // Send one frame to the worker for AI 4x upscaling. Resolves with a canvas
+  // Send one frame to the worker for ML 4x upscaling. Resolves with a canvas
   // at 4x the input size; the upscaler model downloads+compiles on first use
   // (progress reported through the export progress bar).
   function upscaleViaWorker(canvas) {
@@ -3297,7 +3280,7 @@
           // The first job downloads the model; later jobs resolve instantly
           // and never report progress, so this only shows during download.
           if (frac >= 1) setExportProgress('Upscaler ready, rendering…', 95);
-          else setExportProgress('Downloading AI upscaler ' + Math.round(frac * 100) + '%…', frac * 100);
+          else setExportProgress('Downloading ML upscaler ' + Math.round(frac * 100) + '%…', frac * 100);
         }
       };
       try {
@@ -3404,7 +3387,7 @@
     frames.forEach(function (f, i) {
       chain = chain.then(function () {
         if (state.exportCancel) throw new Error('Export cancelled');
-        // Composite every layer at this frame's time (AI-upscaled to target).
+        // Composite every layer at this frame's time (ML-upscaled to target).
         return exportCanvas(f, target).then(function (canvas) {
           return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
         }).then(function (blob) {
@@ -3501,7 +3484,7 @@
   function exportMP4(target) {
     var frames = buildPlaybackFrames();
     if (!frames.length) { toast('Nothing to export.'); return; }
-    // WebCodecs encodes each frame as it's produced (composite → AI-upscale →
+    // WebCodecs encodes each frame as it's produced (composite → ML-upscale →
     // encode → discard), so only one frame is in memory at a time — no matter
     // how large the export resolution is. It also handles 4K+ frames that
     // Chrome's MediaRecorder H.264 silently fails on. MediaRecorder is kept as
@@ -3541,7 +3524,7 @@
   }
 
   // Encode the animation with WebCodecs + mp4-muxer: each frame is composited,
-  // AI-upscaled to the target size, encoded, and immediately discarded — so
+  // ML-upscaled to the target size, encoded, and immediately discarded — so
   // even 8x exports never hold more than one frame in memory. Timestamps come
   // from each frame's real duration (holds + gap spacing), matching playback.
   function exportMP4WebCodecs(frames, target) {
@@ -3646,7 +3629,7 @@
 
     setExportProgress(isMp4 ? 'Recording MP4…' : 'Recording video…', 1);
 
-    // Composite (and AI-upscale) every layer per frame time, then record.
+    // Composite (and ML-upscale) every layer per frame time, then record.
     // Frames are rendered one at a time (the worker runs one upscale job at a
     // time), so a long high-res export streams through the progress bar.
     var rendered = null;
@@ -3835,7 +3818,7 @@
     beginExport();
     showExportOverlay(
       fmt === 'frame' ? 'Exporting current frame' : 'Exporting ' + fmt.toUpperCase(),
-      opt.label + (opt.ai ? ' \u00b7 AI upscale' : '')
+      opt.label + (opt.ai ? ' \u00b7 ML upscale' : '')
     );
     setExportProgress('Waiting for frames to finish generating…', 0);
     waitForGeneration().then(function () {
@@ -3903,7 +3886,6 @@
         invalidateAround(id);
         refreshDirty();
         renderAll();
-        save();
         scheduleGenerate(300);
       } else {
         renderLane();
@@ -3964,7 +3946,6 @@
         invalidateAround(id);
         refreshDirty();
         renderAll();
-        save();
         scheduleGenerate(300);
       } else {
         renderLane();
@@ -4033,7 +4014,6 @@
       el.timeline.removeEventListener('pointercancel', onUp);
       if (moved) {
         renderAll();
-        save();
         invalidateDots();
       } else {
         renderLane();
@@ -4091,32 +4071,6 @@
       gapSquash: state.gapSquash,
       gapBlur: state.gapBlur
     };
-  }
-
-  var storageQuotaWarned = false; // one-time notice when auto-save drops frames
-  function writeStorage() {
-    var data = projectData();
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(data));
-    } catch (e) {
-      try {
-        // Project (with its generated-frame data URLs) is too big for
-        // localStorage: save everything except the frames so the session still
-        // works, and tell the user once that frames won't survive a reload.
-        delete data.generated;
-        delete data.gapMeta;
-        localStorage.setItem(STORE_KEY, JSON.stringify(data));
-        if (!storageQuotaWarned) {
-          storageQuotaWarned = true;
-          toast('Project too large for auto-save \u2014 generated frames won\u2019t persist across reloads. Use Save project (.ijwta) to keep them.', 8000);
-        }
-      } catch (e2) { /* storage unavailable */ }
-    }
-  }
-
-  function save() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(writeStorage, 600);
   }
 
   function applyProjectData(data) {
@@ -4211,23 +4165,6 @@
     });
   }
 
-  function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
-    if (!raw) return;
-    var data = null;
-    try { data = JSON.parse(raw); } catch (e) { return; }
-    if (!data || !data.keyframes) return;
-    restoringProject = true;
-    try {
-      applyProjectData(data);
-      applyWorkSize();
-    } finally {
-      restoringProject = false;
-    }
-    refreshDirty();
-  }
-
   // File menu: export the project as an .ijwta file (Save) / import one (Load).
   function saveProjectFile() {
     var blob = new Blob([JSON.stringify(projectData(), null, 2)], { type: 'application/json' });
@@ -4257,7 +4194,6 @@
         refreshDirty();
         renderAll();
         syncInputs();
-        save();
         // Frames saved in the file are reused when valid (same stamps);
         // anything invalidated by the load (different endpoint images, a
         // different frame count) is regenerated automatically.
@@ -4299,7 +4235,6 @@
     refreshDirty();
     renderAll();
     syncInputs();
-    save();
     enterApp();
   }
 
@@ -4415,7 +4350,6 @@
       // changes and the timeline must regenerate.
       refreshDirty();
       renderAll();
-      save();
       scheduleGenerate();
     });
 
@@ -4429,7 +4363,6 @@
       renderSelectedPanel();
       renderLane();
       renderPreview();
-      save();
       invalidateDots();
     }
     var dotDebounce = null;
@@ -4479,7 +4412,6 @@
       renderSelectedPanel();
       renderLane();
       renderPreview();
-      save();
       invalidateDots();
     });
     el.btnAddLayer.addEventListener('click', addLayer);
@@ -4507,7 +4439,6 @@
       state.keysOnly = !state.keysOnly;
       el.btnKeysOnly.classList.toggle('active', state.keysOnly);
       renderPreview();
-      save();
     });
     el.btnStepBack.addEventListener('click', function () { pause(); step(-1); });
     el.btnStepFwd.addEventListener('click', function () { pause(); step(1); });
@@ -4517,10 +4448,9 @@
       el.fpsInput.value = String(state.fps);
       invalidateAll();
       renderAll();
-      save();
       scheduleGenerate();
     });
-    el.snapInput.addEventListener('change', function () { state.snap = el.snapInput.checked; save(); });
+    el.snapInput.addEventListener('change', function () { state.snap = el.snapInput.checked; });
     // Aspect ratio + custom dimensions share one path: recompute the working
     // size, re-render, persist, and regenerate anything the size invalidates.
     function changeSizeSetting() {
@@ -4530,7 +4460,6 @@
       var s = applyWorkSize();
       syncInputs();
       renderAll();
-      save();
       scheduleGenerate();
       if (s.w * s.h > 2 * 1024 * 1024) {
         toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
@@ -4552,7 +4481,6 @@
       var s = applyWorkSize();
       syncInputs();
       renderAll();
-      save();
       scheduleGenerate();
       if (s.w * s.h > 2 * 1024 * 1024) {
         toast('Working size ' + s.w + '×' + s.h + ' is large, interpolation may be slow', 6000);
@@ -4563,10 +4491,9 @@
       applyWorkSize();
       invalidateAll();
       renderAll();
-      save();
       scheduleGenerate();
     });
-    // Model auto-load: the AI model downloads+compiles once on launch. The loading
+    // Model auto-load: the ML model downloads+compiles once on launch. The loading
     // overlay shows progress; generation falls back to mesh warp if it fails.
     el.btnLoadingRetry.addEventListener('click', function () {
       el.btnLoadingRetry.classList.add('hidden');
@@ -4583,7 +4510,6 @@
       kf.time = t;
       refreshDirty();
       renderAll();
-      save();
       scheduleGenerate(300);
     });
 
@@ -4635,7 +4561,6 @@
             renderPreview();
             renderLane();
             renderSelectedPanel();
-            save();
             invalidateDots();
           }
           return;
@@ -4672,7 +4597,7 @@
       panState = null;
       el.previewCanvas.classList.remove('panning');
       if (dotDragState) {
-        if (dotDragState.moved) { save(); invalidateDots(); }
+        if (dotDragState.moved) { invalidateDots(); }
         dotDragState = null;
       }
     }
@@ -4743,7 +4668,7 @@
       var warn = e.target && e.target.closest ? e.target.closest('.gap-overlay.warn') : null;
       if (!warn) { hideGapTip(); return; }
       gapTip.textContent = '⚠ This gap needs ' + (warn.dataset.count || '?') +
-        ' interpolated frames. It\u2019s recommended to put a real frame in here. Long AI stretches tend to look bad.';
+        ' interpolated frames. It\u2019s recommended to put a real frame in here. Long ML stretches tend to look bad.';
       gapTip.classList.remove('hidden');
       gapTipVisible = true;
       moveGapTip(e);
@@ -4902,11 +4827,6 @@
     });
     el.btnStartCredits.addEventListener('click', openCredits);
     el.btnCreditsClose.addEventListener('click', function () { el.creditsOverlay.classList.add('hidden'); });
-
-    window.addEventListener('beforeunload', writeStorage);
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') writeStorage();
-    });
   }
 
   // Model auto-load (used by boot + retry button; works via the worker or
@@ -4937,24 +4857,24 @@
     if (modelGateResolve) { modelGateResolve(); modelGateResolve = null; }
     setLoadingProgress('Ready', 100);
     el.loadingOverlay.classList.add('hidden');
-    toast('AI model ready ✓. All inbetweens are AI-generated');
+    toast('ML model ready ✓. All inbetweens are ML-generated');
   }
 
   function onModelError(err) {
-    console.error('AI model load failed:', err);
+    console.error('ML model load failed:', err);
     state.modelReady = false;
     if (modelGateResolve) { modelGateResolve(); modelGateResolve = null; }
-    el.loadingSub.textContent = 'Could not load the AI model (' + (err && err.message ? err.message : err) + '). Frames will use the mesh warp instead.';
+    el.loadingSub.textContent = 'Could not load the ML model (' + (err && err.message ? err.message : err) + '). Frames will use the mesh warp instead.';
     el.loadingMeta.textContent = 'failed';
     el.btnLoadingRetry.classList.remove('hidden');
-    toast('AI model failed to load. Using mesh warp', 6000);
+    toast('ML model failed to load. Using mesh warp', 6000);
   }
 
   function loadModelWithOverlay() {
     el.loadingOverlay.classList.remove('hidden');
     el.btnLoadingRetry.classList.add('hidden');
     setLoadingProgress('Preparing…', 0);
-    el.loadingSub.textContent = 'Fetching the local AI engine + model (one-time, ~21 MB)…';
+    el.loadingSub.textContent = 'Fetching the local ML engine + model (one-time, ~21 MB)…';
     modelGate = new Promise(function (resolve) { modelGateResolve = resolve; });
     if (workers.length) {
       // Every pool worker downloads + compiles its own copy of the model (the
@@ -4970,7 +4890,6 @@
   }
 
   function boot() {
-    load();
     syncInputs();
     applyWorkSize();
     refreshDirty();
@@ -4989,7 +4908,7 @@
     syncSlider(el.gapSquashAmount);
     syncSlider(el.gapBlurAmount);
     initWorker();
-    loadModelWithOverlay(); // download + compile the AI model on launch
+    loadModelWithOverlay(); // download + compile the ML model on launch
     scheduleGenerate(400);  // auto-fill any dirty gaps shortly after launch
     window.addEventListener('resize', function () {
       // If the window shrinks, keep the timeline inside the clamped range so
