@@ -2,6 +2,7 @@
 
 
   var el = {
+    toolbar: byId('toolbar'),
     btnAddAssets: byId('btnAddAssets'),
     assetGrid: byId('assetGrid'),
     startScreen: byId('startScreen'),
@@ -44,6 +45,9 @@
     exportRes: byId('exportRes'),
     btnExportGo: byId('btnExportGo'),
     btnHelp: byId('btnHelp'),
+    btnDrawerAssets: byId('btnDrawerAssets'),
+    btnDrawerPanel: byId('btnDrawerPanel'),
+    drawerBackdrop: byId('drawerBackdrop'),
     btnReplace: byId('btnReplace'),
     btnDelete: byId('btnDelete'),
     btnCancel: byId('btnCancel'),
@@ -96,6 +100,10 @@
     btnDotDelete: byId('btnDotDelete'),
     btnDotCopy: byId('btnDotCopy'),
     btnDotPaste: byId('btnDotPaste'),
+    kfMenu: byId('kfMenu'),
+    kfMenuCopy: byId('kfMenuCopy'),
+    kfMenuPaste: byId('kfMenuPaste'),
+    kfMenuDelete: byId('kfMenuDelete'),
     previewCanvas: byId('previewCanvas'),
     previewOverlay: byId('previewOverlay'),
     previewStage: byId('previewStage'),

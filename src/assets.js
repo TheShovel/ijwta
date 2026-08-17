@@ -120,6 +120,10 @@
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
       if (dragging) endAssetDrag(a, ev.clientX, ev.clientY);
+      // On narrow screens the assets live in a drawer that covers the preview,
+      // so dragging onto the timeline is awkward; a plain tap places the image
+      // at the playhead instead. Desktop keeps drag-only behavior.
+      else if (window.innerWidth <= 860) addAssetKeyframe(a.img, insertTime(state.playhead));
     }
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);

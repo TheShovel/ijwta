@@ -5,7 +5,7 @@
   // inline when no worker is available)
 
   function closeMenus() {
-    [el.settingsMenu, el.fileMenu, el.exportMenu, el.layerMenu, el.onionMenu].forEach(function (m) { if (m) m.classList.add('hidden'); });
+    [el.settingsMenu, el.fileMenu, el.exportMenu, el.layerMenu, el.onionMenu, el.kfMenu].forEach(function (m) { if (m) m.classList.add('hidden'); });
   }
 
   function setLoadingProgress(label, pct) {
@@ -65,6 +65,9 @@
     syncInputs();
     applyWorkSize();
     refreshDirty();
+    // On phones, default to a lower timeline zoom so a whole short timeline
+    // fits the width; projects that carry their own zoom override this anyway.
+    if (window.innerWidth <= 860 && state.zoom === 90) state.zoom = 40;
     // Restore the timeline height the user last dragged it to.
     var savedH = 0;
     try { savedH = parseInt(localStorage.getItem(TL_H_KEY) || '', 10) || 0; } catch (e) {}

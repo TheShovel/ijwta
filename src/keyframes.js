@@ -125,6 +125,73 @@
     scheduleGenerate();
   }
 
+  // Right-click menu for keyframes: copy / paste / delete. Copy remembers the
+  // frame's image and options (hold, blend, size); paste drops a fresh keyframe
+  // at the playhead on the copied frame's layer, so you can reuse one drawing
+  // across the timeline. The clipboard survives pastes (paste repeatedly).
+  function copyKeyframe(id) {
+    var kf = state.keyframes.find(function (k) { return k.id === id; });
+    if (!kf) return;
+    copiedKeyframe = {
+      img: kf.img,
+      name: kf.name,
+      w: kf.w,
+      h: kf.h,
+      hold: kf.hold,
+      mix: kf.mix,
+      layer: kf.layer
+    };
+    toast('Frame copied');
+  }
+
+  function pasteKeyframe(atTime, layerId) {
+    if (!copiedKeyframe) return null;
+    var layer = layerById(layerId || copiedKeyframe.layer);
+    if (!layer || layer.type === 'fill') layer = layerById(keyframeLayerId());
+    var kf = {
+      id: 'k' + (idSeq++),
+      layer: layer.id,
+      time: insertTime(atTime),
+      img: copiedKeyframe.img,
+      name: copiedKeyframe.name,
+      w: copiedKeyframe.w,
+      h: copiedKeyframe.h
+    };
+    if (copiedKeyframe.hold != null) kf.hold = copiedKeyframe.hold;
+    if (copiedKeyframe.mix) kf.mix = copiedKeyframe.mix;
+    state.keyframes.push(kf);
+    state.selectedId = kf.id;
+    applyWorkSize();
+    invalidateAll();
+    renderAll();
+    scheduleGenerate();
+    return kf;
+  }
+
+  // The context menu is a single fixed-position element; showKfMenu positions
+  // it at the cursor and enables the items that apply. Right-clicking a chip
+  // selects it first, so the menu always acts on what you clicked.
+  function showKfMenu(clientX, clientY, kfId, pasteAt, pasteLayer) {
+    hideKfMenu();
+    var menu = el.kfMenu;
+    menu.style.left = clientX + 'px';
+    menu.style.top = clientY + 'px';
+    menu.classList.remove('hidden');
+    var r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 6) menu.style.left = Math.max(6, clientX - r.width) + 'px';
+    if (r.bottom > window.innerHeight - 6) menu.style.top = Math.max(6, clientY - r.height) + 'px';
+    menu._kfId = kfId || null;
+    menu._pasteAt = pasteAt;
+    menu._pasteLayer = pasteLayer;
+    el.kfMenuDelete.classList.toggle('disabled', !kfId);
+    el.kfMenuCopy.classList.toggle('disabled', !kfId);
+    el.kfMenuPaste.classList.toggle('disabled', !copiedKeyframe);
+  }
+
+  function hideKfMenu() {
+    el.kfMenu.classList.add('hidden');
+  }
+
   // Turn a composite playback frame into a keyframe on the active layer. The
   // composite image becomes a new keyframe; the layer's gaps split there and
   // regenerate.

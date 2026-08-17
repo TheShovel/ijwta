@@ -440,6 +440,42 @@
     el.previewCanvas.addEventListener('pointerup', endPan);
     el.previewCanvas.addEventListener('pointercancel', endPan);
 
+    // Two-finger pinch zoom on the preview (touch). Tracks the two pointers
+    // and zooms about their midpoint, same math as the wheel zoom.
+    var pinch = null; // { a: {id,x,y}, b: {id,x,y}, dist, zoom }
+    function pinchDist() {
+      var pa = pinch.a, pb = pinch.b;
+      if (!pa || !pb) return 0;
+      var dx = pa.x - pb.x, dy = pa.y - pb.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    el.previewCanvas.addEventListener('pointerdown', function (e) {
+      if (!pinch) pinch = { a: null, b: null, dist: 0 };
+      if (!pinch.a) pinch.a = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      else if (!pinch.b) pinch.b = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      if (pinch.a && pinch.b) pinch.dist = pinchDist();
+    });
+    el.previewCanvas.addEventListener('pointermove', function (e) {
+      if (!pinch || !pinch.a || !pinch.b) return;
+      if (e.pointerId === pinch.a.id) { pinch.a.x = e.clientX; pinch.a.y = e.clientY; }
+      else if (e.pointerId === pinch.b.id) { pinch.b.x = e.clientX; pinch.b.y = e.clientY; }
+      else return;
+      var d = pinchDist();
+      if (pinch.dist > 0 && d > 0) {
+        var mid = { clientX: (pinch.a.x + pinch.b.x) / 2, clientY: (pinch.a.y + pinch.b.y) / 2 };
+        zoomViewport(d / pinch.dist, mid);
+      }
+      pinch.dist = d;
+    });
+    function endPinch(e) {
+      if (!pinch) return;
+      if (e.pointerId === pinch.a.id) pinch.a = null;
+      else if (e.pointerId === pinch.b.id) pinch.b = null;
+      if (!pinch.a || !pinch.b) pinch = null;
+    }
+    el.previewCanvas.addEventListener('pointerup', endPinch);
+    el.previewCanvas.addEventListener('pointercancel', endPinch);
+
     // Drag a layer's name gutter to reorder the stack (bottom → top). The
     // timeline pointerdown handler below still activates the layer on click.
     el.lane.addEventListener('pointerdown', function (e) {
@@ -449,7 +485,21 @@
 
     // timeline pointer interactions. Clicking a layer row selects it: the
     // name gutter, or anywhere in the layer's band (which also scrubs).
+    // A keyframe chip hidden under the playhead still deserves the click: the
+    // playhead strip is only 9px wide, so when it sits on a keyframe the chip
+    // would be unselectable and its Delete button would never apply. Prefer
+    // the chip when the press overlaps one; the playhead stays grabbable from
+    // the ruler and any empty lane space.
+    function kfChipAt(clientX, clientY, sel) {
+      var chips = el.lane.querySelectorAll(sel || '.kf');
+      for (var i = chips.length - 1; i >= 0; i--) { // topmost (last in DOM) first
+        var r = chips[i].getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return chips[i];
+      }
+      return null;
+    }
     el.timeline.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return; // right/middle clicks belong to the context menu
       var dotEl = e.target.closest('.fill-dot');
       if (dotEl) { startDotDrag(e, dotEl); return; }
       var chip = e.target.closest('.kf');
@@ -460,7 +510,20 @@
       }
       var gapEl = e.target.closest('.gap-overlay');
       if (gapEl) { selectGap(gapEl.dataset.gap); return; }
-      if (e.target.closest('.playhead') || e.target.closest('.ruler')) { startScrub(e); return; }
+      if (e.target.closest('.playhead')) {
+        var viaDot = kfChipAt(e.clientX, e.clientY, '.fill-dot');
+        if (viaDot) { startDotDrag(e, viaDot); return; }
+        var via = kfChipAt(e.clientX, e.clientY, '.kf');
+        if (via) {
+          var vr = via.getBoundingClientRect();
+          if (e.clientX >= vr.right - 8) startKfResize(e, via);
+          else startKfDrag(e, via);
+          return;
+        }
+        startScrub(e);
+        return;
+      }
+      if (e.target.closest('.ruler')) { startScrub(e); return; }
       var row = e.target.closest('.layer-row');
       if (row) {
         activateLayer(row.dataset.layer);
@@ -469,6 +532,43 @@
       }
       if (e.target.closest('.lane')) startScrub(e);
     });
+
+    // Right-click on the timeline: a keyframe chip gets copy / paste / delete;
+    // empty lane space gets paste (into that layer at the clicked time). The
+    // browser's default context menu stays off for the lane so ours can appear.
+    el.timeline.addEventListener('contextmenu', function (e) {
+      var chip = e.target.closest('.kf');
+      if (chip) {
+        e.preventDefault();
+        selectKeyframe(chip.dataset.id);
+        showKfMenu(e.clientX, e.clientY, chip.dataset.id, state.playhead, null);
+        return;
+      }
+      var dotEl = e.target.closest('.fill-dot');
+      if (dotEl) { e.preventDefault(); return; } // dots have their own flow
+      var row = e.target.closest('.layer-row');
+      if (row && row.dataset.layer && row.dataset.layer !== '') {
+        e.preventDefault();
+        var t = insertTime(timeFromClientX(e.clientX));
+        showKfMenu(e.clientX, e.clientY, null, t, row.dataset.layer);
+      }
+    });
+    el.kfMenuCopy.addEventListener('click', function () {
+      var id = el.kfMenu._kfId;
+      hideKfMenu();
+      if (id) copyKeyframe(id);
+    });
+    el.kfMenuPaste.addEventListener('click', function () {
+      var at = el.kfMenu._pasteAt, layer = el.kfMenu._pasteLayer;
+      hideKfMenu();
+      pasteKeyframe(at, layer);
+    });
+    el.kfMenuDelete.addEventListener('click', function () {
+      var id = el.kfMenu._kfId;
+      hideKfMenu();
+      if (id) deleteKeyframe(id);
+    });
+    el.kfMenu.addEventListener('click', function (e) { e.stopPropagation(); });
     el.timeline.addEventListener('wheel', function (e) {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -641,6 +741,40 @@
     wireMenu(el.btnLayerMenu, el.layerMenu);
     wireMenu(el.btnOnionMenu, el.onionMenu, syncOnionUI);
     document.addEventListener('click', closeMenus);
+
+    // Mobile side-panel drawers: on narrow screens the asset / frame panels
+    // slide in over the preview, between the toolbar and the timeline, so the
+    // timeline stays visible for scrubbing and drops. Desktop never sees these
+    // (the buttons are hidden and the panels are plain flex columns).
+    function isMobile() { return window.innerWidth <= 860; }
+    function closeDrawers() {
+      el.leftCol.classList.remove('open');
+      el.rightCol.classList.remove('open');
+      el.drawerBackdrop.classList.remove('show');
+    }
+    function openDrawer(side) {
+      closeMenus();
+      var drawer = side === 'left' ? el.leftCol : el.rightCol;
+      var h = el.timelineCol.offsetHeight + (el.tlResizer ? el.tlResizer.offsetHeight : 0);
+      drawer.style.top = (el.toolbar ? el.toolbar.offsetHeight : 0) + 'px';
+      drawer.style.bottom = h + 'px';
+      drawer.classList.add('open');
+      el.drawerBackdrop.classList.add('show');
+    }
+    el.btnDrawerAssets.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (el.leftCol.classList.contains('open')) closeDrawers();
+      else openDrawer('left');
+    });
+    el.btnDrawerPanel.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (el.rightCol.classList.contains('open')) closeDrawers();
+      else openDrawer('right');
+    });
+    el.drawerBackdrop.addEventListener('click', closeDrawers);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeDrawers();
+    });
 
     // File menu: save / load project .khuwari files
     el.btnSaveProject.addEventListener('click', saveProjectFile);

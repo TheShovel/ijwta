@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Khuwari · inbetween animation</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <header class="toolbar">
+  <header class="toolbar" id="toolbar">
     <div class="toolbar-brand" aria-hidden="true"><img src="logo.svg" alt="" class="brand-logo"><span class="brand-name">Khuwari</span></div>
     <div class="toolbar-group">
       <div class="menu-wrap">
@@ -99,6 +99,13 @@
       <button id="btnHelp" class="btn" title="Open the documentation">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span>Help</span>
+      </button>
+      <span class="vsep mobile-only"></span>
+      <button id="btnDrawerAssets" class="btn icon mobile-only" title="Assets" aria-label="Assets">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </button>
+      <button id="btnDrawerPanel" class="btn icon mobile-only" title="Frame panel" aria-label="Frame panel">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
       </button>
     </div>
   </header>
@@ -367,6 +374,27 @@
   </footer>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- Backdrop for the mobile side-panel drawers. Invisible on desktop. -->
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+  <!-- Right-click menu for keyframes: copy / paste / delete. Fixed at the
+       cursor, hidden until a contextmenu opens it. -->
+  <div id="kfMenu" class="context-menu hidden">
+    <button id="kfMenuCopy" type="button">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>Copy frame</span>
+    </button>
+    <button id="kfMenuPaste" type="button">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 12h6M9 16h6"/></svg>
+      <span>Paste frame</span>
+    </button>
+    <div class="menu-sep"></div>
+    <button id="kfMenuDelete" type="button" class="danger">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+      <span>Delete frame</span>
+    </button>
+  </div>
 
   <!-- Start screen: shown on launch until the user starts or loads a project.
        The mascot banner sits on the left, scaled to the full window height; the
