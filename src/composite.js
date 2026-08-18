@@ -164,7 +164,10 @@
   }
 
   // Render the composite at t into a fresh canvas (filmstrip thumbs, exports).
-  function compositeCanvas(t) {
+  // When `transparent` is set, the backdrop is left clear (no white fill) so
+  // PNG exports keep their alpha; on-screen previews pass nothing and keep the
+  // white backdrop.
+  function compositeCanvas(t, transparent) {
     var frames = framesAt(t, false);
     var canvas = document.createElement('canvas');
     canvas.width = workW;
@@ -173,7 +176,7 @@
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
     })).then(function () {
-      drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH);
+      drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH, transparent);
       return canvas;
     });
   }

@@ -373,7 +373,12 @@ function upscaleFrame(msg) {
   };
   model.loadSRModel(loadProgress).then(function () {
     if (upscaleCancelled) { post({ type: 'upscale-cancelled', jobId: jobId }); return; }
-    return model.upscale(rgba, width, height);
+    // Transparent exports run a second SR pass on the alpha channel (rendered
+    // as a grayscale image) and keep the real alpha; otherwise the standard
+    // opaque upscale is used.
+    return msg.preserveAlpha
+      ? model.upscalePreservingAlpha(rgba, width, height)
+      : model.upscale(rgba, width, height);
   }).then(function (out) {
     if (upscaleCancelled) { post({ type: 'upscale-cancelled', jobId: jobId }); return; }
     var buf = out.buffer;

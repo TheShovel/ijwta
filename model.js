@@ -443,6 +443,48 @@
     });
   }
 
+  // Upscale one RGBA buffer while preserving its alpha channel, mirroring the
+  // alpha-interpolation trick: the color pass runs through the SR model as
+  // usual (premultiplied, so transparent pixels don't bleed color), and a
+  // second SR pass runs on the alpha channel rendered as a grayscale image
+  // (white = opaque, black = transparent). The two are combined by
+  // un-premultiplying the color with the upscaled alpha, giving a faithful
+  // transparent upscale instead of the opaque alpha=255 the model emits.
+  function upscalePreservingAlpha(rgba, w, h) {
+    if (!srState.session) return Promise.reject(new Error('Upscaler model not loaded'));
+    var n = w * h;
+    // Alpha as a grayscale RGBA: opaque (alpha 255) so the SR premultiply is a
+    // no-op and the grayscale values pass straight through the model.
+    var alphaGray = new Uint8ClampedArray(n * 4);
+    for (var p = 0, i = 0; p < n; p++, i += 4) {
+      var a = rgba[i + 3];
+      alphaGray[i] = a; alphaGray[i + 1] = a; alphaGray[i + 2] = a; alphaGray[i + 3] = 255;
+    }
+    return upscale(rgba, w, h).then(function (colorOut) {
+      return upscale(alphaGray, w, h).then(function (alphaOut) {
+        var ow = w * SR_SCALE, oh = h * SR_SCALE;
+        var out = new Uint8ClampedArray(ow * oh * 4);
+        for (var q = 0, qi = 0; q < ow * oh; q++, qi += 4) {
+          // alphaOut is grayscale: r == g == b == upscaled alpha (0..255).
+          var a = alphaOut[qi] / 255;
+          if (a <= 1 / 255) {
+            // Fully transparent: skip the multiply/divide to avoid 0/0 noise.
+            out[qi] = 0; out[qi + 1] = 0; out[qi + 2] = 0; out[qi + 3] = 0;
+          } else {
+            // The color pass was premultiplied by alpha (rgbaToRifefloatInto),
+            // so divide back out to recover straight color; the assignment to a
+            // Uint8ClampedArray clamps + rounds.
+            out[qi] = colorOut[qi] / a;
+            out[qi + 1] = colorOut[qi + 1] / a;
+            out[qi + 2] = colorOut[qi + 2] / a;
+            out[qi + 3] = a * 255;
+          }
+        }
+        return out;
+      });
+    });
+  }
+
   return {
     loadRuntime: loadRuntime,
     loadModel: loadModel,
@@ -454,6 +496,7 @@
     isSRReady: isSRReady,
     isLoadingSR: isLoadingSR,
     upscale: upscale,
+    upscalePreservingAlpha: upscalePreservingAlpha,
     SR_SCALE: SR_SCALE,
     MODEL_URL: MODEL_URL,
     SR_MODEL_URL: SR_MODEL_URL,

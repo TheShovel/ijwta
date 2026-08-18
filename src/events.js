@@ -403,6 +403,9 @@
         }
       }
       if (state.viewZoom <= 1) return;
+      // A second touch means a pinch is starting; let the pinch handler own the
+      // gesture instead of also panning (touch only — a mouse never sets pinch.b).
+      if (pinch && pinch.a && pinch.b) return;
       panState = { x: e.clientX, y: e.clientY };
       el.previewCanvas.classList.add('panning');
       try { el.previewCanvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -422,7 +425,7 @@
         }
         return;
       }
-      if (!panState) return;
+      if (!panState || (pinch && pinch.a && pinch.b)) return;
       // Drag-pan: scroll the wrap 1:1 with the cursor (CSS px).
       el.previewWrap.scrollLeft -= e.clientX - panState.x;
       el.previewWrap.scrollTop -= e.clientY - panState.y;
@@ -567,6 +570,15 @@
       var id = el.kfMenu._kfId;
       hideKfMenu();
       if (id) deleteKeyframe(id);
+    });
+    // Mobile-only Copy / Paste for the selected keyframe. On desktop the same
+    // actions live in the right-click context menu, which touch devices can't
+    // open, so these buttons (hidden on desktop) cover that gap.
+    el.btnCopyKf.addEventListener('click', function () {
+      if (state.selectedId) copyKeyframe(state.selectedId);
+    });
+    el.btnPasteKf.addEventListener('click', function () {
+      pasteKeyframe(state.playhead);
     });
     el.kfMenu.addEventListener('click', function (e) { e.stopPropagation(); });
     el.timeline.addEventListener('wheel', function (e) {
@@ -751,6 +763,12 @@
       el.leftCol.classList.remove('open');
       el.rightCol.classList.remove('open');
       el.drawerBackdrop.classList.remove('show');
+      // The inline top/bottom are only meaningful while a drawer is a fixed
+      // overlay; clear them on resize back to desktop so the columns reflow.
+      if (!isMobile()) {
+        el.leftCol.style.top = el.leftCol.style.bottom = '';
+        el.rightCol.style.top = el.rightCol.style.bottom = '';
+      }
     }
     function openDrawer(side) {
       closeMenus();
@@ -774,6 +792,11 @@
     el.drawerBackdrop.addEventListener('click', closeDrawers);
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeDrawers();
+    });
+    // Growing past the mobile breakpoint would otherwise strand an open drawer
+    // (its position is set inline for the fixed-overlay state); close on resize.
+    window.addEventListener('resize', function () {
+      if (!isMobile()) closeDrawers();
     });
 
     // File menu: save / load project .khuwari files

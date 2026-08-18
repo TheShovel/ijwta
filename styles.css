@@ -1523,6 +1523,8 @@ button:focus-visible {
 @media (max-width: 860px) {
   /* drawer toggle buttons in the toolbar */
   .mobile-only { display: inline-flex !important; }
+  /* but a mobile-only row of panel buttons stays a full-width flex row */
+  .menu-row.mobile-only { display: flex !important; }
   .toolbar { padding: 8px 10px; gap: 8px; }
   .toolbar-brand .brand-name { display: none; }
   .toolbar-group { gap: 6px; }
@@ -1541,11 +1543,14 @@ button:focus-visible {
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
   .side-col.right {
-    right: auto;
-    left: 0;
-    border-right: 1px solid rgba(57, 65, 77, 0.45);
-    border-left: none;
+    right: 0;
+    left: auto;
+    border-right: none;
+    border-left: 1px solid rgba(57, 65, 77, 0.45);
   }
+  /* off-screen to the right when closed, slides in from the right edge */
+  .side-col.right { transform: translateX(108%); }
+  .side-col.right.open { transform: translateX(0); }
   /* default hidden, slid off the left edge */
   .side-col { transform: translateX(-108%); }
   .side-col.open { transform: translateX(0); }
@@ -1631,8 +1636,9 @@ button:focus-visible {
   .slider::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -9px; }
   .slider::-moz-range-thumb { width: 22px; height: 22px; }
 
-  /* no browser tap highlight, and taps are instant (no 300ms hover delay) */
-  * { -webkit-tap-highlight-color: transparent; }
+  /* no browser tap highlight / long-press callout, and taps are instant
+     (no 300ms hover delay) */
+  * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   .btn, .asset, .filmstrip .thumb, .menu button, .context-menu button,
   .field input, .field select, .kf, .gap-overlay, .layer-gutter,
   .layer-row, .fill-dot { touch-action: manipulation; }

@@ -149,8 +149,13 @@
   // ESRGAN-style model, and the result is resized to the exact target with high-
   // quality smoothing. Falls back to a plain high-quality resize if the model
   // can't be loaded (offline / blocked), so exports never stall.
+  //
+  // When `transparent` is set the backdrop is left clear (no black fill) so the
+  // alpha channel survives. For the ML upscaler path we keep transparency by
+  // running a second SR pass on the alpha channel (mirroring how layer alpha is
+  // interpolated), so transparent exports get the same ML sharpness.
   var upscaleModelWarned = false;
-  function upscaleCanvasTo(canvas, tw, th) {
+  function upscaleCanvasTo(canvas, tw, th, transparent) {
     if (canvas.width === tw && canvas.height === th) return Promise.resolve(canvas);
     var bigger = tw > canvas.width || th > canvas.height;
     function drawScaled(src) {
@@ -159,15 +164,17 @@
       var ctx = c.getContext('2d');
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, tw, th);
+      if (!transparent) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, tw, th);
+      }
       drawContain(ctx, src, tw, th);
       return c;
     }
     if (!bigger) return Promise.resolve(drawScaled(canvas));
     // Target is larger: try the ML upscaler first.
     if (workers.length) {
-      return upscaleViaWorker(canvas).then(function (hi) {
+      return upscaleViaWorker(canvas, transparent).then(function (hi) {
         return drawScaled(hi);
       }).catch(function (err) {
         if (err && err.message === 'Cancelled') throw err;
@@ -183,8 +190,9 @@
 
   // Send one frame to the worker for ML 4x upscaling. Resolves with a canvas
   // at 4x the input size; the upscaler model downloads+compiles on first use
-  // (progress reported through the export progress bar).
-  function upscaleViaWorker(canvas) {
+  // (progress reported through the export progress bar). When `transparent` is
+  // set the worker keeps the real alpha (second SR pass on the alpha channel).
+  function upscaleViaWorker(canvas, transparent) {
     return new Promise(function (resolve, reject) {
       var ctx = canvas.getContext('2d');
       var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -207,7 +215,8 @@
           jobId: jobId,
           width: canvas.width,
           height: canvas.height,
-          rgba: img.data.buffer
+          rgba: img.data.buffer,
+          preserveAlpha: !!transparent
         }, [img.data.buffer]);
       } catch (err) {
         delete upscaleJobs[jobId];
@@ -215,6 +224,8 @@
       }
     }).then(function (r) {
       // r = { data: ArrayBuffer, width, height }: build a canvas from it.
+      // putImageData writes the full RGBA (including alpha), so a
+      // transparency-preserving upscale carries its alpha into the canvas.
       var c = document.createElement('canvas');
       c.width = r.width; c.height = r.height;
       var cctx = c.getContext('2d');
@@ -226,9 +237,11 @@
   }
 
   // Composite one playback frame and size it to the export target.
-  function exportCanvas(f, target) {
-    return compositeCanvas(f.time).then(function (c) {
-      return upscaleCanvasTo(c, target.w, target.h);
+  // `transparent` keeps the alpha channel intact (used by PNG exports so the
+  // background stays clear instead of being filled white/black).
+  function exportCanvas(f, target, transparent) {
+    return compositeCanvas(f.time, transparent).then(function (c) {
+      return upscaleCanvasTo(c, target.w, target.h, transparent);
     });
   }
 
@@ -304,7 +317,8 @@
       chain = chain.then(function () {
         if (state.exportCancel) throw new Error('Export cancelled');
         // Composite every layer at this frame's time (ML-upscaled to target).
-        return exportCanvas(f, target).then(function (canvas) {
+        // PNG sequence keeps transparency (no white backdrop).
+        return exportCanvas(f, target, true).then(function (canvas) {
           return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
         }).then(function (blob) {
           return blob.arrayBuffer();
@@ -786,7 +800,7 @@
   function exportCurrentFrame(target) {
     if (!buildPlaybackFrames().length) { toast('Nothing to export.'); return; }
     setExportProgress('Exporting frame…', 5);
-    exportCanvas({ time: state.playhead }, target).then(function (canvas) {
+    exportCanvas({ time: state.playhead }, target, true).then(function (canvas) {
       return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
     }).then(function (blob) {
       var url = URL.createObjectURL(blob);

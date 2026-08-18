@@ -50,6 +50,8 @@
     drawerBackdrop: byId('drawerBackdrop'),
     btnReplace: byId('btnReplace'),
     btnDelete: byId('btnDelete'),
+    btnCopyKf: byId('btnCopyKf'),
+    btnPasteKf: byId('btnPasteKf'),
     btnCancel: byId('btnCancel'),
     kfCard: byId('kfCard'),
     kfThumb: byId('kfThumb'),

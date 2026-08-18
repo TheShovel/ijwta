@@ -196,12 +196,15 @@
     return out;
   }
 
-  // Draw a composite from layer bitmaps (bottom-up order). White backdrop.
-  // Normal layers draw their frame image directly (no canvas allocation); fill
-  // layers draw their computed fill canvas.
-  function drawComposite(ctx, bits, W, H) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, W, H);
+  // Draw a composite from layer bitmaps (bottom-up order). White backdrop by
+  // default (previews, filmstrip). Normal layers draw their frame image directly
+  // (no canvas allocation); fill layers draw their computed fill canvas. When
+  // `transparent` is set the backdrop is left clear so PNG exports keep alpha.
+  function drawComposite(ctx, bits, W, H, transparent) {
+    if (!transparent) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, W, H);
+    }
     for (var i = 0; i < bits.length; i++) {
       var b = bits[i];
       if (b.canvas) {
