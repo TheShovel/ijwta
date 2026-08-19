@@ -12,6 +12,7 @@
     renderPlayhead();
     updateTransport();
     highlightCurrentThumb();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel();
   }
 
   function setFrameByTime(t) {
@@ -31,6 +32,8 @@
     renderPlayhead();
     updateTransport();
     highlightCurrentThumb();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel();
+    if (state.audio && state.audio.src && !state.playing) audioSeek(t);
   }
 
   // Used at the end of a scrub when Snap is on: settle the playhead on the
@@ -76,11 +79,13 @@
     // Decode all playback frames into memory now so the first appearance of
     // each frame is instant instead of a black flash.
     preloadPlaybackFrames();
+    audioPlay(playStart);
     requestAnimationFrame(tick);
   }
 
   function pause() {
     state.playing = false;
+    audioPause();
     updateTransport();
   }
 
@@ -95,6 +100,7 @@
         state.playhead = 0;
         playStart = 0;
         playStartTime = now;
+        audioPlay(0);
       } else {
         setFrameByTime(end); // settle on the last frame and stop
         pause();

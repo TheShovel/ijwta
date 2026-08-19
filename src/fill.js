@@ -200,11 +200,23 @@
   // default (previews, filmstrip). Normal layers draw their frame image directly
   // (no canvas allocation); fill layers draw their computed fill canvas. When
   // `transparent` is set the backdrop is left clear so PNG exports keep alpha.
-  function drawComposite(ctx, bits, W, H, transparent) {
+  function drawComposite(ctx, bits, W, H, transparent, camera) {
     if (!transparent) {
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, W, H);
     }
+    if (camera) {
+      // Non-destructive camera: transformed around the frame centre. The
+      // backdrop (above) is drawn untransformed, so when the zoom is in we crop
+      // to the content and when it's out the surrounding border stays the
+      // (white or, for transparent exports, clear) backdrop.
+      ctx.save();
+      ctx.translate(W / 2 + camera.x * W, H / 2 + camera.y * H);
+      ctx.rotate(camera.rot * Math.PI / 180);
+      ctx.scale(camera.zoom, camera.zoom);
+      ctx.translate(-W / 2, -H / 2);
+    }
+    var cam = !!camera;
     for (var i = 0; i < bits.length; i++) {
       var b = bits[i];
       if (b.canvas) {
@@ -218,5 +230,6 @@
         }
       }
     }
+    if (cam) ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
   }

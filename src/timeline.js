@@ -23,7 +23,7 @@
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
     })).then(function () {
-      drawComposite(ctx, layerBitmaps(t, false, tw, th), tw, th);
+      drawComposite(ctx, layerBitmaps(t, false, tw, th), tw, th, false, state.camera.enabled ? cameraAt(t) : null);
       return canvas.toDataURL('image/png');
     });
   }
@@ -47,6 +47,7 @@
     renderRuler(maxTime);
     renderLane();
     renderPlayhead();
+    renderAudioLane();
     el.zoomLabel.textContent = Math.round(state.zoom) + ' px/s';
   }
 
@@ -150,6 +151,7 @@
 
   function renderLane() {
     el.lane.innerHTML = '';
+    renderCameraRow();
     var z = state.zoom;
     state.layers.forEach(function (L) {
       var row = document.createElement('div');

@@ -19,43 +19,46 @@
     // Playing always redraws: editor-only overlays (onion ghosts, dot markers)
     // must never linger on the canvas during playback, even when the composite
     // is unchanged (held keyframes reuse the same image).
-    var key = compositeKey(state.playhead, state.keysOnly);
+    var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
+    var hasCamEffect = cam && (cam.x !== 0 || cam.y !== 0 || cam.zoom !== 1 || cam.rot !== 0);
+    var camKey = cam ? '|#cam#' + cam.x.toFixed(4) + ',' + cam.y.toFixed(4) + ',' + cam.zoom.toFixed(4) + ',' + cam.rot.toFixed(3) : '';
+    var key = compositeKey(state.playhead, state.keysOnly) + camKey;
     if (!state.playing && lastPreview && lastPreview.key === key) {
-      drawDotMarkers(octx);
+      if (!hasCamEffect) drawDotMarkers(octx);
       return; // already showing this exact composite
     }
     var frames = framesAt(state.playhead, state.keysOnly);
     var missing = frames.some(function (f) { return !imgCache.get(f.img); });
     if (missing) {
       // Keep the previous composite on screen while the new images decode.
-      if (lastPreview && lastPreview.bits.length) drawComposite(ctx, lastPreview.bits, workW, workH);
+      if (lastPreview && lastPreview.bits.length) drawComposite(ctx, lastPreview.bits, workW, workH, false, cam);
       else {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, workW, workH);
       }
-      drawDotMarkers(octx);
+      if (!hasCamEffect) drawDotMarkers(octx);
       var srcs = {};
       frames.forEach(function (f) { if (!imgCache.get(f.img)) srcs[f.img] = true; });
       Promise.all(Object.keys(srcs).map(function (src) {
         return loadImage(src).catch(function () {});
       })).then(function () {
         if (token !== state.previewToken) return;
-        if (compositeKey(state.playhead, state.keysOnly) !== key) return; // moved on while loading
+        if (compositeKey(state.playhead, state.keysOnly) + camKey !== key) return; // moved on while loading
         var ctx2 = el.previewCanvas.getContext('2d');
         var octx2 = el.previewOverlay.getContext('2d');
         octx2.clearRect(0, 0, workW, workH);
         var bits = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
-        drawComposite(ctx2, bits, workW, workH);
-        if (state.onion) drawOnion(ctx2);
-        drawDotMarkers(octx2);
+        drawComposite(ctx2, bits, workW, workH, false, cam);
+        if (state.onion && !hasCamEffect) drawOnion(ctx2);
+        if (!hasCamEffect) drawDotMarkers(octx2);
         lastPreview = { key: key, bits: bits };
       });
       return;
     }
     var bits2 = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
-    drawComposite(ctx, bits2, workW, workH);
-    if (state.onion) drawOnion(ctx);
-    drawDotMarkers(octx);
+    drawComposite(ctx, bits2, workW, workH, false, cam);
+    if (state.onion && !hasCamEffect) drawOnion(ctx);
+    if (!hasCamEffect) drawDotMarkers(octx);
     lastPreview = { key: key, bits: bits2 };
   }
 

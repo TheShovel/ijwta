@@ -28,6 +28,12 @@
     keysOnly: false,   // viewport shows keyframes only (no interpolated frames)
     onion: false,      // onion skin: ghosts of neighboring keyframes
     onionCfg: { before: 1, after: 1, opacity: 0.28, tint: false, tintColor: '#ff3b30', tintOpacity: 0.35 },
+    // Camera: non-destructive pan / zoom / rotation applied to the final
+    // composite (and exports). Always on; keys are { t, x, y, zoom, rot }.
+    camera: { enabled: true, keys: [] },
+    // Reference audio track (a scratch/reference sound synced to the timeline).
+    // Only the source data URL + meta are saved; the decoded buffer is derived.
+    audio: { src: null, name: null, duration: 0, muted: false },
     selectedId: null,
     selectedGapId: null,   // gap selected in the timeline (right panel shows it)
     selectedDotId: null,   // color-dot selected (right panel shows its properties)

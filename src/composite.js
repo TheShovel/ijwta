@@ -176,7 +176,8 @@
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
     })).then(function () {
-      drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH, transparent);
+      drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH, transparent,
+        state.camera.enabled ? cameraAt(t) : null);
       return canvas;
     });
   }

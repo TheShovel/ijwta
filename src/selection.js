@@ -29,6 +29,7 @@
   // regenerated with the new mode; 'none' gaps have no inbetweens at all.
   function setGapType(id, type) {
     if (['ai', 'squash', 'none'].indexOf(type) === -1) return;
+    recordUndo();
     state.gapType[id] = type;
     delete state.generated[id];
     delete state.gapMeta[id];
@@ -40,6 +41,7 @@
   function applySquashChange(patch) {
     var id = state.selectedGapId;
     if (!id) return;
+    recordUndo('squash');
     setGapSquash(id, patch);
     delete state.generated[id];
     delete state.gapMeta[id];
@@ -52,6 +54,7 @@
   function applyBlurChange(patch) {
     var id = state.selectedGapId;
     if (!id) return;
+    recordUndo('blur');
     setGapBlur(id, patch);
     delete state.generated[id];
     delete state.gapMeta[id];
@@ -79,6 +82,8 @@
     updateTransport();
     updateEstimate();
     el.btnKeysOnly.classList.toggle('active', state.keysOnly);
+    if (typeof renderCameraPanel === 'function') renderCameraPanel();
+    if (typeof renderAudioPanel === 'function') renderAudioPanel();
   }
 
   function updateEstimate() {

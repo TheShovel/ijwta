@@ -108,6 +108,7 @@
   }
 
   function addLayer() {
+    recordUndo();
     var id = 'L' + (layerSeq++);
     // Name the layer after the highest existing number so a name is never
     // reused, even after layers are removed.
@@ -131,6 +132,7 @@
   // it. Inserted directly below the active layer so a fill added while a line
   // art layer is active lands right under it, ready for dots.
   function addFillLayer() {
+    recordUndo();
     var id = 'L' + (layerSeq++);
     var n = 1;
     state.layers.forEach(function (l) {
@@ -154,6 +156,7 @@
 
   function removeLayer(id) {
     if (state.layers.length <= 1) { toast('Keep at least one layer.'); return; }
+    recordUndo();
     var idx = state.layers.findIndex(function (l) { return l.id === id; });
     if (idx === -1) return;
     state.keyframes = state.keyframes.filter(function (k) { return k.layer !== id; });

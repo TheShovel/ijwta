@@ -50,6 +50,7 @@
   // Add a dot at normalized canvas coords (0..1) to a fill layer, active from
   // the current playhead for `dur` seconds. Returns the new dot.
   function addDot(layerId, nx, ny) {
+    recordUndo();
     var L = layerById(layerId);
     if (!L || L.type !== 'fill') return null;
     if (!L.dots) L.dots = [];
@@ -78,6 +79,7 @@
   function deleteDot(id) {
     var L = layerOfDot(id);
     if (!L || !L.dots) return;
+    recordUndo();
     L.dots = L.dots.filter(function (d) { return d.id !== id; });
     if (state.selectedDotId === id) state.selectedDotId = null;
   }

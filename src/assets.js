@@ -165,6 +165,7 @@
       if (from === -1) return;
       var to = layerIndexAtY(ev.clientY);
       if (to === from) return;
+      recordUndo('layerreorder');
       var layer = state.layers[from];
       state.layers.splice(from, 1);
       state.layers.splice(to, 0, layer);
@@ -246,6 +247,7 @@
   function removeAsset(imgSrc) {
     var i = state.assets.findIndex(function (a) { return a.img === imgSrc; });
     if (i === -1) return;
+    recordUndo();
     state.assets.splice(i, 1);
     renderAssets();
   }

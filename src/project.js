@@ -3,7 +3,7 @@
 
   function projectData() {
     return {
-      v: 10,
+      v: 11,
       settings: {
         fps: state.fps, snap: state.snap, zoom: state.zoom,
         res: state.res, keysOnly: state.keysOnly, onion: state.onion, onionCfg: state.onionCfg,
@@ -20,13 +20,34 @@
         return { img: a.img, name: a.name, w: a.w, h: a.h };
       }),
       keyframes: state.keyframes.map(function (k) {
-        return { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h, mix: k.mix || 'source-over' };
+        var o = { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h, mix: k.mix || 'source-over' };
+        // Editable paint layers are stored alongside the flattened image so the
+        // Edit in paint command can restore the full stack (order, opacity, content).
+        if (Array.isArray(k.paintLayers) && k.paintLayers.length) {
+          o.paintLayers = k.paintLayers.map(function (pl) {
+            return { name: pl.name, visible: !!pl.visible, opacity: pl.opacity, img: pl.img };
+          });
+        }
+        return o;
       }),
       generated: state.generated,
       gapMeta: state.gapMeta,
       gapType: state.gapType,
       gapSquash: state.gapSquash,
-      gapBlur: state.gapBlur
+      gapBlur: state.gapBlur,
+      // Camera: a non-destructive pan / zoom / rotation track applied to the
+      // final composite and to exports.
+      camera: { enabled: true, keys: state.camera.keys },
+      // Reference audio track (a scratch sound synced to the timeline). Only
+      // the source data URL + meta are saved; the decoded buffer is derived.
+      audio: { src: state.audio.src, name: state.audio.name, duration: state.audio.duration, muted: state.audio.muted },
+      // Custom brush presets (settings + tip image as a data URL). Only
+      // user-made brushes are stored; defaults are recreated on load.
+      brushes: (typeof brushList !== 'undefined' && Array.isArray(brushList))
+        ? brushList.filter(function (b) { return !b.builtin; }).map(function (b) {
+            return (typeof serializeBrush === 'function') ? serializeBrush(b) : null;
+          }).filter(Boolean)
+        : []
     };
   }
 
@@ -116,6 +137,23 @@
     state.gapType = (data.gapType && typeof data.gapType === 'object') ? data.gapType : {};
     state.gapSquash = (data.gapSquash && typeof data.gapSquash === 'object') ? data.gapSquash : {};
     state.gapBlur = (data.gapBlur && typeof data.gapBlur === 'object') ? data.gapBlur : {};
+    // Camera track: tolerant parse so a hand-edited or partly-saved project
+    // can't crash the renderer; keys are validated into plain numbers.
+    var cam = data.camera;
+    state.camera = (cam && Array.isArray(cam.keys))
+      ? { enabled: true, keys: cam.keys.map(function (k) { return { t: +k.t || 0, x: +k.x || 0, y: +k.y || 0, zoom: +k.zoom || 1, rot: +k.rot || 0 }; }) }
+      : { enabled: true, keys: [] };
+    // Reference audio track: only the source + meta persist; the decoded
+    // buffer (and waveform peaks) are re-derived on load / play.
+    var au = data.audio;
+    state.audio = (au && au.src)
+      ? { src: au.src, name: au.name || null, duration: +au.duration || 0, muted: !!au.muted }
+      : { src: null, name: null, duration: 0, muted: false };
+    // Custom brush presets are owned by the paint tool (it holds brushList),
+    // so hand them off to be restored there.
+    if (Array.isArray(data.brushes) && typeof applyLoadedBrushes === 'function') {
+      applyLoadedBrushes(data.brushes);
+    }
     // The image library: saved with the project (v5+), otherwise derived from
     // the keyframe images so older projects still show their images. Any
     // keyframe image missing from the library (e.g. promoted composites) is
@@ -171,6 +209,7 @@
         } finally {
           restoringProject = false;
         }
+        if (typeof initAudioFromProject === 'function') initAudioFromProject();
         refreshDirty();
         renderAll();
         syncInputs();
@@ -205,6 +244,10 @@
     state.gapType = {};
     state.gapSquash = {};
     state.gapBlur = {};
+    state.camera = { enabled: true, keys: [] };
+    state.audio = { src: null, name: null, duration: 0, muted: false };
+    if (typeof resetPaintBrushes === 'function') resetPaintBrushes();
+    if (typeof initAudioFromProject === 'function') initAudioFromProject();
     state.dirty = new Set();
     state.selectedId = null;
     state.selectedGapId = null;

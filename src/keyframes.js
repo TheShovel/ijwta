@@ -16,6 +16,7 @@
   // Keyframes are created by dragging an asset from the panel onto the
   // timeline (see addAssetKeyframe).
   function addImageFiles(files) {
+    recordUndo('assets');
     if (!files || !files.length) return Promise.resolve({ added: 0, failed: 0 });
     var list = Array.prototype.slice.call(files);
     var added = 0;
@@ -56,6 +57,7 @@
   }
 
   function addAssetKeyframe(imgSrc, atTime) {
+    recordUndo();
     var meta = null;
     for (var i = 0; i < assetCache.length; i++) {
       if (assetCache[i].img === imgSrc) { meta = assetCache[i]; break; }
@@ -96,6 +98,7 @@
       var file = input.files && input.files[0];
       if (!file) return;
       readImageFile(file).then(function (data) {
+        recordUndo();
         kf.img = data.img;
         kf.name = data.name;
         kf.w = data.w;
@@ -116,6 +119,7 @@
   function deleteKeyframe(id) {
     var idx = state.keyframes.findIndex(function (k) { return k.id === id; });
     if (idx === -1) return;
+    recordUndo();
     invalidateAround(id);
     state.keyframes.splice(idx, 1);
     if (state.selectedId === id) state.selectedId = null;
@@ -145,6 +149,7 @@
   }
 
   function pasteKeyframe(atTime, layerId) {
+    recordUndo();
     if (!copiedKeyframe) return null;
     var layer = layerById(layerId || copiedKeyframe.layer);
     if (!layer || layer.type === 'fill') layer = layerById(keyframeLayerId());
@@ -197,6 +202,7 @@
   // regenerate.
   function promoteToKeyframe(f) {
     var layerId = keyframeLayerId();
+    recordUndo();
     return compositeDataURL(f.time).then(function (url) {
       state.keyframes.push({
         id: 'k' + (idSeq++),

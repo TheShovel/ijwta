@@ -526,6 +526,8 @@
         startScrub(e);
         return;
       }
+      var camDot = e.target.closest('.cam-dot');
+      if (camDot) { startCameraDrag(e, camDot); return; }
       if (e.target.closest('.ruler')) { startScrub(e); return; }
       var row = e.target.closest('.layer-row');
       if (row) {
@@ -705,7 +707,9 @@
     document.addEventListener('keydown', function (e) {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-      else if (e.key === 'Delete' || e.key === 'Backspace') { deleteKeyframe(state.selectedId); }
+      if (e.key === 'Delete' || e.key === 'Backspace') { deleteKeyframe(state.selectedId); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); pause(); step(1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); pause(); step(-1); }
     });
@@ -828,4 +832,55 @@
     el.btnStartCredits.addEventListener('click', function () {
       window.open('credits.html', '_blank');
     });
+
+    // Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y).
+    el.btnUndo.addEventListener('click', undo);
+    el.btnRedo.addEventListener('click', redo);
+
+    // Camera track: the four transform sliders each edit the camera key at the
+    // (snapped) playhead, auto-creating one.
+    function cameraSlider(input, valEl, field, fmt) {
+      function apply() {
+        var v = parseFloat(input.value);
+        if (!isFinite(v)) return;
+        syncSlider(input);
+        if (valEl) valEl.textContent = fmt(v);
+        setCameraField(field, v);
+      }
+      input.addEventListener('input', apply);
+      input.addEventListener('change', apply);
+    }
+    cameraSlider(el.cameraX, el.cameraXVal, 'x', function (v) { return Math.round(v * 100) + '%'; });
+    cameraSlider(el.cameraY, el.cameraYVal, 'y', function (v) { return Math.round(v * 100) + '%'; });
+    cameraSlider(el.cameraZoom, el.cameraZoomVal, 'zoom', function (v) { return Math.round(v * 100) / 100 + 'x'; });
+    cameraSlider(el.cameraRot, el.cameraRotVal, 'rot', function (v) { return Math.round(v * 10) / 10 + '°'; });
+    el.btnCameraAddKey.addEventListener('click', function () { addCameraKey(); });
+    el.btnCameraRemoveKey.addEventListener('click', function () { removeCameraKey(state.playhead); });
+    // Right-panel categories fold / unfold when their title is clicked.
+    var collapsibleTitles = document.querySelectorAll('#rightCol > .collapsible > .side-title');
+    Array.prototype.forEach.call(collapsibleTitles, function (h) {
+      h.addEventListener('click', function () { h.parentElement.classList.toggle('collapsed'); });
+    });
+
+    // Reference audio track: load a file, remove it, or mute. The decoded
+    // buffer + waveform are derived in audio.js.
+    el.btnAudioLoad.addEventListener('click', function () { el.audioInput.click(); });
+    el.audioInput.addEventListener('change', function () {
+      if (el.audioInput.files && el.audioInput.files[0]) {
+        loadAudioFile(el.audioInput.files[0]).catch(function () {});
+      }
+      el.audioInput.value = '';
+    });
+    el.btnAudioRemove.addEventListener('click', removeAudio);
+    el.audioMute.addEventListener('change', function () { setAudioMuted(el.audioMute.checked); });
+
+    // Seek by clicking the audio lane waveform (same time mapping as the lane).
+    var audioLaneEl = byId('audioLane');
+    if (audioLaneEl) audioLaneEl.addEventListener('pointerdown', function (e) { audioLaneSeek(e.clientX); });
+
+    // Built-in paint tool: open from the toolbar and repaint keyframes from
+    // the right-click frame menu. Lives in src/paint.js.
+    wirePaint();
+
+    updateUndoButtons();
   }

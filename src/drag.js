@@ -29,7 +29,9 @@
     function updateTip(t) { tip.textContent = fmtTime(t); }
     updateTip(startTime);
 
+    var started = false;
     function onMove(ev) {
+      if (!started) { started = true; recordUndo(); }
       var dt = (ev.clientX - startX) / state.zoom;
       var t = Math.max(0, startTime + dt);
       // No clamping against neighbours: a keyframe can be dragged in front of
@@ -85,7 +87,9 @@
     function updateTip(h) { tip.textContent = fmtTime(h) + ' hold'; }
     updateTip(startHold);
 
+    var started = false;
     function onMove(ev) {
+      if (!started) { started = true; recordUndo(); }
       var dh = (ev.clientX - startX) / state.zoom;
       var h = Math.max(minHold, startHold + dh);
       // Don't push the hold past the next keyframe's start (on this layer).
@@ -153,7 +157,9 @@
     function updateTip() { tip.textContent = fmtTime(d.start) + ' to ' + fmtTime(d.end); }
     updateTip();
 
+    var started = false;
     function onMove(ev) {
+      if (!started) { started = true; recordUndo(); }
       var dt = (ev.clientX - startX) / state.zoom;
       var snapT = function (t) { return state.snap ? Math.round(t * state.fps) / state.fps : t; };
       var minDur = 1 / state.fps;
@@ -189,6 +195,42 @@
     el.timeline.addEventListener('pointerup', onUp);
     el.timeline.addEventListener('pointercancel', onUp);
     try { el.timeline.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  // Drag a camera keyframe chip along the timeline to retime it. Double-click
+  // (handled in renderCameraRow) removes it.
+  function startCameraDrag(e, chip) {
+    var t0 = parseFloat(chip.dataset.t);
+    if (isNaN(t0)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var startX = e.clientX;
+    var keyObj = null;
+    for (var i = 0; i < state.camera.keys.length; i++) {
+      if (Math.abs(state.camera.keys[i].t - t0) < 1e-6) { keyObj = state.camera.keys[i]; break; }
+    }
+    if (!keyObj) return;
+    var moved = false;
+    function onMove(ev) {
+      var dt = (ev.clientX - startX) / state.zoom;
+      var t = Math.max(0, t0 + dt);
+      if (state.snap) t = Math.round(t * state.fps) / state.fps;
+      keyObj.t = t;
+      moved = true;
+      renderLane();
+      renderPreview();
+    }
+    function onUp() {
+      el.lane.removeEventListener('pointermove', onMove);
+      el.lane.removeEventListener('pointerup', onUp);
+      el.lane.removeEventListener('pointercancel', onUp);
+      if (moved) renderAll(); else setFrameByTime(keyObj.t);
+    }
+    recordUndo('camera');
+    el.lane.addEventListener('pointermove', onMove);
+    el.lane.addEventListener('pointerup', onUp);
+    el.lane.addEventListener('pointercancel', onUp);
+    try { el.lane.setPointerCapture(e.pointerId); } catch (err) {}
   }
 
   function startScrub(e) {

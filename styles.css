@@ -560,6 +560,27 @@ body.dragging-asset * { cursor: grabbing !important; }
   color: var(--muted);
   opacity: 0.9;
 }
+/* Collapsible right-panel categories: click the title to fold / unfold. */
+#rightCol > .collapsible > .side-title {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  opacity: 1;
+}
+#rightCol > .collapsible > .side-title::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+#rightCol > .collapsible.collapsed > .side-title::after { transform: rotate(-90deg); }
+#rightCol > .collapsible.collapsed > *:not(.side-title) { display: none; }
 .kf-card {
   display: flex;
   gap: 10px;
@@ -591,6 +612,9 @@ body.dragging-asset * { cursor: grabbing !important; }
 .kf-card-time { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 .kf-empty { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .side-col .field input { width: 100%; }
+/* Checkboxes must stay their natural width so the label text is not pushed
+   to the centre of a full-width control (e.g. the Audio Mute box). */
+.side-col .field input[type="checkbox"] { width: auto; accent-color: var(--accent); }
 .side-col .btn { width: 100%; text-align: center; }
 .side-col .menu-row .btn { width: auto; flex: 1; }
 
@@ -1479,6 +1503,56 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
 .kf:hover { border-color: rgba(195, 171, 125, 0.5); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
 .kf.selected:hover { border-color: var(--accent); }
 
+/* ---- Camera track (timeline row + keyframe chips) ----
+   The camera row mirrors a layer row (gutter + content) but is NOT a
+   .layer-row, so the layer-reorder index math in drag.js ignores it. */
+.camera-row {
+  position: relative;
+  display: flex;
+  height: 62px;
+  border-bottom: 1px solid rgba(57, 65, 77, 0.35);
+  background: rgba(0, 0, 0, 0.16);
+}
+.camera-row .layer-gutter {
+  color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.cam-dot {
+  position: absolute;
+  top: 8px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  background: var(--accent);
+  border-radius: 3px;
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.cam-dot:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5); }
+
+
+/* ---- Reference audio lane (waveform under the timeline) ----
+   Spans the full timeline width (like .lane) and draws the waveform with the
+   same GUTTER_W time offset as the lane, so clicks map to the right time. */
+#audioLane {
+  position: relative;
+  margin: 6px 0 10px;
+  height: 48px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(57, 65, 77, 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+#audioLane.hidden { display: none !important; }
+#audioCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* Keyboard focus rings (mouse users keep the clean look). */
 .btn:focus-visible,
 .menu button:focus-visible,
@@ -1658,3 +1732,67 @@ button:focus-visible {
   .side-col { width: min(280px, 92vw); }
   .bar-meta { font-size: 9.5px; }
 }
+
+/* ---- Built-in paint tool ----
+   Reuses the editor's .btn / .slider / .field look so it blends in. */
+.paint-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; padding: 18px; }
+.paint-overlay.hidden { display: none; }
+.paint-box { width: min(1100px, 96vw); height: min(720px, 94vh);
+  background: var(--panel, #232323); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.paint-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.1); }
+.paint-title { font-weight: 600; font-size: 15px; }
+.paint-banner { font-size: 12px; color: #ffd27a; background: rgba(255,180,40,0.12);
+  padding: 3px 8px; border-radius: 6px; }
+.paint-banner.hidden { display: none; }
+.paint-head .btn.icon { margin-left: auto; font-size: 18px; line-height: 1; }
+.paint-body { display: flex; min-height: 0; flex: 1; }
+.paint-side { width: 220px; border-right: 1px solid rgba(255,255,255,0.1);
+  padding: 12px; overflow: auto; }
+.paint-center { flex: 1; min-width: 0; display: flex; align-items: center;
+  justify-content: center; padding: 12px; background: #1b1b1b; }
+.paint-canvas-wrap { width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center;
+  background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+  background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  border-radius: 6px; overflow: hidden; }
+#paintCanvas { background: transparent; touch-action: none; border-radius: 2px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4); cursor: crosshair; }
+.paint-settings { width: 260px; border-left: 1px solid rgba(255,255,255,0.1);
+  padding: 12px; overflow: auto; }
+.paint-cur-name { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+.paint-brush-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.paint-brush { text-align: left; padding: 7px 9px; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
+  color: inherit; cursor: pointer; }
+.paint-brush.active { border-color: var(--accent, #4f8fff);
+  background: rgba(79,143,255,0.16); }
+.paint-load-row { display: flex; flex-direction: column; gap: 6px; }
+.paint-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.small { padding: 6px 9px; font-size: 12px; }
+
+.paint-layer-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
+  max-height: 200px; overflow: auto; }
+.paint-layer { display: flex; align-items: center; gap: 6px; padding: 5px 7px; flex-wrap: wrap;
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04); cursor: pointer; }
+.paint-layer-btn { width: auto; padding: 1px 6px; font-size: 11px; line-height: 1.2;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 5px; color: inherit; cursor: pointer; }
+.paint-layer-btn:hover { background: rgba(255,255,255,0.14); }
+.paint-layer-op { flex-basis: 100%; margin-top: 4px; height: 4px; }
+.paint-layer.active { border-color: var(--accent, #4f8fff); background: rgba(79,143,255,0.16); }
+.paint-layer input[type=checkbox] { width: 14px; height: 14px; flex: 0 0 auto; }
+.paint-layer-name { flex: 1; font-size: 12px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.paint-layer-actions { display: flex; gap: 6px; }
+.paint-preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.text-input { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.16); color: inherit; border-radius: 6px;
+  padding: 6px 8px; font-size: 12px; }
