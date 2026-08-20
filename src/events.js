@@ -709,6 +709,11 @@
     wireSideResizer(el.rightResizer, el.rightCol, SIDE_W_KEY_R, -1); // drag left → wider
 
     document.addEventListener('keydown', function (e) {
+      // While the fullscreen paint editor is open it has its own Ctrl+Z/Y,
+      // Delete, Esc, etc. shortcuts (src/paint.js registers its keydown handler
+      // after this one), so leave every timeline shortcut to it — otherwise the
+      // app's undo() would also fire on the same keystroke.
+      if (window.paintOpen) return;
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
       if (e.key === 'Delete' || e.key === 'Backspace') { deleteKeyframe(state.selectedId); }

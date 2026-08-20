@@ -47,7 +47,12 @@
   var lastPainted = null;           // last stamped point
   var smoothAlpha = 1;              // easing factor for this stroke
   var tipCanvas = null;             // pre-rendered, tinted brush tip (256px)
-  var undoStack = [];          // per-stroke snapshots (ImageData)
+  // Per-stroke undo/redo. These are named uniquely (NOT `undoStack`) because
+  // src/history.js already declares global `undoStack`/`redoStack` for the
+  // timeline; sharing the same top-level `var` would merge the two stacks into
+  // one and let the app's Ctrl+Z handler eat paint strokes (see wireEvents).
+  var paintUndoStack = [];     // per-stroke undo snapshots (ImageData)
+  var paintRedoStack = [];     // per-stroke redo snapshots (ImageData)
   var onionImgs = {};          // kf.img -> decoded ghost image for onion skin
 
   // ---- extra tool state -----------------------------------------------------
@@ -1187,23 +1192,47 @@
     try { paintCanvas.releasePointerCapture(ev.pointerId); } catch (e) {}
   }
 
-  // ---- per-stroke undo --------------------------------------------------------
+  // ---- per-stroke undo / redo -----------------------------------------------
 
+  // Push the active layer's current pixels for undo. A fresh stroke is a new
+  // branching point in history, so it clears the redo stack (Krita/standard
+  // behaviour: you can't redo past a new action).
   function pushUndo() {
     if (!activeLayer) return;
+    paintRedoStack = [];
     try {
       // Snapshot the layer that is actually being drawn so undo restores the
       // correct canvas even if the active layer is switched before undoing.
-      undoStack.push({ canvas: activeLayer.canvas, data: activeLayer.canvas.getContext('2d').getImageData(0, 0, workW, workH) });
+      paintUndoStack.push({ canvas: activeLayer.canvas, data: activeLayer.canvas.getContext('2d').getImageData(0, 0, workW, workH) });
     } catch (e) { return; }
-    if (undoStack.length > 30) undoStack.shift();
+    if (paintUndoStack.length > 30) paintUndoStack.shift();
   }
 
   function undoStroke() {
-    if (!undoStack.length) { toast('Nothing to undo'); return; }
-    var rec = undoStack.pop();
+    if (!paintUndoStack.length) { toast('Nothing to undo'); return; }
+    var rec = paintUndoStack.pop();
+    // Save the current pixels so redo can restore them later.
+    try { paintRedoStack.push({ canvas: rec.canvas, data: rec.canvas.getContext('2d').getImageData(0, 0, workW, workH) }); } catch (e) {}
+    if (paintRedoStack.length > 30) paintRedoStack.shift();
     rec.canvas.getContext('2d').putImageData(rec.data, 0, 0);
     compositeDisplay();
+  }
+
+  function redoStroke() {
+    if (!paintRedoStack.length) { toast('Nothing to redo'); return; }
+    var rec = paintRedoStack.pop();
+    // Restore the entry onto the undo stack so you can undo the redo.
+    try { paintUndoStack.push({ canvas: rec.canvas, data: rec.canvas.getContext('2d').getImageData(0, 0, workW, workH) }); } catch (e) {}
+    if (paintUndoStack.length > 30) paintUndoStack.shift();
+    rec.canvas.getContext('2d').putImageData(rec.data, 0, 0);
+    compositeDisplay();
+  }
+
+  // Structural edits (layer ops, resize, flip, rotate, reopening) make every
+  // previous snapshot point at detached canvases, so history starts fresh.
+  function resetHistory() {
+    paintUndoStack = [];
+    paintRedoStack = [];
   }
 
   function clearCanvas() {
@@ -2335,7 +2364,7 @@
       activeLayer = paintLayers[Math.min(idx, paintLayers.length - 1)];
     }
     paintCtx = activeLayer.canvas.getContext('2d');
-    undoStack = [];
+    resetHistory();
     rebuildLayerUI();
     compositeDisplay();
   }
@@ -2370,7 +2399,7 @@
     paintLayers.splice(idx, 1);
     if (src === activeLayer || paintLayers.indexOf(activeLayer) < 0) activeLayer = below;
     paintCtx = below.canvas.getContext('2d');
-    undoStack = [];
+    resetHistory();
     rebuildLayerUI();
     compositeDisplay();
   }
@@ -2446,7 +2475,7 @@
           compositeDisplay();
         });
         name.addEventListener('click', function () {
-          activeLayer = l; paintCtx = l.canvas.getContext('2d'); undoStack = [];
+          activeLayer = l; paintCtx = l.canvas.getContext('2d'); resetHistory();
           rebuildLayerUI();
           syncLayerProps();
         });
@@ -2728,7 +2757,8 @@
     paintBaseCanvas.width = workW; paintBaseCanvas.height = workH;
     paintBaseCanvas.getContext('2d').clearRect(0, 0, workW, workH);
 
-    undoStack = [];
+    paintUndoStack = [];
+    paintRedoStack = [];
     var kf = editKeyframeId ? getKf(editKeyframeId) : null;
     var src = editAsset || kf;
     // Onion ghosts are anchored at the playhead (see paintOnionNeighbors): place
@@ -2945,11 +2975,13 @@
     // actions
     byId('btnPaintClear').addEventListener('click', clearCanvas);
     byId('btnPaintUndo').addEventListener('click', undoStroke);
+    byId('btnPaintRedo').addEventListener('click', redoStroke);
     byId('btnPaintSaveLib').addEventListener('click', saveToLibrary);
     byId('btnPaintAddKf').addEventListener('click', addKeyframeAtPlayhead);
 
-    // keyboard: Esc closes, Ctrl+Z undoes a stroke, Ctrl+Shift+N adds a layer,
-    // Ctrl+E merges the active layer down (all while the paint tool is open).
+    // keyboard: Esc closes, Ctrl+Z undoes a stroke, Ctrl+Shift+Z / Ctrl+Y
+    // redoes, Ctrl+Shift+N adds a layer, Ctrl+E merges the active layer down
+    // (all while the paint tool is open).
     // Tool-specific keys (selection/crop/transform) are handled in
     // wireExtraTools' handler, which runs after this one.
     document.addEventListener('keydown', function (e) {
@@ -2965,6 +2997,8 @@
         closePaint();
       }
       else if (mod && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undoStroke(); }
+      else if (mod && e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); redoStroke(); }
+      else if (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redoStroke(); }
       else if (mod && e.shiftKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); addLayer(); }
       else if (mod && !e.shiftKey && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); mergeDown(); }
     });
@@ -3707,7 +3741,7 @@
     paintDispCtx = paintCanvas.getContext('2d');
     if (overlayCv) { overlayCv.width = w2; overlayCv.height = h2; overlayCtx = overlayCv.getContext('2d'); }
     sel = null; selMaskCv = null; cropRect = null; selDrag = null; xfrm = null;
-    undoStack = []; // structural change: old snapshots reference detached canvases
+    resetHistory(); // structural change: old snapshots reference detached canvases
     stopAnts();
     fitCanvas();
     rebuildLayerUI();
@@ -3769,7 +3803,8 @@
       bg.restore();
       paintBaseCanvas = bc;
     }
-    undoStack = []; // layer canvases were replaced
+    paintUndoStack = []; // layer canvases were replaced
+    paintRedoStack = [];
     compositeDisplay();
     toast(horizontal ? 'Flipped horizontally' : 'Flipped vertically');
   }
@@ -3813,7 +3848,7 @@
     paintDispCtx = paintCanvas.getContext('2d');
     if (overlayCv) { overlayCv.width = workW; overlayCv.height = workH; overlayCtx = overlayCv.getContext('2d'); }
     sel = null; selMaskCv = null; cropRect = null;
-    undoStack = []; // layer canvases were replaced
+    resetHistory(); // layer canvases were replaced
     stopAnts();
     fitCanvas();
     rebuildLayerUI();
