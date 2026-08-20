@@ -726,8 +726,10 @@
             </div>
             <div class="paint-layer-props">
               <label class="paint-layer-prop">Opacity
-                <input id="paintLayerOpacity" class="slider" type="range" min="0" max="1" step="0.01" value="1">
-                <span id="paintLayerOpacityVal" class="paint-qval mono">100%</span>
+                <span class="paint-layer-oprow">
+                  <input id="paintLayerOpacity" class="slider" type="range" min="0" max="1" step="0.01" value="1">
+                  <input id="paintLayerOpacityNum" class="paint-num mono" type="number" min="0" max="100" step="1" value="100" title="Layer opacity in %">
+                </span>
               </label>
               <label class="paint-layer-prop">Blend
                 <select id="paintLayerBlend" class="paint-layer-blend">

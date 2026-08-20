@@ -22,6 +22,11 @@
   var paintCanvas = null, paintCtx = null;
   var brushList = [];               // array of brush presets
   var current = null;               // active brush preset
+  // The painting colour is Krita's active FOREGROUND colour: a global property
+  // shared by every brush, never a per-preset colour. Picking a colour records
+  // it here (and on the current brush); selecting another brush later re-applies
+  // it so the colour never jumps to a preset's default (e.g. black).
+  var fgColor = '#1a1a1a';
   var eraserOn = false;
 
   // Paint layers: transparent canvases composited over the keyframe base so
@@ -162,8 +167,7 @@
   function applyColorWheel() {
     var c = hsvToRgb(cwHsv.h, cwHsv.s, cwHsv.v);
     var hex = rgbToHex(c.r, c.g, c.b);
-    if (current) current.color = hex;
-    setColorSwatch(hex);
+    setPaintColor(hex);
     var hexIn = byId('paintCwHex');
     if (hexIn && hexIn !== document.activeElement) hexIn.value = hex;
     refreshTip();
@@ -182,6 +186,17 @@
   function setColorSwatch(hex) {
     var sw = byId('paintColor');
     if (sw) sw.style.background = hex;
+  }
+
+  // Record the picked foreground colour (global) and push it onto the current
+  // brush, so the swatch, color wheel and every paint path stay in step.
+  function setPaintColor(hex) {
+    if (typeof hex !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(hex)) hex = fgColor;
+    hex = hex.toLowerCase();
+    fgColor = hex;
+    if (current) current.color = hex;
+    setColorSwatch(hex);
+    return hex;
   }
 
   function makeBrush(name, o) {
@@ -1284,6 +1299,9 @@
       btn.appendChild(prev);
       btn.addEventListener('click', function () {
         current = b;
+        // Keep the last-used foreground colour on the newly selected brush
+        // (Krita: the colour is global, not a preset property).
+        b.color = fgColor;
         // The preset's eraser flag drives eraser mode: selecting an eraser
         // brush erases, selecting any normal brush paints again (and the
         // toolbar brush/eraser buttons stay in sync).
@@ -2440,7 +2458,8 @@
     if (o && activeLayer) {
       o.value = String(activeLayer.opacity);
       syncSlider(o);
-      var ov = byId('paintLayerOpacityVal'); if (ov) ov.textContent = Math.round(activeLayer.opacity * 100) + '%';
+      var on = byId('paintLayerOpacityNum');
+      if (on) on.value = String(Math.round(activeLayer.opacity * 100));
     }
     var b = byId('paintLayerBlend');
     if (b && activeLayer) b.value = activeLayer.blend || 'source-over';
@@ -2586,6 +2605,7 @@
       : [];
     brushList = defaultBrushes();
     current = defaultBrush();
+    if (current) current.color = fgColor;   // keep the last-used paint colour
     bundled.forEach(function (b) {
       if (!brushList.some(function (x) { return x.name === b.name; })) brushList.push(b);
     });
@@ -2698,6 +2718,9 @@
     else if (editAsset) { if (banner) { banner.textContent = 'Editing library image · ' + (editAsset.name || 'asset'); banner.classList.remove('hidden'); } }
     else if (banner) { banner.classList.add('hidden'); }
     fitCanvas();
+    // Always re-apply the last-used foreground colour when opening, so a stale
+    // preset colour (black) never wins after a project reset / brush reload.
+    if (current) current.color = fgColor;
     refreshTip();
     refreshBrushUI();
     syncColorWheel(); // keep the color wheel in step with the brush colour
@@ -2828,8 +2851,7 @@
         var v = this.value.trim();
         if (!/^#[0-9a-fA-F]{6}$/.test(v) && !/^[0-9a-fA-F]{6}$/.test(v)) { this.value = current ? current.color : '#1a1a1a'; return; }
         if (v[0] !== '#') v = '#' + v;
-        current.color = v;
-        setColorSwatch(v);
+        setPaintColor(v);
         refreshTip();
         syncColorWheel();
       });
@@ -2864,9 +2886,20 @@
     var loEl = byId('paintLayerOpacity');
     if (loEl) loEl.addEventListener('input', function () {
       activeLayer.opacity = clamp(+this.value, 0, 1);
-      var ov = byId('paintLayerOpacityVal'); if (ov) ov.textContent = Math.round(activeLayer.opacity * 100) + '%';
+      var on = byId('paintLayerOpacityNum');
+      if (on) on.value = String(Math.round(activeLayer.opacity * 100));
       compositeDisplay();
     });
+    var loNum = byId('paintLayerOpacityNum');
+    if (loNum) {
+      loNum.addEventListener('change', function () {
+        activeLayer.opacity = clamp((+this.value || 0) / 100, 0, 1);
+        var lo2 = byId('paintLayerOpacity');
+        if (lo2) { lo2.value = String(activeLayer.opacity); syncSlider(lo2); }
+        compositeDisplay();
+      });
+      loNum.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') this.blur(); });
+    }
     var lbEl = byId('paintLayerBlend');
     if (lbEl) lbEl.addEventListener('change', function () { activeLayer.blend = lbEl.value; compositeDisplay(); });
 
@@ -3418,8 +3451,7 @@
     if (px < 0 || py < 0 || px >= workW || py >= workH) return;
     var d = paintCanvas.getContext('2d').getImageData(px, py, 1, 1).data;
     var hex = '#' + ((1 << 24) | (d[0] << 16) | (d[1] << 8) | d[2]).toString(16).slice(1);
-    if (current) current.color = hex;
-    setColorSwatch(hex);
+    setPaintColor(hex);
     refreshTip();
     syncColorWheel(); // move the SV dot / hue marker to the picked colour
     toast('Picked ' + hex);
