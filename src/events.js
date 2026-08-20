@@ -383,16 +383,18 @@
         if (rect.width > 0 && rect.height > 0) {
           var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
           var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-          var hit = dotAt(nx, ny, active);
+          var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
+          var w = screenToWorld(nx, ny, cam);
+          var hit = dotAt(w.x, w.y, active);
           if (hit) {
             // Drag the dot under the cursor to reposition it.
             state.selectedDotId = hit.id;
-            dotDragState = { dot: hit, startNX: nx, startNY: ny, startPX: hit.x, startPY: hit.y, moved: false };
+            dotDragState = { dot: hit, startNX: w.x, startNY: w.y, startPX: hit.x, startPY: hit.y, moved: false };
             renderLane();
             renderSelectedPanel();
             renderPreview();
           } else {
-            var d = addDot(active.id, nx, ny);
+            var d = addDot(active.id, w.x, w.y);
             if (d) state.selectedDotId = d.id;
             renderPreview();
             renderLane();
@@ -417,8 +419,10 @@
         if (rect.width > 0 && rect.height > 0) {
           var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
           var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-          ds.dot.x = clamp(ds.startPX + (nx - ds.startNX), 0, 1);
-          ds.dot.y = clamp(ds.startPY + (ny - ds.startNY), 0, 1);
+          var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
+          var w = screenToWorld(nx, ny, cam);
+          ds.dot.x = clamp(ds.startPX + (w.x - ds.startNX), 0, 1);
+          ds.dot.y = clamp(ds.startPY + (w.y - ds.startNY), 0, 1);
           ds.moved = true;
           renderPreview();
           renderLane();
@@ -726,6 +730,11 @@
       addImageFiles(files).then(libraryToast).catch(function (err) { toast(err.message); });
     });
     window.addEventListener('paste', function (e) {
+      // Only real clipboard pastes (Ctrl/Cmd+V, or an explicit menu paste) add
+      // images to the library. On X11/Linux a middle-click ALSO fires a paste
+      // event (the primary selection) — that must not dump clipboard images
+      // into the library while the user is just middle-dragging to pan.
+      if (!(e.ctrlKey || e.metaKey)) return;
       var items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
       var files = [];

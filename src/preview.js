@@ -1,5 +1,20 @@
 'use strict';
 
+  // Inverse camera transform: map screen-space normalised coords (0-1) back to
+  // world-space normalised coords so dot hit-testing and placement work when the
+  // camera is active.
+  function screenToWorld(sx, sy, cam) {
+    if (!cam) return { x: sx, y: sy };
+    var W = workW, H = workH;
+    var px = sx * W, py = sy * H;
+    var dx = px - W / 2 - cam.x * W;
+    var dy = py - H / 2 - cam.y * H;
+    var rad = -cam.rot * Math.PI / 180;
+    var rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    var ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+    return { x: (rx / cam.zoom + W / 2) / W, y: (ry / cam.zoom + H / 2) / H };
+  }
+
   function renderPreview() {
     var token = ++state.previewToken;
     applyViewportSize();
@@ -24,7 +39,7 @@
     var camKey = cam ? '|#cam#' + cam.x.toFixed(4) + ',' + cam.y.toFixed(4) + ',' + cam.zoom.toFixed(4) + ',' + cam.rot.toFixed(3) : '';
     var key = compositeKey(state.playhead, state.keysOnly) + camKey;
     if (!state.playing && lastPreview && lastPreview.key === key) {
-      if (!hasCamEffect) drawDotMarkers(octx);
+      drawDotMarkers(octx, cam);
       return; // already showing this exact composite
     }
     var frames = framesAt(state.playhead, state.keysOnly);
@@ -36,7 +51,7 @@
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, workW, workH);
       }
-      if (!hasCamEffect) drawDotMarkers(octx);
+      drawDotMarkers(octx, cam);
       var srcs = {};
       frames.forEach(function (f) { if (!imgCache.get(f.img)) srcs[f.img] = true; });
       Promise.all(Object.keys(srcs).map(function (src) {
@@ -50,7 +65,7 @@
         var bits = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
         drawComposite(ctx2, bits, workW, workH, false, cam);
         if (state.onion && !hasCamEffect) drawOnion(ctx2);
-        if (!hasCamEffect) drawDotMarkers(octx2);
+        drawDotMarkers(octx2, cam);
         lastPreview = { key: key, bits: bits };
       });
       return;
@@ -58,7 +73,7 @@
     var bits2 = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
     drawComposite(ctx, bits2, workW, workH, false, cam);
     if (state.onion && !hasCamEffect) drawOnion(ctx);
-    if (!hasCamEffect) drawDotMarkers(octx);
+    drawDotMarkers(octx, cam);
     lastPreview = { key: key, bits: bits2 };
   }
 
@@ -67,7 +82,7 @@
   // user sees where each seed sits (dots for other times stay hidden until
   // the playhead reaches them). Only drawn when a fill layer is active or a
   // dot is selected.
-  function drawDotMarkers(ctx) {
+  function drawDotMarkers(ctx, cam) {
     if (state.playing) return; // editor markers never show during playback
     var L = null;
     if (layerById(state.activeLayerId).type === 'fill') L = layerById(state.activeLayerId);
@@ -78,6 +93,16 @@
     L.dots.forEach(function (d) {
       if (d.start > t + 1e-9 || t > d.end + 1e-9) return; // not active at this time
       var px = d.x * W, py = d.y * H;
+      // When the camera is active, transform the marker position to match the
+      // camera-transformed composite so the rings sit on top of the dots.
+      if (cam) {
+        var dx = px - W / 2, dy = py - H / 2;
+        var rad = cam.rot * Math.PI / 180;
+        var rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+        var ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+        px = cam.zoom * rx + W / 2 + cam.x * W;
+        py = cam.zoom * ry + H / 2 + cam.y * H;
+      }
       var sel = d.id === state.selectedDotId;
       // Dark outline ring so the marker reads on any background, then the dot
       // color; the selected dot gets a bright ring instead.

@@ -161,8 +161,41 @@
       var gutter = document.createElement('div');
       gutter.className = 'layer-gutter' + (L.id === state.activeLayerId ? ' active' : '');
       gutter.dataset.layer = L.id;
-      gutter.title = 'Click to make ' + L.name + ' the active layer. Drag to reorder the stack';
-      gutter.textContent = L.name;
+      gutter.title = 'Click to make ' + L.name + ' the active layer. Drag to reorder the stack. Double-click the name to rename';
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'layer-name';
+      nameSpan.textContent = L.name;
+      nameSpan.title = 'Double-click to rename';
+      // Double-click the name to edit it inline.
+      nameSpan.addEventListener('dblclick', function (e) {
+        e.stopPropagation();
+        var input = document.createElement('input');
+        input.className = 'layer-name-input';
+        input.type = 'text';
+        input.value = L.name;
+        input.maxLength = 64;
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+        var done = function (commit) {
+          var v = commit ? input.value.trim() : L.name;
+          if (v && v !== L.name) {
+            L.name = v;
+            if (typeof renderTimeline === 'function') renderTimeline();
+            if (typeof renderLayerPanel === 'function') renderLayerPanel();
+          } else if (!commit) {
+            if (typeof renderTimeline === 'function') renderTimeline();
+          }
+        };
+        input.addEventListener('keydown', function (ev) {
+          ev.stopPropagation();
+          if (ev.key === 'Enter') { done(true); }
+          else if (ev.key === 'Escape') { done(false); }
+        });
+        input.addEventListener('blur', function () { done(true); });
+        input.addEventListener('click', function (ev) { ev.stopPropagation(); });
+      });
+      gutter.appendChild(nameSpan);
       var grip = document.createElement('span');
       grip.className = 'layer-grip';
       grip.setAttribute('aria-hidden', 'true');

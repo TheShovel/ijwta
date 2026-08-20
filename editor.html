@@ -512,99 +512,307 @@
   </div>
 
   <!-- Paint tool overlay: a canvas at the project's working resolution. Saving
-       drops the drawing into the asset library / as a keyframe. -->
+       drops the drawing into the asset library / as a keyframe. Krita-style
+       workspace: toolbar on top, tool options left, canvas centre, dockers right,
+       action + onion-skin status bar at the bottom. -->
   <div id="paintOverlay" class="paint-overlay hidden">
     <div class="paint-box">
-      <div class="paint-head">
-        <div class="paint-title">Paint</div>
-        <div id="paintEditBanner" class="paint-banner hidden"></div>
-        <button id="btnPaintClose" class="btn icon" title="Close (Esc)">×</button>
-      </div>
-      <div class="paint-body">
-        <aside class="paint-side">
-          <div class="side-title">Brushes</div>
-          <div id="paintBrushList" class="paint-brush-list"></div>
-          <div class="paint-load-row">
-            <button id="btnPaintLoadKpp" class="btn small">Load Krita brush (.kpp)</button>
-            <button id="btnPaintLoadTip" class="btn small">Load tip image</button>
-          </div>
-          <input type="file" id="paintKppInput" accept=".kpp,application/octet-stream" hidden>
-          <input type="file" id="paintTipInput" accept="image/*" hidden>
-          <div class="menu-sep"></div>
-          <div class="side-title">Layers</div>
-          <div id="paintLayerList" class="paint-layer-list"></div>
-          <div class="paint-layer-actions">
-            <button id="btnPaintAddLayer" class="btn small" title="New layer (Ctrl+Shift+N)">New layer</button>
-            <button id="btnPaintDelLayer" class="btn small danger">Delete</button>
-            <button id="btnPaintMergeDown" class="btn small" title="Merge down (Ctrl+E)">Merge down</button>
-          </div>
-        </aside>
-        <div class="paint-center">
-          <div id="paintCanvasWrap" class="paint-canvas-wrap">
-            <canvas id="paintCanvas" width="512" height="512"></canvas>
+      <!-- Top toolbar: current brush, quick size/opacity, colour, close -->
+      <div class="paint-toolbar">
+        <div class="menu-wrap">
+          <button id="btnPaintImageMenu" class="btn small" type="button" title="Image operations">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span>Image</span>
+          </button>
+          <div class="menu hidden" id="paintImageMenu">
+            <button id="btnPaintFlipH" type="button"><span>Flip horizontal</span></button>
+            <button id="btnPaintFlipV" type="button"><span>Flip vertical</span></button>
+            <button id="btnPaintRotCW" type="button"><span>Rotate 90° CW</span></button>
+            <button id="btnPaintRotCCW" type="button"><span>Rotate 90° CCW</span></button>
+            <div class="menu-sep"></div>
+            <button id="btnPaintResize" type="button"><span>Resize canvas…</span></button>
+            <button id="btnPaintCanvasSize" type="button"><span>Canvas size…</span></button>
           </div>
         </div>
-        <aside class="paint-settings">
-          <div id="paintBrushName" class="paint-cur-name"></div>
-          <label class="field">Size <span id="paintSizeVal" class="mono">45px</span>
-            <input id="paintSize" class="slider" type="range" min="1" max="320" step="1" value="45">
-          </label>
-          <label class="field">Opacity <span id="paintOpacityVal" class="mono">100%</span>
+        <div class="paint-toolbar-sep"></div>
+        <div id="paintBrushName" class="paint-brush-name" title="Current brush"></div>
+        <div class="paint-toolbar-sep"></div>
+        <label class="paint-qfield">Size
+          <span class="paint-qrow">
+            <input id="paintSize" class="slider" type="range" min="1" max="50" step="0.5" value="20">
+            <input id="paintSizeNum" class="paint-num mono" type="number" min="1" max="50" step="0.5" value="20" title="Brush diameter in px">
+          </span>
+        </label>
+        <label class="paint-qfield">Opacity
+          <span class="paint-qrow">
             <input id="paintOpacity" class="slider" type="range" min="0" max="1" step="0.01" value="1">
-          </label>
-          <label class="field">Hardness <span id="paintHardnessVal" class="mono">80%</span>
-            <input id="paintHardness" class="slider" type="range" min="0" max="1" step="0.01" value="0.8">
-          </label>
-          <label class="field">Spacing <span id="paintSpacingVal" class="mono">15%</span>
-            <input id="paintSpacing" class="slider" type="range" min="0.01" max="1" step="0.01" value="0.15">
-          </label>
-          <label class="field">Rotation <span id="paintRotVal" class="mono">0°</span>
-            <input id="paintRot" class="slider" type="range" min="0" max="360" step="1" value="0">
-          </label>
-          <label class="field check"><input id="paintFollowDir" type="checkbox"> Rotate with stroke</label>
-          <label class="field check"><input id="paintEraser" type="checkbox"> Eraser</label>
-          <label class="field">Colour <input id="paintColor" type="color" value="#1a1a1a"></label>
-          <label class="field">Smoothing
-            <select id="paintSmoothMode">
-              <option value="none">None</option>
-              <option value="basic">Basic</option>
-              <option value="stabilizer" selected>Stabilizer</option>
-            </select>
-          </label>
-          <label class="field">Strength <span id="paintSmoothStrVal" class="mono">60%</span>
-            <input id="paintSmoothStr" class="slider" type="range" min="1" max="100" step="1" value="60">
-          </label>
-          <div class="menu-sep"></div>
-          <div class="paint-actions">
-            <button id="btnPaintUndo" class="btn small">Undo</button>
-            <button id="btnPaintClear" class="btn small danger">Clear</button>
-            <button id="btnPaintSaveLib" class="btn small primary">Save to library</button>
-            <button id="btnPaintAddKf" class="btn small">Add keyframe</button>
+            <input id="paintOpacityNum" class="paint-num mono" type="number" min="0" max="100" step="1" value="100" title="Opacity in %">
+          </span>
+        </label>
+        <div class="paint-toolbar-sep"></div>
+        <!-- Colour indicator: display only — pick colours with the wheel / hex
+             field in the Color docker (Krita-style). -->
+        <div id="paintColor" class="paint-color-wrap" title="Current colour" style="background:#1a1a1a"></div>
+        <div class="spacer"></div>
+        <div id="paintEditBanner" class="paint-banner hidden"></div>
+        <button id="btnPaintClose" class="btn icon paint-close" title="Close (Esc)">×</button>
+      </div>
+
+      <div class="paint-body">
+        <!-- Left docker: tools + tool options -->
+        <aside class="paint-docker paint-left">
+          <div class="docker-title">Tools</div>
+          <div class="paint-tools paint-tools-col">
+            <button id="btnPaintToolBrush" class="paint-tool active" type="button" title="Brush tool (B)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 3.5a3.2 3.2 0 0 1 4.5 4.5l-9.8 9.8-4.5-4.5z"/><path d="M8 13.5 3 21l2.5-1 2 2 7.5-5"/><path d="M13.7 5.9l4.4 4.4"/></svg>
+            </button>
+            <button id="btnPaintToolEraser" class="paint-tool" type="button" title="Eraser tool (E)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5 9.5 3.5a2 2 0 0 0-2.8 0l-3.2 3.2a2 2 0 0 0 0 2.8l11 11a2 2 0 0 0 2.8 0l3.2-3.2a2 2 0 0 0 0-2.8z"/><path d="M7 21h14"/></svg>
+            </button>
+            <button id="btnPaintToolSelect" class="paint-tool" type="button" title="Select tool (S)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="1"/><path d="M7 5V3h14v14h-2"/><path d="M7 9l8 8M9 15l-2 2"/></svg>
+            </button>
+            <button id="btnPaintToolLasso" class="paint-tool" type="button" title="Lasso select (L)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c4 0 7 2 7 5s-3 5-7 5-7-2-7-5 3-5 7-5z"/><path d="M5 13c-1 2 0 4 2 4 2 0 2-2 5-2 2 0 4 1 4 3 0 2-2 3-5 3"/></svg>
+            </button>
+            <button id="btnPaintToolMove" class="paint-tool" type="button" title="Move tool (V)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/><path d="M2 12h20M12 2v20"/></svg>
+            </button>
+            <button id="btnPaintToolTransform" class="paint-tool" type="button" title="Transform (T)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18M12 3v18"/><circle cx="3" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="3" r="1.2" fill="currentColor"/></svg>
+            </button>
+            <button id="btnPaintToolFill" class="paint-tool" type="button" title="Fill tool (G)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c0-5 4-9 8-9s8 4 8 9-4 9-8 9-8-4-8-9z"/><path d="M12 3v3M8 21l4-4 4 4"/></svg>
+            </button>
+            <button id="btnPaintToolEyedrop" class="paint-tool" type="button" title="Color picker (I)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.6 3.6a2 2 0 0 1 2.8 0l2 2a2 2 0 0 1 0 2.8l-8.4 8.4-4.6.6.6-4.6z"/><path d="M8 13l6-6M3 21l3-3"/></svg>
+            </button>
+            <button id="btnPaintToolLine" class="paint-tool" type="button" title="Line tool">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.4" fill="currentColor"/><circle cx="20" cy="4" r="1.4" fill="currentColor"/></svg>
+            </button>
+            <button id="btnPaintToolRect" class="paint-tool" type="button" title="Rectangle tool (U)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+            </button>
+            <button id="btnPaintToolEllipse" class="paint-tool" type="button" title="Ellipse tool">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="8" ry="6"/></svg>
+            </button>
+            <button id="btnPaintToolCrop" class="paint-tool" type="button" title="Crop tool (C)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+            </button>
           </div>
-          <div class="menu-sep"></div>
-          <div class="side-title">Onion skin</div>
-          <label class="field check"><input id="paintOnion" type="checkbox"> Onion skin</label>
-          <label class="field">Previous frames <span id="paintOnionBeforeVal" class="mono">1</span>
-            <input id="paintOnionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="field">Next frames <span id="paintOnionAfterVal" class="mono">1</span>
-            <input id="paintOnionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="field">Ghost opacity <span id="paintOnionOpacityVal" class="mono">28%</span>
-            <input id="paintOnionOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.28">
-          </label>
-          <label class="field check"><input id="paintOnionTint" type="checkbox"> Tint ghosts</label>
-          <div class="side-title">Brush presets</div>
-          <label class="field">Name <input id="paintPresetName" class="text-input" placeholder="Preset name"></label>
-          <div class="paint-preset-row">
-            <button id="btnPaintSavePreset" class="btn small primary">Save preset</button>
-            <button id="btnPaintSavePresetFile" class="btn small">Export file</button>
-            <button id="btnPaintLoadPreset" class="btn small">Load file</button>
+          <div class="docker-title">Tool options</div>
+          <div id="paintToolOptsBrush" class="paint-toolopts">
+            <label class="paint-field">Hardness <span id="paintHardnessVal" class="mono">80%</span>
+              <input id="paintHardness" class="slider" type="range" min="0" max="1" step="0.01" value="0.8">
+            </label>
+            <label class="paint-field">Rotation <span id="paintRotVal" class="mono">0°</span>
+              <input id="paintRot" class="slider" type="range" min="0" max="360" step="1" value="0">
+            </label>
+            <label class="paint-check"><input id="paintFollowDir" type="checkbox" checked> Rotate with stroke</label>
+            <label class="paint-field">Smoothing
+              <select id="paintSmoothMode">
+                <option value="none">None</option>
+                <option value="basic">Basic</option>
+                <option value="stabilizer" selected>Stabilizer</option>
+              </select>
+            </label>
+            <label class="paint-field">Strength <span id="paintSmoothStrVal" class="mono">60%</span>
+              <input id="paintSmoothStr" class="slider" type="range" min="1" max="100" step="1" value="60">
+            </label>
           </div>
-          <input type="file" id="paintPresetInput" accept="application/json,.khuwari" hidden>
+          <div id="paintToolOptsSelect" class="paint-toolopts hidden">
+            <label class="paint-field">Mode
+              <select id="paintSelMode">
+                <option value="rect">Rectangle</option>
+                <option value="ellipse">Ellipse</option>
+                <option value="lasso">Freehand lasso</option>
+              </select>
+            </label>
+            <label class="paint-field">Feather <span id="paintSelFeatherVal" class="mono">0px</span>
+              <input id="paintSelFeather" class="slider" type="range" min="0" max="64" step="1" value="0">
+            </label>
+            <div class="paint-btnrow">
+              <button id="btnPaintSelAll" class="btn small" type="button">All</button>
+              <button id="btnPaintSelNone" class="btn small" type="button">None</button>
+              <button id="btnPaintSelInvert" class="btn small" type="button">Invert</button>
+            </div>
+            <div class="paint-btnrow">
+              <button id="btnPaintSelDelete" class="btn small danger" type="button">Delete sel</button>
+              <button id="btnPaintSelGrow" class="btn small" type="button" title="Expand selection by feather px">Grow</button>
+              <button id="btnPaintSelShrink" class="btn small" type="button" title="Shrink selection by feather px">Shrink</button>
+            </div>
+            <p class="paint-hint">Drag to select. Drag inside to move the selection content. Shift+click adds to selection.</p>
+          </div>
+          <div id="paintToolOptsCrop" class="paint-toolopts hidden">
+            <p class="paint-hint">Drag a rectangle to crop. Double-click or press Enter to apply, Esc to cancel.</p>
+            <div class="paint-btnrow">
+              <button id="btnPaintCropApply" class="btn small primary" type="button">Apply crop</button>
+              <button id="btnPaintCropCancel" class="btn small" type="button">Cancel</button>
+            </div>
+          </div>
+          <div id="paintToolOptsFill" class="paint-toolopts hidden">
+            <label class="paint-field">Tolerance <span id="paintFillTolVal" class="mono">8</span>
+              <input id="paintFillTol" class="slider" type="range" min="0" max="255" step="1" value="8">
+            </label>
+            <label class="paint-check"><input id="paintFillContiguous" type="checkbox" checked> Contiguous</label>
+            <label class="paint-check"><input id="paintFillUseSel" type="checkbox"> Limit to selection</label>
+          </div>
+          <div id="paintToolOptsShape" class="paint-toolopts hidden">
+            <label class="paint-check"><input id="paintShapeFill" type="checkbox"> Fill shape</label>
+            <label class="paint-check"><input id="paintShapeSquare" type="checkbox"> Constrain (Shift)</label>
+          </div>
+          <div id="paintToolOptsMove" class="paint-toolopts hidden">
+            <p class="paint-hint">Drag to move the active layer content. Hold Alt to duplicate.</p>
+          </div>
+          <div id="paintToolOptsTransform" class="paint-toolopts hidden">
+            <p class="paint-hint">Drag corners to scale, outside to rotate, inside to move. Double-click to commit, Esc to cancel.</p>
+          </div>
+        </aside>
+
+        <!-- Centre canvas -->
+        <div class="paint-center">
+          <div id="paintCanvasWrap" class="paint-canvas-wrap">
+            <div class="paint-stage">
+              <canvas id="paintCanvas" width="512" height="512"></canvas>
+              <canvas id="paintOverlayCv" class="paint-overlay-cv" width="512" height="512"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right dockers: color, brushes, layers -->
+        <aside class="paint-dockers">
+          <div class="paint-docker">
+            <div class="docker-title">Color</div>
+            <div class="paint-colorwheel">
+              <div class="paint-cw-sv-wrap">
+                <canvas id="paintCwSv" class="paint-cw-sv" width="180" height="180"></canvas>
+                <div id="paintCwDot" class="paint-cw-dot"></div>
+              </div>
+              <div class="paint-cw-hue-wrap">
+                <canvas id="paintCwHue" class="paint-cw-hue" width="18" height="180"></canvas>
+                <div id="paintCwHueMarker" class="paint-cw-hue-marker"></div>
+              </div>
+            </div>
+            <div class="paint-cw-hex">
+              <label class="paint-field">Hex
+                <input id="paintCwHex" class="text-input mono" value="#1a1a1a" maxlength="7" spellcheck="false">
+              </label>
+            </div>
+          </div>
+          <div class="paint-docker">
+            <div class="docker-title">Brushes <span id="paintBrushCount" class="paint-brush-count"></span></div>
+            <div id="paintBrushList" class="paint-brush-list"></div>
+          </div>
+          <div class="paint-docker">
+            <div class="docker-title">Layers</div>
+            <div id="paintLayerList" class="paint-layer-list"></div>
+            <div class="paint-layer-toolbar">
+              <button id="btnPaintAddLayer" class="paint-icon-btn" type="button" title="New layer (Ctrl+Shift+N)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button id="btnPaintDelLayer" class="paint-icon-btn danger" type="button" title="Delete layer">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+              <span class="paint-layer-tb-sep"></span>
+              <button id="btnPaintLayerUp" class="paint-icon-btn" type="button" title="Move layer up">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+              </button>
+              <button id="btnPaintLayerDown" class="paint-icon-btn" type="button" title="Move layer down">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <button id="btnPaintMergeDown" class="paint-icon-btn" type="button" title="Merge down">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8"/><path d="M9 8l3 3 3-3"/><rect x="4" y="13" width="16" height="8" rx="2"/></svg>
+              </button>
+            </div>
+            <div class="paint-layer-props">
+              <label class="paint-layer-prop">Opacity
+                <input id="paintLayerOpacity" class="slider" type="range" min="0" max="1" step="0.01" value="1">
+                <span id="paintLayerOpacityVal" class="paint-qval mono">100%</span>
+              </label>
+              <label class="paint-layer-prop">Blend
+                <select id="paintLayerBlend" class="paint-layer-blend">
+                  <option value="source-over">Normal</option>
+                  <option value="multiply">Multiply</option>
+                  <option value="screen">Screen</option>
+                  <option value="overlay">Overlay</option>
+                  <option value="darken">Darken</option>
+                  <option value="lighten">Lighten</option>
+                  <option value="color-dodge">Color dodge</option>
+                  <option value="color-burn">Color burn</option>
+                  <option value="difference">Difference</option>
+                  <option value="exclusion">Exclusion</option>
+                </select>
+              </label>
+            </div>
+          </div>
         </aside>
       </div>
+
+      <!-- Bottom status bar: actions + onion skin -->
+      <div class="paint-statusbar">
+        <div class="paint-actions">
+          <button id="btnPaintUndo" class="btn small">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+            <span>Undo</span>
+          </button>
+          <button id="btnPaintClear" class="btn small danger">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            <span>Clear</span>
+          </button>
+          <button id="btnPaintSaveLib" class="btn small primary">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span>Save to library</span>
+          </button>
+          <button id="btnPaintAddKf" class="btn small">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Add keyframe</span>
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <div class="paint-view">
+          <button id="btnPaintZoomOut" class="btn small" type="button" title="Zoom out">−</button>
+          <span id="paintZoomVal" class="paint-qval mono">100%</span>
+          <button id="btnPaintZoomIn" class="btn small" type="button" title="Zoom in">+</button>
+          <button id="btnPaintFit" class="btn small" type="button" title="Fit canvas (double-click empty space)">Fit</button>
+        </div>
+        <div class="paint-onion">
+          <label class="paint-check paint-onion-toggle"><input id="paintOnion" type="checkbox"> Onion skin</label>
+          <label class="paint-qfield paint-onion-field">Prev <span id="paintOnionBeforeVal" class="paint-qval mono">1</span>
+            <input id="paintOnionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
+          </label>
+          <label class="paint-qfield paint-onion-field">Next <span id="paintOnionAfterVal" class="paint-qval mono">1</span>
+            <input id="paintOnionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
+          </label>
+          <label class="paint-qfield paint-onion-field">Ghost <span id="paintOnionOpacityVal" class="paint-qval mono">28%</span>
+            <input id="paintOnionOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.28">
+          </label>
+          <label class="paint-check paint-onion-toggle"><input id="paintOnionTint" type="checkbox"> Tint</label>
+        </div>
+      </div>
     </div>
+    <!-- Resize canvas dialog -->
+    <div id="paintResizeDialog" class="paint-dialog hidden">
+      <div class="paint-dialog-box">
+        <div class="docker-title">Resize canvas</div>
+        <div class="paint-dialog-row">
+          <label class="paint-field">Width <span id="paintResizeWVal" class="mono"></span>
+            <input id="paintResizeW" class="text-input" type="number" min="8" max="4096">
+          </label>
+          <label class="paint-field">Height <span id="paintResizeHVal" class="mono"></span>
+            <input id="paintResizeH" class="text-input" type="number" min="8" max="4096">
+          </label>
+        </div>
+        <label class="paint-check"><input id="paintResizeKeep" type="checkbox" checked> Keep aspect ratio</label>
+        <label class="paint-check"><input id="paintResizeScale" type="checkbox" checked> Scale content</label>
+        <div class="paint-btnrow">
+          <button id="btnPaintResizeApply" class="btn small primary" type="button">Apply</button>
+          <button id="btnPaintResizeCancel" class="btn small" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kept hidden: the toolbar brush/eraser buttons drive this checkbox. -->
+    <input type="checkbox" id="paintEraser" class="hidden" hidden>
   </div>
 
   <input type="file" id="fileInput" accept="image/*" multiple hidden>

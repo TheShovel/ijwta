@@ -501,6 +501,26 @@ body.resizing-side { cursor: col-resize; user-select: none; }
 }
 .asset:hover .asset-del, .asset-del:focus-visible { display: flex; }
 .asset-del:hover { background: var(--danger); color: #161a20; }
+.asset-edit {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--text);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  z-index: 2;
+}
+.asset:hover .asset-edit, .asset-edit:focus-visible { display: flex; }
+.asset-edit:hover { background: var(--accent); color: #161a20; }
 .asset img {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -1117,6 +1137,11 @@ body.dragging-layer { cursor: grabbing; user-select: none; }
   background: var(--bg-elev2);
   box-shadow: inset 2px 0 0 var(--accent);
 }
+/* Layer name label + inline rename input (animation timeline). */
+.layer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer-name-input { width: 100%; min-width: 0; background: var(--bg-elev3);
+  color: var(--text); border: 1px solid var(--accent); border-radius: 3px;
+  font-size: 11px; padding: 1px 4px; box-sizing: border-box; }
 .layer-content {
   position: relative;
   flex: 1;
@@ -1734,65 +1759,216 @@ button:focus-visible {
 }
 
 /* ---- Built-in paint tool ----
-   Reuses the editor's .btn / .slider / .field look so it blends in. */
-.paint-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.55);
-  display: flex; align-items: center; justify-content: center; padding: 18px; }
+   A Krita-style workspace: flat toolbar on top, tool-options docker on the
+   left, the canvas in the centre, docker panels on the right and an action /
+   onion-skin status bar at the bottom. Reuses the editor's design tokens. */
+.paint-overlay { position: fixed; inset: 0; z-index: 50; background: var(--bg);
+  display: flex; align-items: stretch; justify-content: stretch; padding: 0; }
 .paint-overlay.hidden { display: none; }
-.paint-box { width: min(1100px, 96vw); height: min(720px, 94vh);
-  background: var(--panel, #232323); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px; display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-.paint-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.1); }
-.paint-title { font-weight: 600; font-size: 15px; }
-.paint-banner { font-size: 12px; color: #ffd27a; background: rgba(255,180,40,0.12);
-  padding: 3px 8px; border-radius: 6px; }
-.paint-banner.hidden { display: none; }
-.paint-head .btn.icon { margin-left: auto; font-size: 18px; line-height: 1; }
+.paint-box { width: 100%; height: 100%;
+  background: var(--bg-elev); border: none;
+  border-radius: 0; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: none; }
+
+/* Top toolbar: tool buttons, brush name, quick sliders, colour, close. */
+.paint-toolbar { display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  background: var(--bg-elev2); border-bottom: 1px solid var(--border); }
+/* Tool buttons live in the left panel above Tool options (Krita-style). */
+.paint-tools { display: grid; grid-template-columns: repeat(5, 30px); gap: 4px;
+  margin-bottom: 10px; }
+.paint-tool { display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0; border-radius: 6px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  cursor: pointer; }
+.paint-tool svg { width: 17px; height: 17px; }
+.paint-tool:hover { background: var(--bg-elev3); color: var(--text); }
+.paint-tool.active { background: var(--bg-elev3); border-color: var(--accent); color: var(--text); }
+.paint-toolbar-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+.paint-brush-name { font-size: 12px; font-weight: 600; color: var(--text);
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paint-qfield { display: flex; flex-direction: column; gap: 2px; font-size: 10px;
+  color: var(--muted); min-width: 128px; }
+.paint-qfield .paint-qval { color: var(--text); }
+.paint-qfield .slider { height: 14px; }
+/* Krita-style slider + spinbox row. */
+.paint-qrow { display: flex; align-items: center; gap: 6px; }
+.paint-qrow .slider { flex: 1; min-width: 0; }
+.paint-num { width: 48px; box-sizing: border-box; flex: 0 0 auto;
+  background: var(--bg-elev2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 5px; font-size: 11px; padding: 2px 4px; text-align: center; }
+.paint-num:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.paint-color-wrap { display: block; width: 28px; height: 28px; flex: 0 0 auto;
+  border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); cursor: default; }
+.paint-close { margin-left: 2px; }
+
+/* Main workspace row. */
 .paint-body { display: flex; min-height: 0; flex: 1; }
-.paint-side { width: 220px; border-right: 1px solid rgba(255,255,255,0.1);
-  padding: 12px; overflow: auto; }
+
+/* Docker panels: title strip + body, like Krita's dockers. */
+.paint-docker { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.docker-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--muted); margin-bottom: 8px;
+  padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+.paint-left { width: 210px; flex: 0 0 auto; border-right: 1px solid var(--border);
+  overflow-y: auto; background: var(--bg-elev); }
+.paint-dockers { width: 280px; flex: 0 0 auto; border-left: 1px solid var(--border);
+  overflow-y: auto; background: var(--bg-elev); }
+
+/* Color wheel (Krita-style): SV square + hue slider. */
+.paint-colorwheel { display: flex; gap: 8px; margin-bottom: 8px; }
+.paint-cw-sv-wrap { position: relative; flex: 1; aspect-ratio: 1 / 1; }
+.paint-cw-sv { display: block; width: 100%; height: 100%; border-radius: 6px;
+  border: 1px solid var(--border); cursor: crosshair; touch-action: none; }
+.paint-cw-dot { position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.5);
+  pointer-events: none; transform: translate(-50%, -50%); }
+.paint-cw-hue-wrap { position: relative; width: 18px; flex: 0 0 auto; }
+.paint-cw-hue { display: block; width: 100%; height: 100%; border-radius: 6px;
+  border: 1px solid var(--border); cursor: pointer; touch-action: none; }
+.paint-cw-hue-marker { position: absolute; left: -3px; right: -3px; height: 8px;
+  border: 2px solid #fff; border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none; }
+.paint-cw-hex { display: flex; }
+.paint-cw-hex .paint-field { flex: 1; }
+.paint-cw-hex .text-input { font-family: var(--mono); }
+
+/* Tool-options fields. */
+.paint-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px;
+  color: var(--muted); margin-bottom: 11px; }
+.paint-field .mono { color: var(--text); }
+.paint-field select { background: #1e232a; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 7px;
+  font-size: 12px; }
+.paint-check { display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--text); margin-bottom: 11px; cursor: pointer; }
+/* Checkboxes render as toggle sliders (still plain clickable checkboxes). */
+.paint-check input[type="checkbox"] { appearance: none; -webkit-appearance: none;
+  width: 32px; height: 18px; flex: 0 0 auto; margin: 0; border-radius: 9px;
+  background: var(--border); position: relative; cursor: pointer;
+  transition: background 0.15s ease; }
+.paint-check input[type="checkbox"]::after { content: ''; position: absolute;
+  top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease; }
+.paint-check input[type="checkbox"]:checked { background: var(--accent); }
+.paint-check input[type="checkbox"]:checked::after { transform: translateX(14px); }
+.paint-check input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.paint-left .slider { height: 16px; }
+
+/* Centre canvas. */
 .paint-center { flex: 1; min-width: 0; display: flex; align-items: center;
-  justify-content: center; padding: 12px; background: #1b1b1b; }
+  justify-content: center; padding: 12px; background: var(--bg); }
 .paint-canvas-wrap { width: 100%; height: 100%; display: flex; align-items: center;
   justify-content: center;
-  background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
-    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
-    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+  /* Light-grey checkerboard so dark paint is easy to see while whites still
+     read as white (Krita/Photoshop-style). The dark tile was the app's
+     --bg-elev2 (#2a3038), which swallowed dark colours. The wrap's own
+     background-color is the darker of the two tiles. */
+  background-color: #aeb4bb;
+  background-image: linear-gradient(45deg, #c9cdd3 25%, transparent 25%),
+    linear-gradient(-45deg, #c9cdd3 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #c9cdd3 75%),
+    linear-gradient(-45deg, transparent 75%, #c9cdd3 75%);
   background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   border-radius: 6px; overflow: hidden; }
+.paint-canvas-wrap .paint-stage { border-radius: 2px; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
 #paintCanvas { background: transparent; touch-action: none; border-radius: 2px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.4); cursor: crosshair; }
-.paint-settings { width: 260px; border-left: 1px solid rgba(255,255,255,0.1);
-  padding: 12px; overflow: auto; }
-.paint-cur-name { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
-.paint-brush-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.paint-brush { text-align: left; padding: 7px 9px; border-radius: 7px;
-  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
-  color: inherit; cursor: pointer; }
-.paint-brush.active { border-color: var(--accent, #4f8fff);
-  background: rgba(79,143,255,0.16); }
-.paint-load-row { display: flex; flex-direction: column; gap: 6px; }
-.paint-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.btn.small { padding: 6px 9px; font-size: 12px; }
 
-.paint-layer-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
-  max-height: 200px; overflow: auto; }
-.paint-layer { display: flex; align-items: center; gap: 6px; padding: 5px 7px; flex-wrap: wrap;
-  border-radius: 6px; border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.04); cursor: pointer; }
-.paint-layer-btn { width: auto; padding: 1px 6px; font-size: 11px; line-height: 1.2;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 5px; color: inherit; cursor: pointer; }
-.paint-layer-btn:hover { background: rgba(255,255,255,0.14); }
-.paint-layer-op { flex-basis: 100%; margin-top: 4px; height: 4px; }
-.paint-layer.active { border-color: var(--accent, #4f8fff); background: rgba(79,143,255,0.16); }
-.paint-layer input[type=checkbox] { width: 14px; height: 14px; flex: 0 0 auto; }
-.paint-layer-name { flex: 1; font-size: 12px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; }
-.paint-layer-actions { display: flex; gap: 6px; }
-.paint-preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.text-input { width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.16); color: inherit; border-radius: 6px;
+/* Brush palette: Krita-style grid of square previews on white, no labels. */
+.paint-brush-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 4px; margin-bottom: 8px; max-height: 260px; overflow-y: auto; }
+.paint-brush { display: flex; align-items: center; justify-content: center;
+  width: 100%; aspect-ratio: 1 / 1; padding: 3px; border-radius: 5px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text); cursor: pointer; }
+.paint-brush:hover { background: var(--bg-elev3); }
+.paint-brush.active { border-color: var(--accent); background: rgba(138,163,185,0.16); }
+.paint-brush-prev { width: 100%; height: 100%; border-radius: 3px;
+  overflow: hidden; background: #fff; display: flex; align-items: center;
+  justify-content: center; }
+.paint-brush-prev canvas { display: block; max-width: 100%; max-height: 100%; }
+.paint-brush-prev img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.paint-brush-count { font-size: 10px; color: var(--muted); margin: 2px 0 6px; }
+
+/* Layer list (Krita-style: thumbnail + eye + name, icon toolbar, props). */
+.paint-layer-list { display: flex; flex-direction: column; gap: 2px;
+  max-height: 220px; overflow-y: auto; margin-bottom: 6px; }
+.paint-layer { display: flex; align-items: center; gap: 7px; padding: 4px 5px;
+  border: 1px solid transparent; border-radius: 7px; cursor: pointer; }
+.paint-layer:hover { background: var(--bg-elev3); }
+.paint-layer.active { border-color: var(--accent); background: rgba(138,163,185,0.16); }
+.paint-layer-thumb { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 4px;
+  border: 1px solid var(--border);
+  background: repeating-conic-gradient(#b9bfc6 0% 25%, #eceff2 0% 50%) 0 0 / 8px 8px; }
+.paint-layer-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paint-layer-name-input { flex: 1; min-width: 0; background: var(--bg-elev3);
+  color: var(--text); border: 1px solid var(--accent); border-radius: 4px;
+  font-size: 12px; padding: 1px 4px; }
+.paint-layer-eye { display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; flex: 0 0 auto; padding: 0; border-radius: 5px;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  cursor: pointer; }
+.paint-layer-eye:hover { background: var(--bg-elev3); color: var(--text); }
+.paint-layer-eye.off { color: var(--bg-elev3); }
+.paint-layer-eye.off:hover { color: var(--muted); }
+/* Docker toolbar: flat icon buttons consistent with the tools column. */
+.paint-layer-toolbar { display: flex; align-items: center; gap: 2px;
+  padding: 6px 0 8px; border-top: 1px solid var(--border); }
+.paint-icon-btn { display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  cursor: pointer; }
+.paint-icon-btn:hover:not(:disabled) { background: var(--bg-elev3); color: var(--text); }
+.paint-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.paint-icon-btn.danger:hover:not(:disabled) { color: var(--danger); }
+.paint-layer-tb-sep { width: 1px; height: 18px; flex: 0 0 auto;
+  background: var(--border); margin: 0 6px; }
+/* Active-layer opacity + blend props. */
+.paint-layer-props { display: flex; flex-direction: column; gap: 7px; }
+.paint-layer-prop { display: flex; align-items: center; gap: 8px; font-size: 10px;
+  color: var(--muted); }
+.paint-layer-prop .slider { flex: 1; min-width: 0; height: 14px; }
+.paint-layer-prop .paint-qval { width: 36px; text-align: right; color: var(--text); }
+.paint-layer-blend { flex: 1; min-width: 0; background: var(--bg-elev2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; font-size: 11px;
+  padding: 3px 5px; cursor: pointer; }
+
+/* Resize dialog inputs. */
+.text-input { width: 100%; box-sizing: border-box; background: var(--bg-elev2);
+  border: 1px solid var(--border); color: inherit; border-radius: 6px;
   padding: 6px 8px; font-size: 12px; }
+
+/* Bottom status bar: actions + onion skin. */
+.paint-statusbar { display: flex; align-items: center; gap: 12px; padding: 7px 12px;
+  background: var(--bg-elev2); border-top: 1px solid var(--border); }
+.paint-actions { display: flex; gap: 6px; }
+.btn.small { padding: 5px 9px; font-size: 12px; }
+.paint-view { display: flex; align-items: center; gap: 6px; }
+.paint-view .paint-qval { font-size: 12px; min-width: 44px; text-align: center; }
+.paint-onion { display: flex; align-items: center; gap: 12px; }
+.paint-onion .paint-qfield { min-width: 66px; }
+.paint-onion .paint-check { margin-bottom: 0; }
+.paint-banner { font-size: 12px; color: var(--gold); background: rgba(255,180,40,0.12);
+  padding: 3px 8px; border-radius: 6px; }
+.paint-banner.hidden { display: none; }
+
+/* Extra tools: stage overlay, tool option panels, dialogs, menus. */
+.paint-stage { position: relative; }
+.paint-overlay-cv { position: absolute; inset: 0; pointer-events: none; }
+#paintCanvas { position: relative; }
+.paint-toolopts { display: block; }
+.paint-toolopts.hidden { display: none; }
+.paint-btnrow { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 11px; }
+.paint-hint { font-size: 11px; color: var(--muted); line-height: 1.5;
+  margin: 0 0 11px; }
+.paint-dialog { position: fixed; inset: 0; z-index: 60; display: flex;
+  align-items: center; justify-content: center; background: rgba(0,0,0,0.45); }
+.paint-dialog.hidden { display: none; }
+.paint-dialog-box { width: 320px; background: var(--bg-elev2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+.paint-dialog-row { display: flex; gap: 10px; }
+.paint-dialog-row .paint-field { flex: 1; min-width: 0; }
+.menu-sep { height: 1px; background: var(--border); margin: 5px 8px; }

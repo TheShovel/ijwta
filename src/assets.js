@@ -239,6 +239,20 @@
         removeAsset(a.img);
       });
       tile.appendChild(del);
+      // Paint-made assets keep their editable layer stack: offer a way back in.
+      if (a.paintLayers || a.paint) {
+        var edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'asset-edit';
+        edit.title = 'Edit image in the paint tool (keeps layers, blend modes, opacity)';
+        edit.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>';
+        edit.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        edit.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (typeof openPaint === 'function') openPaint({ asset: a });
+        });
+        tile.appendChild(edit);
+      }
       tile.addEventListener('pointerdown', function (e) { startAssetPointerDrag(e, a); });
       el.assetGrid.appendChild(tile);
     });

@@ -23,6 +23,7 @@ Khuwari is a browser based animation tool that fills in the frames between your 
 - **Onion skinning.** See the frames around the one you are working on, as ghosts or tinted, with configurable frame counts.
 - **Motion blur.** Per gap motion blur that eases in and out with the movement, to mask small glitches in the generated frames.
 - **Blend modes.** 16 blend modes per keyframe.
+- **Built-in paint tool.** A Krita-style drawing workspace with layers (opacity, visibility and blend modes), onion skinning and brush stabilizers. Ships with Krita brush presets, loads more `.kpp` brushes, and paint-made library images stay editable (layers + blend modes intact).
 - **Export.** PNG sequence, animated GIF or video (MP4, WebM, MKV, MOV or MPEG-TS), at the resolution you pick.
 - **Local and private.** The whole tool runs in your browser. No accounts, no uploads, no tracking.
 
@@ -50,6 +51,15 @@ The website lives at [theshovel.rocks/khuwari](https://theshovel.rocks/khuwari/)
 4. Play, tweak, and export a video, GIF or frame sequence.
 
 Projects save as single `.khuwari` files, which are plain JSON.
+
+## Krita brushes
+
+The paint tool auto-loads every brush in the `brushes/` folder — Krita `.kpp` presets (stroke preview, engine params, and the real brush-tip textures from `brushes/tips/` are all parsed — including `.gbr` and `.gih` GIMP brush formats) **and** MyPaint `.myb` brushes (with their `_prev.png` previews). The bundled set is Krita's own default presets, and the tool opens with Krita's default brush (“b) Basic-5 Size” — a 40px hard auto-brush with auto-spacing). Just drop files into the folder:
+
+- **Served with `python3 -m http.server`** (recommended): the app reads the folder's directory index directly, so any brush you add is picked up automatically — no extra step.
+- **Static hosts** that hide directory listings (e.g. GitHub Pages): the app falls back to `brushes/manifest.json`. Refresh it after adding brushes with `node tools/update-brush-manifest.js`.
+
+Loading is logged to the browser console with a `[brushes]` prefix, so a failed load is never silent. Note: if you open `editor.html` straight from disk (`file://`), browsers block the folder/manifest fetch — serve the folder over HTTP instead.
 
 ## Development
 

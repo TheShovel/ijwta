@@ -17,7 +17,15 @@
       }),
       activeLayerId: state.activeLayerId,
       assets: state.assets.map(function (a) {
-        return { img: a.img, name: a.name, w: a.w, h: a.h };
+        var o = { img: a.img, name: a.name, w: a.w, h: a.h };
+        // Paint-made assets keep their editable layer stack so they can be
+        // reopened in the paint tool with layers, blend modes + opacity intact.
+        if (Array.isArray(a.paintLayers) && a.paintLayers.length) {
+          o.paintLayers = a.paintLayers.map(function (pl) {
+            return { name: pl.name, visible: !!pl.visible, opacity: pl.opacity, blend: pl.blend || 'source-over', img: pl.img };
+          });
+        }
+        return o;
       }),
       keyframes: state.keyframes.map(function (k) {
         var o = { id: k.id, layer: k.layer, time: k.time, hold: keyframeHold(k), img: k.img, name: k.name, w: k.w, h: k.h, mix: k.mix || 'source-over' };
@@ -25,7 +33,7 @@
         // Edit in paint command can restore the full stack (order, opacity, content).
         if (Array.isArray(k.paintLayers) && k.paintLayers.length) {
           o.paintLayers = k.paintLayers.map(function (pl) {
-            return { name: pl.name, visible: !!pl.visible, opacity: pl.opacity, img: pl.img };
+            return { name: pl.name, visible: !!pl.visible, opacity: pl.opacity, blend: pl.blend || 'source-over', img: pl.img };
           });
         }
         return o;
@@ -44,7 +52,7 @@
       // Custom brush presets (settings + tip image as a data URL). Only
       // user-made brushes are stored; defaults are recreated on load.
       brushes: (typeof brushList !== 'undefined' && Array.isArray(brushList))
-        ? brushList.filter(function (b) { return !b.builtin; }).map(function (b) {
+        ? brushList.filter(function (b) { return !b.builtin && !b.bundled; }).map(function (b) {
             return (typeof serializeBrush === 'function') ? serializeBrush(b) : null;
           }).filter(Boolean)
         : []
@@ -160,7 +168,13 @@
     // added in keyframe order.
     state.assets = Array.isArray(data.assets)
       ? data.assets.filter(function (a) { return a && a.img; }).map(function (a) {
-        return { img: a.img, name: a.name, w: a.w, h: a.h };
+        var o = { img: a.img, name: a.name, w: a.w, h: a.h };
+        if (Array.isArray(a.paintLayers) && a.paintLayers.length) {
+          o.paintLayers = a.paintLayers.map(function (pl) {
+            return { name: pl.name, visible: pl.visible !== false, opacity: (pl.opacity == null ? 1 : pl.opacity), blend: pl.blend || 'source-over', img: pl.img };
+          });
+        }
+        return o;
       })
       : [];
     state.keyframes.forEach(function (k) {
