@@ -777,6 +777,12 @@
           <button id="btnPaintZoomIn" class="btn small" type="button" title="Zoom in">+</button>
           <button id="btnPaintFit" class="btn small" type="button" title="Fit canvas (double-click empty space)">Fit</button>
         </div>
+        <label class="paint-qfield paint-frame-field">Frame
+          <span class="paint-qrow">
+            <input id="paintPlayhead" class="slider" type="range" min="0" max="1" step="0.01" value="0" title="Timeline playhead — onion ghosts follow it">
+            <span id="paintPlayheadVal" class="paint-qval mono">0.00s</span>
+          </span>
+        </label>
         <div class="paint-onion">
           <label class="paint-check paint-onion-toggle"><input id="paintOnion" type="checkbox"> Onion skin</label>
           <label class="paint-qfield paint-onion-field">Prev <span id="paintOnionBeforeVal" class="paint-qval mono">1</span>

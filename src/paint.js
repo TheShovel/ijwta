@@ -2137,7 +2137,10 @@
     if (!paintDispCtx) return;
     paintDispCtx.setTransform(1, 0, 0, 1, 0, 0);
     paintDispCtx.clearRect(0, 0, workW, workH);
-    if (editKeyframeId) paintDrawOnion(paintDispCtx);
+    // NOTE: onion ghosts are NOT drawn into this composite pixel buffer. They
+    // are rendered on the display-only overlay canvas (see renderOverlay), so
+    // they are always visible on top of the frame being painted AND never leak
+    // into saves (canvasToURL) or the eyedropper.
     if (paintBaseCanvas) paintDispCtx.drawImage(paintBaseCanvas, 0, 0, workW, workH);
     paintLayers.forEach(function (l) {
       if (!l.visible) return;
@@ -2163,22 +2166,33 @@
     ctx.drawImage(img, (dw - w) / 2, (dh - h) / 2, w, h);
   }
 
-  // Neighbours of the keyframe being edited, on that keyframe's own layer, so
-  // the ghost stack follows the timeline rather than the playhead.
+  // Ghost frames follow the PLAYHEAD (like the main viewport's onion skin):
+  // "before" = the last `before` keyframes on the relevant layer at or before
+  // the playhead, "after" = the first `after` keyframes strictly after it. The
+  // layer is the edited keyframe's own when repainting one, otherwise the
+  // active timeline layer (generic paint mode). The frame under the playhead is
+  // never ghosted (it's the one being drawn), so when editing a keyframe the
+  // ghosts are its neighbours.
   function paintOnionNeighbors() {
-    if (!editKeyframeId) return { before: [], after: [] };
-    var kf = getKf(editKeyframeId);
-    if (!kf) return { before: [], after: [] };
-    var ks = sortedKeyframes(kf.layer);
+    var layerId = null;
+    if (editKeyframeId) {
+      var kf = getKf(editKeyframeId);
+      if (kf) layerId = kf.layer;
+    } else if (state.activeLayerId) {
+      layerId = state.activeLayerId;
+    }
+    if (!layerId) return { before: [], after: [] };
+    var ks = sortedKeyframes(layerId);
     if (!ks.length) return { before: [], after: [] };
+    var t = state.playhead;
     var idx = -1;
-    for (var i = 0; i < ks.length; i++) if (ks[i].id === kf.id) { idx = i; break; }
-    if (idx === -1) return { before: [], after: [] };
+    for (var i = 0; i < ks.length; i++) if (ks[i].time <= t + 1e-9) idx = i;
     var b = (state.onionCfg && state.onionCfg.before) | 0;
     var a = (state.onionCfg && state.onionCfg.after) | 0;
     var before = [], after = [];
     for (var j = 1; j <= b; j++) { var k = idx - j; if (k >= 0) before.push(ks[k]); }
-    for (var m = 1; m <= a; m++) { var n = idx + m; if (n < ks.length) after.push(ks[n]); }
+    for (var m = 1; m <= a; m++) { var n = idx + m; if (n < ks.length && ks[n].time > t + 1e-9) after.push(ks[n]); }
+    if (idx === -1 && !after.length && ks.length) after.push(ks[0]);
     return { before: before, after: after };
   }
 
@@ -2252,7 +2266,7 @@
   }
 
   function refreshOnion() {
-    if (!state.onion || !editKeyframeId) { compositeDisplay(); return; }
+    if (!state.onion) { compositeDisplay(); return; }
     onionImgs = {};
     loadOnionImages(paintOnionNeighbors(), compositeDisplay);
   }
@@ -2279,6 +2293,23 @@
     setVal('paintOnionAfter', o.after | 0, String(o.after | 0));
     setVal('paintOnionOpacity', o.opacity, Math.round((o.opacity == null ? 0.28 : o.opacity) * 100) + '%');
     var t = byId('paintOnionTint'); if (t) t.checked = !!o.tint;
+  }
+
+  // Playhead scrubber: moves the timeline playhead so the onion ghosts follow
+  // it (like the main viewport) and the timeline stays in sync when the editor
+  // closes. The slider ranges over the whole timeline and snaps to whole frames.
+  function syncPaintPlayheadUI() {
+    var s = byId('paintPlayhead');
+    if (!s) return;
+    var max = (typeof playbackEnd === 'function') ? playbackEnd() : 1;
+    if (!isFinite(max) || max <= 0) max = 1;
+    s.min = 0;
+    s.max = String(max);
+    s.step = String((state.fps && state.fps > 0) ? (1 / state.fps) : 0.01);
+    s.value = String(clamp(state.playhead || 0, 0, max));
+    syncSlider(s);
+    var lab = byId('paintPlayheadVal');
+    if (lab) lab.textContent = fmtTime(state.playhead || 0);
   }
 
   function addLayer(name, makeActive) {
@@ -2700,6 +2731,13 @@
     undoStack = [];
     var kf = editKeyframeId ? getKf(editKeyframeId) : null;
     var src = editAsset || kf;
+    // Onion ghosts are anchored at the playhead (see paintOnionNeighbors): place
+    // it on the keyframe being painted so the ghosts are its neighbouring
+    // frames, and keep the main timeline's playhead in sync.
+    if (kf) {
+      state.playhead = kf.time;
+      if (typeof renderPlayhead === 'function') renderPlayhead();
+    }
     if (src && Array.isArray(src.paintLayers) && src.paintLayers.length) {
       restorePaintLayers(src.paintLayers);
     } else {
@@ -2726,6 +2764,7 @@
     syncColorWheel(); // keep the color wheel in step with the brush colour
     rebuildLayerUI();
     syncPaintOnionUI();
+    syncPaintPlayheadUI();
     compositeDisplay();
     refreshOnion();
   }
@@ -2945,6 +2984,21 @@
     var poT = byId('paintOnionTint');
     if (poT) poT.addEventListener('change', function () { state.onionCfg.tint = this.checked; saveOnionPrefs(); compositeDisplay(); });
 
+    // Playhead scrubber: snap to whole frames, move the timeline playhead and
+    // reload the onion ghosts (their neighbours depend on the playhead).
+    var ppEl = byId('paintPlayhead');
+    if (ppEl) ppEl.addEventListener('input', function () {
+      var fps = (state.fps && state.fps > 0) ? state.fps : 12;
+      var t = clamp(Math.round(+this.value * fps) / fps, 0, +this.max || 1);
+      this.value = String(t);
+      syncSlider(this);
+      var lab = byId('paintPlayheadVal');
+      if (lab) lab.textContent = fmtTime(t);
+      state.playhead = t;
+      if (typeof renderPlayhead === 'function') renderPlayhead();
+      refreshOnion();
+    });
+
     buildBrushList();
     refreshBrushUI();
     if (pendingBrushes) { var pb = pendingBrushes; pendingBrushes = null; applyLoadedBrushes(pb); }
@@ -3115,6 +3169,9 @@
   function renderOverlay() {
     if (!overlayCtx) return;
     overlayCtx.clearRect(0, 0, workW, workH);
+    // Onion ghosts first (bottom): drawn on this display-only overlay so they
+    // always sit on top of the frame and are visible even on opaque frames.
+    paintDrawOnion(overlayCtx);
     // selection tint + ants
     if (sel && selMaskCv) {
       overlayCtx.globalAlpha = 0.22;
