@@ -158,8 +158,13 @@
     </section>
     <div class="side-resizer" id="rightResizer" title="Drag to resize; double-click to reset"></div>
     <aside class="side-col right" id="rightCol">
-      <div id="cameraPanel" class="gap-panel collapsible collapsed">
-        <div class="side-title">Camera</div>
+      <div id="cameraPanel" class="gap-panel collapsible collapsed" data-collapse-key="camera">
+        <button class="side-title collapsible-title" type="button">
+          <span>Camera</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
         <label class="field">Pan X <span id="cameraXVal" class="mono">0%</span>
           <input id="cameraX" class="slider" type="range" min="-1" max="1" step="0.01" value="0">
         </label>
@@ -176,19 +181,33 @@
           <button id="btnCameraAddKey" class="btn">Add key</button>
           <button id="btnCameraRemoveKey" class="btn danger">Remove key</button>
         </div>
+          </div>
+        </div>
       </div>
-      <div id="audioWrap" class="gap-panel collapsible collapsed">
-        <div class="side-title">Audio</div>
+      <div id="audioWrap" class="gap-panel collapsible collapsed" data-collapse-key="audio">
+        <button class="side-title collapsible-title" type="button">
+          <span>Audio</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
         <div class="kf-card-name" id="audioName">No audio loaded</div>
         <div class="menu-row">
           <button id="btnAudioLoad" class="btn">Load audio…</button>
-          <button id="btnAudioRemove" class="btn danger" disabled>Remove</button>
+          <button id="btnAudioRemove" class="btn danger">Remove</button>
         </div>
         <label class="field check"><input type="checkbox" id="audioMute" disabled> Mute</label>
+          </div>
+        </div>
       </div>
       <input type="file" id="audioInput" accept="audio/*" hidden>
-      <div class="gap-panel hidden collapsible" id="gapPanel">
-        <div class="side-title">Gap</div>
+      <div class="gap-panel hidden collapsible" id="gapPanel" data-collapse-key="gap">
+        <button class="side-title collapsible-title" type="button">
+          <span>Gap</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
         <div class="kf-card-name" id="gapName"></div>
         <div class="kf-card-time" id="gapTime"></div>
         <label class="field">Inbetweens
@@ -230,9 +249,16 @@
           </label>
           <span class="squash-hint mono">smears inbetweens along their motion · eases in/out</span>
         </div>
+          </div>
+        </div>
       </div>
-      <div id="dotPanel" class="gap-panel hidden collapsible">
-        <div class="side-title">Color dot</div>
+      <div id="dotPanel" class="gap-panel hidden collapsible" data-collapse-key="dot">
+        <button class="side-title collapsible-title" type="button">
+          <span>Color dot</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
         <div class="kf-card-name" id="dotName"></div>
         <div class="kf-card-time" id="dotTime"></div>
         <label class="field">Fill color
@@ -269,13 +295,27 @@
           <button id="btnDotPaste" class="btn">Paste</button>
         </div>
         <button id="btnDotDelete" class="btn danger">Delete dot</button>
+          </div>
+        </div>
       </div>
-      <div id="fillHint" class="gap-panel hidden collapsible">
-        <div class="side-title">Color layer</div>
-        <div class="kf-empty" id="fillHintText"></div>
+      <div id="fillHint" class="gap-panel hidden collapsible" data-collapse-key="fillhint">
+        <button class="side-title collapsible-title" type="button">
+          <span>Color layer</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
+            <div class="kf-empty" id="fillHintText"></div>
+          </div>
+        </div>
       </div>
-      <div id="kfSection" class="collapsible">
-        <div class="side-title">Keyframe</div>
+      <div id="kfSection" class="collapsible" data-collapse-key="keyframe">
+        <button class="side-title collapsible-title" type="button">
+          <span>Keyframe</span>
+          <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="collapsible-body">
+          <div class="collapsible-inner">
         <div class="kf-card hidden" id="kfCard">
           <div class="kf-card-thumb"><img id="kfThumb" alt=""></div>
           <div class="kf-card-meta">
@@ -325,6 +365,8 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 12h6M9 16h6"/></svg>
             <span>Paste</span>
           </button>
+        </div>
+          </div>
         </div>
       </div>
     </aside>
@@ -543,16 +585,20 @@
         <div class="paint-toolbar-sep"></div>
         <div id="paintBrushName" class="paint-brush-name" title="Current brush"></div>
         <div class="paint-toolbar-sep"></div>
-        <label class="paint-qfield">Size
-          <span class="paint-qrow">
-            <input id="paintSize" class="slider" type="range" min="1" max="50" step="0.5" value="20">
-            <input id="paintSizeNum" class="paint-num mono" type="number" min="1" max="50" step="0.5" value="20" title="Brush diameter in px">
+        <label class="paint-kfield" title="Brush size in px — drag to change, double-click to type">
+          <span class="paint-kname">Size</span>
+          <span class="paint-kslider">
+            <input id="paintSize" class="slider paint-kslider-range" type="range" min="1" max="50" step="0.5" value="20">
+            <span id="paintSizeLabel" class="paint-kslider-val mono" aria-hidden="true">20px</span>
+            <input id="paintSizeText" class="paint-kslider-text mono" type="text" spellcheck="false" autocomplete="off" hidden>
           </span>
         </label>
-        <label class="paint-qfield">Opacity
-          <span class="paint-qrow">
-            <input id="paintOpacity" class="slider" type="range" min="0" max="1" step="0.01" value="1">
-            <input id="paintOpacityNum" class="paint-num mono" type="number" min="0" max="100" step="1" value="100" title="Opacity in %">
+        <label class="paint-kfield" title="Brush opacity — drag to change, double-click to type">
+          <span class="paint-kname">Opacity</span>
+          <span class="paint-kslider">
+            <input id="paintOpacity" class="slider paint-kslider-range" type="range" min="0" max="1" step="0.01" value="1">
+            <span id="paintOpacityLabel" class="paint-kslider-val mono" aria-hidden="true">100%</span>
+            <input id="paintOpacityText" class="paint-kslider-text mono" type="text" spellcheck="false" autocomplete="off" hidden>
           </span>
         </label>
         <div class="paint-toolbar-sep"></div>
@@ -565,10 +611,16 @@
       </div>
 
       <div class="paint-body">
-        <!-- Left docker: tools + tool options -->
-        <aside class="paint-docker paint-left">
-          <div class="docker-title">Tools</div>
-          <div class="paint-tools paint-tools-col">
+        <!-- Left docker: tools + tool options + onion skin -->
+        <aside class="paint-left" id="paintLeftPanel">
+          <div class="paint-docker collapsible" data-collapse-key="paint-tools">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Tools</span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div class="paint-tools paint-tools-col">
             <button id="btnPaintToolBrush" class="paint-tool active" type="button" title="Brush tool (B)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 3.5a3.2 3.2 0 0 1 4.5 4.5l-9.8 9.8-4.5-4.5z"/><path d="M8 13.5 3 21l2.5-1 2 2 7.5-5"/><path d="M13.7 5.9l4.4 4.4"/></svg>
             </button>
@@ -606,15 +658,17 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
             </button>
           </div>
-          <div class="docker-title">Tool options</div>
-          <div id="paintToolOptsBrush" class="paint-toolopts">
+          <div class="paint-docker collapsible" data-collapse-key="paint-toolopts">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Tool options</span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div id="paintToolOptsBrush" class="paint-toolopts">
             <label class="paint-field">Hardness <span id="paintHardnessVal" class="mono">80%</span>
               <input id="paintHardness" class="slider" type="range" min="0" max="1" step="0.01" value="0.8">
             </label>
-            <label class="paint-field">Rotation <span id="paintRotVal" class="mono">0°</span>
-              <input id="paintRot" class="slider" type="range" min="0" max="360" step="1" value="0">
-            </label>
-            <label class="paint-check"><input id="paintFollowDir" type="checkbox" checked> Rotate with stroke</label>
             <label class="paint-field">Smoothing
               <select id="paintSmoothMode">
                 <option value="none">None</option>
@@ -670,10 +724,39 @@
           <div id="paintToolOptsMove" class="paint-toolopts hidden">
             <p class="paint-hint">Drag to move the active layer content. Hold Alt to duplicate.</p>
           </div>
-          <div id="paintToolOptsTransform" class="paint-toolopts hidden">
-            <p class="paint-hint">Drag corners to scale, outside to rotate, inside to move. Double-click to commit, Esc to cancel.</p>
+                <div id="paintToolOptsTransform" class="paint-toolopts hidden">
+                  <p class="paint-hint">Drag corners to scale, outside to rotate, inside to move. Double-click to commit, Esc to cancel.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="paint-docker collapsible" data-collapse-key="paint-onion">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Onion skin</span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div class="paint-toolopts">
+            <label class="paint-check"><input id="paintOnion" type="checkbox"> Onion skin</label>
+            <label class="paint-field">Before <span id="paintOnionBeforeVal" class="mono">1</span>
+              <input id="paintOnionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
+            </label>
+            <label class="paint-field">After <span id="paintOnionAfterVal" class="mono">1</span>
+              <input id="paintOnionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
+            </label>
+            <label class="paint-field">Ghost opacity <span id="paintOnionOpacityVal" class="mono">28%</span>
+              <input id="paintOnionOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.28">
+            </label>
+                  <label class="paint-check"><input id="paintOnionTint" type="checkbox"> Tint</label>
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
+
+        <!-- Left panel resize handle -->
+        <div class="side-resizer paint-resizer" id="paintLeftResizer" title="Drag to resize; double-click to reset"></div>
 
         <!-- Centre canvas -->
         <div class="paint-center">
@@ -685,11 +768,19 @@
           </div>
         </div>
 
+        <!-- Right panel resize handle -->
+        <div class="side-resizer paint-resizer" id="paintRightResizer" title="Drag to resize; double-click to reset"></div>
+
         <!-- Right dockers: color, brushes, layers -->
-        <aside class="paint-dockers">
-          <div class="paint-docker">
-            <div class="docker-title">Color</div>
-            <div class="paint-colorwheel">
+        <aside class="paint-dockers" id="paintRightPanel">
+          <div class="paint-docker collapsible" data-collapse-key="paint-color">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Color</span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div class="paint-colorwheel">
               <div class="paint-cw-sv-wrap">
                 <canvas id="paintCwSv" class="paint-cw-sv" width="180" height="180"></canvas>
                 <div id="paintCwDot" class="paint-cw-dot"></div>
@@ -699,19 +790,33 @@
                 <div id="paintCwHueMarker" class="paint-cw-hue-marker"></div>
               </div>
             </div>
-            <div class="paint-cw-hex">
-              <label class="paint-field">Hex
-                <input id="paintCwHex" class="text-input mono" value="#1a1a1a" maxlength="7" spellcheck="false">
-              </label>
+                <div class="paint-cw-hex">
+                  <label class="paint-field">Hex
+                    <input id="paintCwHex" class="text-input mono" value="#1a1a1a" maxlength="7" spellcheck="false">
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="paint-docker">
-            <div class="docker-title">Brushes <span id="paintBrushCount" class="paint-brush-count"></span></div>
-            <div id="paintBrushList" class="paint-brush-list"></div>
+          <div class="paint-docker collapsible" data-collapse-key="paint-brushes">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Brushes <span id="paintBrushCount" class="paint-brush-count"></span></span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div id="paintBrushList" class="paint-brush-list"></div>
+              </div>
+            </div>
           </div>
-          <div class="paint-docker">
-            <div class="docker-title">Layers</div>
-            <div id="paintLayerList" class="paint-layer-list"></div>
+          <div class="paint-docker collapsible" data-collapse-key="paint-layers">
+            <button class="docker-title collapsible-title" type="button">
+              <span>Layers</span>
+              <svg class="collapsible-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="collapsible-body">
+              <div class="collapsible-inner">
+                <div id="paintLayerList" class="paint-layer-list"></div>
             <div class="paint-layer-toolbar">
               <button id="btnPaintAddLayer" class="paint-icon-btn" type="button" title="New layer (Ctrl+Shift+N)">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -749,14 +854,16 @@
                   <option value="color-burn">Color burn</option>
                   <option value="difference">Difference</option>
                   <option value="exclusion">Exclusion</option>
-                </select>
-              </label>
+                    </select>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </aside>
       </div>
 
-      <!-- Bottom status bar: actions + onion skin -->
+      <!-- Bottom status bar: actions, frame scrubber, zoom controls -->
       <div class="paint-statusbar">
         <div class="paint-actions">
           <button id="btnPaintClear" class="btn small danger">
@@ -767,36 +874,25 @@
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
             <span>Save to library</span>
           </button>
-          <button id="btnPaintAddKf" class="btn small">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            <span>Add keyframe</span>
-          </button>
         </div>
         <div class="spacer"></div>
-        <div class="paint-view">
-          <button id="btnPaintZoomOut" class="btn small" type="button" title="Zoom out">−</button>
-          <span id="paintZoomVal" class="paint-qval mono">100%</span>
-          <button id="btnPaintZoomIn" class="btn small" type="button" title="Zoom in">+</button>
-          <button id="btnPaintFit" class="btn small" type="button" title="Fit canvas (double-click empty space)">Fit</button>
-        </div>
         <label class="paint-qfield paint-frame-field">Frame
           <span class="paint-qrow">
             <input id="paintPlayhead" class="slider" type="range" min="0" max="1" step="0.01" value="0" title="Timeline playhead — onion ghosts follow it">
             <span id="paintPlayheadVal" class="paint-qval mono">0.00s</span>
           </span>
         </label>
-        <div class="paint-onion">
-          <label class="paint-check paint-onion-toggle"><input id="paintOnion" type="checkbox"> Onion skin</label>
-          <label class="paint-qfield paint-onion-field">Prev <span id="paintOnionBeforeVal" class="paint-qval mono">1</span>
-            <input id="paintOnionBefore" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="paint-qfield paint-onion-field">Next <span id="paintOnionAfterVal" class="paint-qval mono">1</span>
-            <input id="paintOnionAfter" class="slider" type="range" min="0" max="4" step="1" value="1">
-          </label>
-          <label class="paint-qfield paint-onion-field">Ghost <span id="paintOnionOpacityVal" class="paint-qval mono">28%</span>
-            <input id="paintOnionOpacity" class="slider" type="range" min="0.05" max="1" step="0.01" value="0.28">
-          </label>
-          <label class="paint-check paint-onion-toggle"><input id="paintOnionTint" type="checkbox"> Tint</label>
+        <div class="paint-view">
+          <button id="btnPaintZoomOut" class="btn small paint-view-btn" type="button" title="Zoom out">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg>
+          </button>
+          <span id="paintZoomVal" class="paint-qval mono">100%</span>
+          <button id="btnPaintZoomIn" class="btn small paint-view-btn" type="button" title="Zoom in">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
+          </button>
+          <button id="btnPaintFit" class="btn small paint-view-btn" type="button" title="Fit canvas (double-click empty space)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H4a1 1 0 0 0-1 1v5"/><path d="M15 3h5a1 1 0 0 1 1 1v5"/><path d="M20 15v5a1 1 0 0 1-1 1h-5"/><path d="M9 21H4a1 1 0 0 1-1-1v-5"/></svg>
+          </button>
         </div>
       </div>
     </div>
@@ -817,6 +913,20 @@
         <div class="paint-btnrow">
           <button id="btnPaintResizeApply" class="btn small primary" type="button">Apply</button>
           <button id="btnPaintResizeCancel" class="btn small" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New-library-image name dialog: shown the first time a drawing is added -->
+    <div id="paintNameDialog" class="paint-dialog hidden">
+      <div class="paint-dialog-box">
+        <div class="docker-title">Save to library</div>
+        <label class="paint-field">Name
+          <input id="paintNameInput" class="text-input mono" type="text" maxlength="64" spellcheck="false" placeholder="e.g. sketch 01">
+        </label>
+        <div class="paint-btnrow">
+          <button id="btnPaintNameOk" class="btn small primary" type="button">Add to library</button>
+          <button id="btnPaintNameCancel" class="btn small" type="button">Cancel</button>
         </div>
       </div>
     </div>

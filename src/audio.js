@@ -163,12 +163,16 @@
   function renderAudioPanel() {
     var nameEl = byId('audioName');
     var muteEl = byId('audioMute');
+    var loadEl = byId('btnAudioLoad');
     var removeEl = byId('btnAudioRemove');
     var wrap = byId('audioWrap');
     if (wrap) wrap.classList.toggle('has-audio', audioEnabled());
     if (nameEl) nameEl.textContent = audioEnabled() ? (state.audio.name || 'audio') : 'No audio loaded';
     if (muteEl) { muteEl.checked = !!(state.audio && state.audio.muted); muteEl.disabled = !audioEnabled(); }
-    if (removeEl) removeEl.disabled = !audioEnabled();
+    // Load / Remove are mutually exclusive, like the camera Add/Remove keys:
+    // Load shows when there is no sound, Remove shows when one is loaded.
+    if (loadEl) loadEl.classList.toggle('hidden', audioEnabled());
+    if (removeEl) removeEl.classList.toggle('hidden', !audioEnabled());
   }
 
   // Draw the waveform into the timeline audio lane, aligned to timeline time.

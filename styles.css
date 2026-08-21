@@ -289,7 +289,22 @@ body::after {
 .field input[type="text"]:focus,
 .field select:focus { border-color: rgba(138,163,185,0.55); box-shadow: 0 0 0 3px rgba(138,163,185,0.14); outline: none; background: #232830; }
 .field input[type="number"] { width: 64px; }
-.field.check input { accent-color: var(--accent); }
+
+/* Switch-style checkboxes (global): every checkbox renders as a toggle switch,
+   consistently across the whole app (menus, dialogs, side panel, paint editor). */
+input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 28px; height: 16px; flex: 0 0 auto; margin: 0; border-radius: 8px;
+  background: var(--border); position: relative; cursor: pointer;
+  transition: background 0.15s ease;
+}
+input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.4); transition: transform 0.15s ease; }
+input[type="checkbox"]:checked { background: var(--accent); }
+input[type="checkbox"]:checked::after { transform: translateX(12px); }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type="checkbox"]:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* side-by-side fields (e.g. custom width + height) */
 .field-row { display: flex; gap: 8px; }
@@ -525,7 +540,15 @@ body.resizing-side { cursor: col-resize; user-select: none; }
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: contain;
-  background: #000;
+  /* Same light-grey checkerboard as the paint editor canvas area, so
+     transparent previews look like they do on the painting canvas. */
+  background-color: #aeb4bb;
+  background-image: linear-gradient(45deg, #c9cdd3 25%, transparent 25%),
+    linear-gradient(-45deg, #c9cdd3 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #c9cdd3 75%),
+    linear-gradient(-45deg, transparent 75%, #c9cdd3 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
   border-radius: 4px;
   display: block;
   pointer-events: none;  /* the tile is the drag source, not the img */
@@ -580,27 +603,8 @@ body.dragging-asset * { cursor: grabbing !important; }
   color: var(--muted);
   opacity: 0.9;
 }
-/* Collapsible right-panel categories: click the title to fold / unfold. */
-#rightCol > .collapsible > .side-title {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  user-select: none;
-  opacity: 1;
-}
-#rightCol > .collapsible > .side-title::after {
-  content: '';
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid currentColor;
-  opacity: 0.7;
-  transition: transform 0.15s ease;
-}
-#rightCol > .collapsible.collapsed > .side-title::after { transform: rotate(-90deg); }
-#rightCol > .collapsible.collapsed > *:not(.side-title) { display: none; }
+/* Collapsible right-panel categories use the global .collapsible mechanism
+   (animation + chevron in the universal section below); no extra rules needed. */
 .kf-card {
   display: flex;
   gap: 10px;
@@ -632,9 +636,8 @@ body.dragging-asset * { cursor: grabbing !important; }
 .kf-card-time { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
 .kf-empty { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .side-col .field input { width: 100%; }
-/* Checkboxes must stay their natural width so the label text is not pushed
-   to the centre of a full-width control (e.g. the Audio Mute box). */
-.side-col .field input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+/* Switch checkboxes stay compact even where field inputs go full width. */
+.side-col .field input[type="checkbox"] { width: 28px; height: 16px; flex: 0 0 auto; }
 .side-col .btn { width: 100%; text-align: center; }
 .side-col .menu-row .btn { width: auto; flex: 1; }
 
@@ -1797,6 +1800,26 @@ button:focus-visible {
   background: var(--bg-elev2); color: var(--text); border: 1px solid var(--border);
   border-radius: 5px; font-size: 11px; padding: 2px 4px; text-align: center; }
 .paint-num:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Krita-style size / opacity control: a slider with the value drawn in a pill
+   centred over the groove. Double-clicking the slider swaps the pill for a
+   text field you can type into (see wirePaintKSlider). */
+.paint-kfield { display: flex; flex-direction: column; gap: 2px; font-size: 11px;
+  color: var(--muted); min-width: 132px; flex: 0 0 auto; }
+.paint-kname { font-size: 11px; color: var(--muted); }
+.paint-kslider { position: relative; display: block; }
+.paint-kslider-range { height: 18px; }
+.paint-kslider-val { position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 1;
+  font-size: 10.5px; line-height: 1; padding: 3px 9px; font-weight: 600;
+  color: var(--text); background: var(--bg-elev2); border: 1px solid var(--border);
+  border-radius: 8px; white-space: nowrap; }
+.paint-kslider-text { position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%); z-index: 2; width: 66px; box-sizing: border-box;
+  background: var(--bg-elev2); color: var(--text); border: 1px solid var(--accent);
+  border-radius: 8px; font-size: 11px; padding: 2px 6px; text-align: center; }
+.paint-kslider-text[hidden] { display: none; }
+.paint-kslider-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .paint-color-wrap { display: block; width: 26px; height: 26px; flex: 0 0 auto;
   border-radius: 6px; border: 1px solid var(--border);
   background: var(--bg); cursor: default; }
@@ -1815,6 +1838,34 @@ button:focus-visible {
   overflow-y: auto; background: var(--bg-elev); }
 .paint-dockers { width: 250px; flex: 0 0 auto; border-left: 1px solid var(--border);
   overflow-y: auto; background: var(--bg-elev); }
+
+/* Universal collapsible panels (used by the paint editor docker AND the right
+   panel of the main editor): a `.collapsible` container whose first child is a
+   `.collapsible-title` button, with the foldable content wrapped in
+   `.collapsible-body > .collapsible-inner`. Clicking the title folds/unfolds
+   with a smooth grid-template-rows animation to the exact content height. */
+.collapsible-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.collapsible.collapsed .collapsible-body { grid-template-rows: 0fr; }
+.collapsible-inner { min-height: 0; overflow: hidden; }
+.collapsible-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; margin: 0; padding: 0 0 4px; border: none; background: none;
+  font: inherit; text-align: left; cursor: pointer; user-select: none;
+}
+.collapsible-title:hover { color: var(--text); }
+.collapsible-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.collapsible-chev { flex: 0 0 auto; width: 12px; height: 12px; opacity: 0.6;
+  transition: transform 0.2s ease, opacity 0.15s ease; }
+.collapsible-title:hover .collapsible-chev { opacity: 1; }
+.collapsible.collapsed .collapsible-chev { transform: rotate(-90deg); }
+/* Resizer handles between the paint panels (drag to resize, double-click reset). */
+.paint-resizer { flex: 0 0 auto; width: 5px; cursor: col-resize; background: transparent;
+  touch-action: none; transition: background 0.16s ease; }
+.paint-resizer:hover, .paint-resizer.dragging { background: rgba(138, 163, 185, 0.18); }
 
 /* Color wheel (Krita-style): SV square + hue slider, capped + centred.
    Position math in the JS reads getBoundingClientRect() at runtime, so the
@@ -1847,18 +1898,6 @@ button:focus-visible {
   font-size: 12px; }
 .paint-check { display: flex; align-items: center; gap: 8px; font-size: 12px;
   color: var(--text); margin-bottom: 9px; cursor: pointer; }
-/* Checkboxes render as toggle sliders (still plain clickable checkboxes). */
-.paint-check input[type="checkbox"] { appearance: none; -webkit-appearance: none;
-  width: 28px; height: 16px; flex: 0 0 auto; margin: 0; border-radius: 8px;
-  background: var(--border); position: relative; cursor: pointer;
-  transition: background 0.15s ease; }
-.paint-check input[type="checkbox"]::after { content: ''; position: absolute;
-  top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
-  transition: transform 0.15s ease; }
-.paint-check input[type="checkbox"]:checked { background: var(--accent); }
-.paint-check input[type="checkbox"]:checked::after { transform: translateX(12px); }
-.paint-check input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .paint-left .slider { height: 14px; }
 
 /* Centre canvas. */
@@ -1958,9 +1997,10 @@ button:focus-visible {
 .btn.small { padding: 5px 9px; font-size: 12px; }
 .paint-view { display: flex; align-items: center; gap: 5px; }
 .paint-view .paint-qval { font-size: 12px; min-width: 40px; text-align: center; }
-.paint-onion { display: flex; align-items: center; gap: 10px; }
-.paint-onion .paint-qfield { min-width: 60px; }
-.paint-onion .paint-check { margin-bottom: 0; }
+/* Icon-only zoom controls at the right of the status bar. */
+.paint-view-btn { display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border-radius: 6px; }
+.paint-view-btn svg { width: 13px; height: 13px; }
 /* Frame scrubber: moves the timeline playhead so onion ghosts follow it. */
 .paint-frame-field { min-width: 150px; }
 .paint-frame-field .paint-qrow { gap: 6px; }

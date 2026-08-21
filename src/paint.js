@@ -54,6 +54,9 @@
   var paintUndoStack = [];     // per-stroke undo snapshots (ImageData)
   var paintRedoStack = [];     // per-stroke redo snapshots (ImageData)
   var onionImgs = {};          // kf.img -> decoded ghost image for onion skin
+  var paintBaselineURL = null; // composite data URL when the editor opened; used
+                               // to detect real changes when auto-saving on close
+  var paintReady = false;      // true once the opened image/layers finished loading
 
   // ---- extra tool state -----------------------------------------------------
   var paintTool = 'brush';     // brush|eraser|select|lasso|move|transform|fill|eyedrop|line|rect|ellipse|crop
@@ -68,6 +71,13 @@
   var fillCtx = null;          // cached context for fill ops
   var paintZoom = 1, paintPanX = 0, paintPanY = 0;  // canvas zoom / pan
   var panning = false, panStart = null;             // space/middle-drag pan
+
+  // Persisted UI prefs: resizable panel widths + collapsible dockers.
+  // (Docker collapse state now uses the shared global key in util.js.)
+  var PAINT_LEFT_W_KEY = 'khuwari-paint-left-w';
+  var PAINT_RIGHT_W_KEY = 'khuwari-paint-right-w';
+  var PAINT_LEFT_W_DEFAULT = 190, PAINT_LEFT_W_MIN = 120, PAINT_LEFT_W_MAX = 330;
+  var PAINT_RIGHT_W_DEFAULT = 250, PAINT_RIGHT_W_MIN = 170, PAINT_RIGHT_W_MAX = 420;
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -1352,15 +1362,13 @@
     syncSizeUI(current.radius * 2);
     syncOpacityUI(current.opacity);
     setVal('paintHardness', current.hardness, Math.round(current.hardness * 100) + '%');
-    setVal('paintRot', current.rotation, Math.round(current.rotation) + '°');
-    var fd = byId('paintFollowDir'); if (fd) fd.checked = !!current.followDir;
     setColorSwatch(current.color);
     var nameEl = byId('paintBrushName'); if (nameEl) nameEl.textContent = current.name;
   }
 
-  // Krita-style size control: slider + numeric spinbox (diameter in px). The
-  // nominal range is 1..50; brushes whose preset is bigger than that raise the
-  // limits so they are never silently shrunk on selection.
+  // Krita-style size control: slider with the value drawn ON it (diameter in px).
+  // The nominal range is 1..50; brushes whose preset is bigger than that raise
+  // the limits so they are never silently shrunk on selection.
   function syncSizeUI(d) {
     d = clamp(+d || 1, 1, 1000);
     var s = byId('paintSize');
@@ -1370,17 +1378,17 @@
       s.value = String(d);
       syncSlider(s);
     }
-    var n = byId('paintSizeNum');
-    if (n) { n.max = s ? s.max : 50; n.value = String(d); }
+    var lab = byId('paintSizeLabel');
+    if (lab) lab.textContent = fmtSize(d);
   }
 
-  // Krita-style opacity control: slider (0..1) + percent spinbox.
+  // Krita-style opacity control: slider (0..1) with the percent drawn ON it.
   function syncOpacityUI(o) {
     o = clamp(+o || 0, 0, 1);
     var s = byId('paintOpacity');
     if (s) { s.value = String(o); syncSlider(s); }
-    var n = byId('paintOpacityNum');
-    if (n) n.value = String(Math.round(o * 100));
+    var lab = byId('paintOpacityLabel');
+    if (lab) lab.textContent = Math.round(o * 100) + '%';
   }
 
   // Size label: Krita's brush size is the DIAMETER in px.
@@ -2110,11 +2118,73 @@
     }
   }
 
+  // ---- library naming dialog -------------------------------------------------
+
+  var newAssetNameCb = null;   // pending resolver for the "name your drawing" box
+
+  function openNameDialog(defaultName, cb) {
+    var d = byId('paintNameDialog');
+    if (!d) { cb(defaultName || assetName()); return; }
+    var inp = byId('paintNameInput');
+    newAssetNameCb = cb;
+    if (inp) inp.value = defaultName || '';
+    d.classList.remove('hidden');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+
+  function submitNameDialog() {
+    var d = byId('paintNameDialog');
+    if (!d) return;
+    var cb = newAssetNameCb; newAssetNameCb = null;
+    var inp = byId('paintNameInput');
+    var name = inp ? (inp.value || '').trim() : '';
+    d.classList.add('hidden');
+    if (cb) cb(name || null);
+  }
+
+  function cancelNameDialog() {
+    var d = byId('paintNameDialog');
+    if (!d) return;
+    var cb = newAssetNameCb; newAssetNameCb = null;
+    d.classList.add('hidden');
+    if (cb) cb(null);
+  }
+
+  // Brand-new library images are named the first time they are added: the tool
+  // asks before inserting (the previously-ugly auto name "<brush> paint" is the
+  // pre-filled suggestion). Cancelling just leaves the painting out of the
+  // library — it stays in the editor.
+  function addNewLibraryAsset(url, layers) {
+    if (state.assets.some(function (a) { return a.img === url; })) return; // unchanged paint already saved
+    openNameDialog(assetName(), function (name) {
+      if (!name) return; // cancelled
+      recordUndo();
+      state.assets.push({ img: url, name: name, w: workW, h: workH, paintLayers: layers });
+      renderAssets();
+      toast('Added to library · ' + name);
+    });
+  }
+
+  // Editing an asset IS saving: commit the flattened image + editable layers.
+  // Also refresh the change-detection baseline so closing right after an
+  // explicit save doesn't save it a second time.
+  function commitLibraryAsset(a) {
+    var url = canvasToURL();
+    var layers = capturePaintLayers();
+    recordUndo();
+    a.img = url;
+    a.w = workW; a.h = workH;
+    a.paintLayers = layers.length ? layers : undefined;
+    renderAssets();
+    paintBaselineURL = url;
+    toast('Library image updated');
+  }
+
   function saveToLibrary() {
     var url = canvasToURL();
-    recordUndo();
     var layers = capturePaintLayers();
     if (editKeyframeId) {
+      recordUndo();
       var kf = null;
       for (var i = 0; i < state.keyframes.length; i++) if (state.keyframes[i].id === editKeyframeId) kf = state.keyframes[i];
       if (kf) {
@@ -2128,29 +2198,10 @@
       }
       toast('Keyframe updated');
     } else if (editAsset) {
-      // Re-saving an asset opened from the library: update its flattened image
-      // and keep the editable layer stack (blend modes, visibility, opacity).
-      editAsset.img = url;
-      editAsset.w = workW; editAsset.h = workH;
-      editAsset.paintLayers = layers.length ? layers : undefined;
-      renderAssets();
-      toast('Library image updated');
+      commitLibraryAsset(editAsset);
     } else {
-      ensureAsset(url, layers);
-      renderAssets();
-      toast('Added to library');
+      addNewLibraryAsset(url, layers);
     }
-  }
-
-  function addKeyframeAtPlayhead() {
-    var url = canvasToURL();
-    ensureAsset(url, capturePaintLayers());
-    renderAssets();
-    addAssetKeyframe(url, state.playhead);
-    var nk = null;
-    for (var i = 0; i < state.keyframes.length; i++) if (state.keyframes[i].img === url) nk = state.keyframes[i];
-    savePaintLayersToKeyframe(nk);
-    toast('Keyframe added at ' + fmtTime(state.playhead));
   }
 
   // ---- paint layers ----------------------------------------------------------
@@ -2199,9 +2250,13 @@
   // "before" = the last `before` keyframes on the relevant layer at or before
   // the playhead, "after" = the first `after` keyframes strictly after it. The
   // layer is the edited keyframe's own when repainting one, otherwise the
-  // active timeline layer (generic paint mode). The frame under the playhead is
-  // never ghosted (it's the one being drawn), so when editing a keyframe the
-  // ghosts are its neighbours.
+  // active timeline layer (generic paint mode).
+  // Repainting an existing keyframe skips the frame under the playhead (it is
+  // the one being drawn, already shown at full opacity), so its ghosts are the
+  // neighbours. Generic paint mode draws a NEW frame that is not in the timeline
+  // yet, so the frame under the playhead is a real neighbour — the reference the
+  // new drawing matches against. That is why a project with a SINGLE keyframe
+  // still onion-skins there.
   function paintOnionNeighbors() {
     var layerId = null;
     if (editKeyframeId) {
@@ -2218,8 +2273,11 @@
     for (var i = 0; i < ks.length; i++) if (ks[i].time <= t + 1e-9) idx = i;
     var b = (state.onionCfg && state.onionCfg.before) | 0;
     var a = (state.onionCfg && state.onionCfg.after) | 0;
+    // First before ghost: in edit mode the frame under the playhead is skipped
+    // (idx - 1), in generic mode it is included (idx).
+    var firstBefore = editKeyframeId ? idx : idx + 1;
     var before = [], after = [];
-    for (var j = 1; j <= b; j++) { var k = idx - j; if (k >= 0) before.push(ks[k]); }
+    for (var j = 1; j <= b; j++) { var k = firstBefore - j; if (k >= 0) before.push(ks[k]); }
     for (var m = 1; m <= a; m++) { var n = idx + m; if (n < ks.length && ks[n].time > t + 1e-9) after.push(ks[n]); }
     if (idx === -1 && !after.length && ks.length) after.push(ks[0]);
     return { before: before, after: after };
@@ -2547,11 +2605,15 @@
   }
 
   // Rebuild the layer stack (optionally from saved data URLs). When no saved
-  // stack is given we just start with one empty layer.
-  function restorePaintLayers(arr) {
+  // stack is given we just start with one empty layer. `onReady` fires once any
+  // saved layer images have finished decoding (or immediately when there are
+  // none), which is when the composite is stable enough to capture a baseline.
+  function restorePaintLayers(arr, onReady) {
     paintLayers = [];
     activeLayer = null;
     layerSeq = 0;
+    var pending = 0;
+    function tick() { if (--pending === 0 && onReady) onReady(); }
     (arr || []).forEach(function (d) {
       var cv = document.createElement('canvas');
       cv.width = workW; cv.height = workH;
@@ -2564,8 +2626,10 @@
         canvas: cv
       };
       if (d.img) {
+        pending++;
         var im = new Image();
-        im.onload = function () { cv.getContext('2d').drawImage(im, 0, 0, workW, workH); compositeDisplay(); };
+        im.onload = function () { cv.getContext('2d').drawImage(im, 0, 0, workW, workH); compositeDisplay(); tick(); };
+        im.onerror = function () { tick(); };
         im.src = d.img;
       }
       paintLayers.push(layer);
@@ -2574,6 +2638,7 @@
     activeLayer = paintLayers[paintLayers.length - 1];
     paintCtx = activeLayer.canvas.getContext('2d');
     rebuildLayerUI();
+    if (pending === 0 && onReady) onReady();
   }
 
   function savePaintLayersToKeyframe(kf) {
@@ -2759,6 +2824,11 @@
 
     paintUndoStack = [];
     paintRedoStack = [];
+    // Reset the auto-save change-detection state; the right baseline is captured
+    // once the opened image / saved layers have finished loading (below).
+    paintBaselineURL = null;
+    paintReady = false;
+    var asyncLoad = false;
     var kf = editKeyframeId ? getKf(editKeyframeId) : null;
     var src = editAsset || kf;
     // Onion ghosts are anchored at the playhead (see paintOnionNeighbors): place
@@ -2769,14 +2839,22 @@
       if (typeof renderPlayhead === 'function') renderPlayhead();
     }
     if (src && Array.isArray(src.paintLayers) && src.paintLayers.length) {
-      restorePaintLayers(src.paintLayers);
+      asyncLoad = true;
+      restorePaintLayers(src.paintLayers, function () {
+        compositeDisplay();
+        paintBaselineURL = canvasToURL();
+        paintReady = true;
+      });
     } else {
       restorePaintLayers(null);
       if (src && src.img) {
+        asyncLoad = true;
         var img = new Image();
         img.onload = function () {
           paintLayers[0].canvas.getContext('2d').drawImage(img, 0, 0, workW, workH);
           compositeDisplay();
+          paintBaselineURL = canvasToURL();
+          paintReady = true;
         };
         img.src = src.img;
       }
@@ -2797,6 +2875,9 @@
     syncPaintPlayheadUI();
     compositeDisplay();
     refreshOnion();
+    // No async image is pending (blank canvas, no saved layers): the composite
+    // right now is the baseline. Imaged assets set it in their own onload.
+    if (!asyncLoad) { paintBaselineURL = canvasToURL(); paintReady = true; }
   }
 
   function closePaint() {
@@ -2804,11 +2885,61 @@
     stopAnts();
     sel = null; selMaskCv = null; selDrag = null;
     cropRect = null; xfrm = null; toolDrag = null;
+    // Editing a library asset IS saving: push the result back automatically so
+    // the user never has to press "Save to library" again. Only when something
+    // actually changed, so closing an untouched asset is a no-op.
+    if (editAsset && paintReady) {
+      var cur = canvasToURL();
+      if (cur !== paintBaselineURL) commitLibraryAsset(editAsset);
+    }
     var ov = byId('paintOverlay');
     if (ov) ov.classList.add('hidden');
     paintOpen = false;
     editKeyframeId = null;
     editAsset = null;
+  }
+
+  // Krita-style value-on-slider widget: a native range input with the current
+  // value drawn in a pill centred over the groove. Double-clicking the slider
+  // swaps the pill for a text field you can type into — Enter or clicking away
+  // commits (clamped to the range), Esc cancels. `o` = {
+  //   range, label, text (element ids), read(), toInput(v), parse(str),
+  //   min(), max(), fmt(v), apply(v)
+  // }. This also improves on the app's slider keyboard access: arrows nudge,
+  // and the typed entry accepts any value in range.
+  function wirePaintKSlider(o) {
+    var range = byId(o.range), label = byId(o.label), text = byId(o.text);
+    if (!range || !label || !text) return function () {};
+    var wrap = range.parentElement;
+    var editing = false;
+    function render() { label.textContent = o.fmt(o.read()); }
+    function enter() {
+      editing = true;
+      text.value = String(o.toInput(o.read()));
+      label.classList.add('hidden');
+      text.hidden = false;
+      text.focus();
+      text.select();
+    }
+    function leave(cancel) {
+      if (!editing) return;
+      editing = false;
+      text.hidden = true;
+      label.classList.remove('hidden');
+      if (!cancel) {
+        var v = o.parse(text.value.trim());
+        if (isFinite(v)) o.apply(clamp(v, o.min(), o.max()));
+      }
+      render();
+    }
+    if (wrap) wrap.addEventListener('dblclick', function (e) { if (e.target !== text) enter(); });
+    text.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); text.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); text._cancel = true; text.blur(); }
+    });
+    text.addEventListener('blur', function () { var c = !!text._cancel; text._cancel = false; leave(c); });
+    render();
+    return render;
   }
 
   function wirePaint() {
@@ -2847,24 +2978,43 @@
       syncSizeUI(d);
     }
     byId('paintSize').addEventListener('input', function () { setPaintSize(+this.value); });
-    byId('paintSizeNum').addEventListener('change', function () { setPaintSize(+this.value); });
-    byId('paintSizeNum').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') this.blur(); });
 
-    // Krita-style Opacity: slider (0..1) + percent spinbox.
+    // Krita-style Opacity: slider (0..1).
     function setPaintOpacity(o) {
       o = clamp(+o || 0, 0, 1);
       current.opacity = o;
       syncOpacityUI(o);
     }
     byId('paintOpacity').addEventListener('input', function () { setPaintOpacity(+this.value); });
-    byId('paintOpacityNum').addEventListener('change', function () { setPaintOpacity((+this.value || 0) / 100); });
-    byId('paintOpacityNum').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') this.blur(); });
+
+    // Krita-style size / opacity controls: the value is drawn ON the slider and
+    // double-clicking the slider swaps it into a text field you can type into
+    // (Enter or click-away commits, Esc cancels). See wirePaintKSlider.
+    wirePaintKSlider({
+      range: 'paintSize', label: 'paintSizeLabel', text: 'paintSizeText',
+      read: function () { return current.radius * 2; },
+      toInput: function (v) { return Math.round(v * 100) / 100; },
+      parse: function (s) { return parseFloat(s); },
+      min: function () { return 1; },
+      max: function () { var s = byId('paintSize'); return parseFloat(s ? s.max : 50) || 50; },
+      fmt: fmtSize,
+      apply: function (d) { setPaintSize(d); }
+    });
+    wirePaintKSlider({
+      range: 'paintOpacity', label: 'paintOpacityLabel', text: 'paintOpacityText',
+      read: function () { return current.opacity; },
+      toInput: function (v) { return Math.round(v * 100); },
+      parse: function (s) { return parseFloat(s) / 100; },
+      min: function () { return 0; },
+      max: function () { return 1; },
+      fmt: function (v) { return Math.round(v * 100) + '%'; },
+      apply: function (v) { setPaintOpacity(v); }
+    });
 
     byId('paintHardness').addEventListener('input', function () { current.hardness = +this.value; setVal('paintHardness', this.value, Math.round(+this.value * 100) + '%'); refreshTip(); });
     // Spacing is a brush preset property (Krita: pixel brushes carry it as a
     // % of diameter, MyPaint brushes derive it from dabs-per-radius), so it is
     // NOT user-adjustable — there is deliberately no spacing slider.
-    byId('paintRot').addEventListener('input', function () { current.rotation = +this.value; setVal('paintRot', this.value, Math.round(+this.value) + '°'); });
 
     // ---- color wheel (Krita-style SV square + hue slider) ----
     cwSvCv = byId('paintCwSv');
@@ -2943,9 +3093,6 @@
     byId('paintSmoothMode').addEventListener('change', refreshBrushUI);
     byId('paintSmoothStr').addEventListener('input', function () { setVal('paintSmoothStr', this.value, Math.round(+this.value) + '%'); });
 
-    // follow stroke direction
-    byId('paintFollowDir').addEventListener('change', function () { current.followDir = this.checked; });
-
     // paint layers (Krita-style docker toolbar acts on the active layer)
     byId('btnPaintAddLayer').addEventListener('click', function () { addLayer(); });
     byId('btnPaintDelLayer').addEventListener('click', function () { deleteActiveLayer(); });
@@ -2977,7 +3124,6 @@
     byId('btnPaintUndo').addEventListener('click', undoStroke);
     byId('btnPaintRedo').addEventListener('click', redoStroke);
     byId('btnPaintSaveLib').addEventListener('click', saveToLibrary);
-    byId('btnPaintAddKf').addEventListener('click', addKeyframeAtPlayhead);
 
     // keyboard: Esc closes, Ctrl+Z undoes a stroke, Ctrl+Shift+Z / Ctrl+Y
     // redoes, Ctrl+Shift+N adds a layer, Ctrl+E merges the active layer down
@@ -3039,6 +3185,65 @@
     // Krita brushes shipped with the app: appended to the preset list as soon
     // as they finish parsing (async, per-brush, so the tool opens instantly).
     loadBundledBrushes();
+
+    // ---- collapsible dockers + resizable panels -----------------------------
+    // Docker folding uses the shared global collapsible system (see util.js's
+    // initCollapsibles): click a title to fold/unfold with smooth animation.
+    if (typeof initCollapsibles === 'function') initCollapsibles(byId('paintOverlay'));
+
+    // Resizable side panels: drag the divider, double-click to reset.
+    var paintLeftPanel = byId('paintLeftPanel'), paintRightPanel = byId('paintRightPanel');
+    function loadPaintPanelWidths() {
+      var vwLimit = Math.max(300, window.innerWidth - 120); // leave room for the canvas
+      try {
+        var lw = parseInt(localStorage.getItem(PAINT_LEFT_W_KEY) || '', 10);
+        if (paintLeftPanel && lw) paintLeftPanel.style.width = clamp(lw, PAINT_LEFT_W_MIN, Math.min(PAINT_LEFT_W_MAX, vwLimit)) + 'px';
+      } catch (err) {}
+      try {
+        var rw = parseInt(localStorage.getItem(PAINT_RIGHT_W_KEY) || '', 10);
+        if (paintRightPanel && rw) paintRightPanel.style.width = clamp(rw, PAINT_RIGHT_W_MIN, Math.min(PAINT_RIGHT_W_MAX, vwLimit)) + 'px';
+      } catch (err) {}
+    }
+    function savePaintPanelWidths() {
+      try { if (paintLeftPanel) localStorage.setItem(PAINT_LEFT_W_KEY, paintLeftPanel.style.width); } catch (err) {}
+      try { if (paintRightPanel) localStorage.setItem(PAINT_RIGHT_W_KEY, paintRightPanel.style.width); } catch (err) {}
+    }
+    function wirePaintResizer(resizer, col, grow, minW, maxW, other) {
+      if (!resizer || !col) return;
+      resizer.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        resizer.classList.add('dragging');
+        document.body.classList.add('resizing-side');
+        try { resizer.setPointerCapture(e.pointerId); } catch (err) {}
+        var startX = e.clientX, startW = col.offsetWidth;
+        function onMove(ev) {
+          // Keep the centre canvas usable: don't let the panels swallow it.
+          var availMax = maxW;
+          if (other) availMax = Math.min(availMax, window.innerWidth - other.offsetWidth - 140);
+          var w = clamp(startW + (ev.clientX - startX) * grow, minW, Math.max(minW, availMax));
+          col.style.width = w + 'px';
+        }
+        function onUp() {
+          resizer.classList.remove('dragging');
+          document.body.classList.remove('resizing-side');
+          resizer.removeEventListener('pointermove', onMove);
+          resizer.removeEventListener('pointerup', onUp);
+          resizer.removeEventListener('pointercancel', onUp);
+          savePaintPanelWidths();
+        }
+        resizer.addEventListener('pointermove', onMove);
+        resizer.addEventListener('pointerup', onUp);
+        resizer.addEventListener('pointercancel', onUp);
+      });
+      resizer.addEventListener('dblclick', function () {
+        col.style.width = (col === paintLeftPanel ? PAINT_LEFT_W_DEFAULT : PAINT_RIGHT_W_DEFAULT) + 'px';
+        savePaintPanelWidths();
+      });
+    }
+    wirePaintResizer(byId('paintLeftResizer'), paintLeftPanel, 1, PAINT_LEFT_W_MIN, PAINT_LEFT_W_MAX, paintRightPanel);
+    wirePaintResizer(byId('paintRightResizer'), paintRightPanel, -1, PAINT_RIGHT_W_MIN, PAINT_RIGHT_W_MAX, paintLeftPanel);
+    loadPaintPanelWidths();
 
     // ---- extra tools wiring -------------------------------------------------
     wireExtraTools();
@@ -4054,6 +4259,7 @@
       imgBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         imgMenu.classList.toggle('hidden');
+        if (!imgMenu.classList.contains('hidden')) clampMenuToViewport(imgMenu);
       });
       imgMenu.addEventListener('click', function (e) { e.stopPropagation(); });
       document.addEventListener('click', function () { imgMenu.classList.add('hidden'); });
@@ -4067,6 +4273,16 @@
     var ra = byId('btnPaintResizeApply'); if (ra) ra.addEventListener('click', applyResizeDialog);
     var rcl = byId('btnPaintResizeCancel'); if (rcl) rcl.addEventListener('click', function () {
       var d = byId('paintResizeDialog'); if (d) d.classList.add('hidden');
+    });
+    // library naming dialog (Enter commits, Esc cancels)
+    var nameOk = byId('btnPaintNameOk');
+    if (nameOk) nameOk.addEventListener('click', submitNameDialog);
+    var nameCancel = byId('btnPaintNameCancel');
+    if (nameCancel) nameCancel.addEventListener('click', cancelNameDialog);
+    var nameIn = byId('paintNameInput');
+    if (nameIn) nameIn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitNameDialog(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelNameDialog(); }
     });
 
     // canvas zoom / pan: wheel zooms toward the cursor, middle-drag (or

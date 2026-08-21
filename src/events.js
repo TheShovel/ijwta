@@ -255,7 +255,7 @@
       lastPreview = null;
       renderPreview();
     });
-    function onionPatch(patch) { for (var k in patch) state.onionCfg[k] = patch[k]; try { localStorage.setItem(ONION_KEY, JSON.stringify(state.onionCfg)); } catch (e) {} syncOnionUI(); lastPreview = null; renderPreview(); }
+    function onionPatch(patch) { for (var k in patch) state.onionCfg[k] = patch[k]; try { localStorage.setItem(ONION_KEY, JSON.stringify(state.onionCfg)); } catch (e) {} syncOnionUI(); lastPreview = null; renderPreview(); if (el.onionMenu && !el.onionMenu.classList.contains('hidden')) clampMenuToViewport(el.onionMenu); }
     el.onionBefore.addEventListener('input', function () { var v = parseInt(el.onionBefore.value, 10) || 0; syncSlider(el.onionBefore); el.onionBeforeVal.textContent = String(v); clearTimeout(window._onionDeb); window._onionDeb = setTimeout(function () { onionPatch({ before: v }); }, 100); });
     el.onionBefore.addEventListener('change', function () { var v = parseInt(el.onionBefore.value, 10) || 0; onionPatch({ before: v }); });
     el.onionAfter.addEventListener('input', function () { var v = parseInt(el.onionAfter.value, 10) || 0; syncSlider(el.onionAfter); el.onionAfterVal.textContent = String(v); clearTimeout(window._onionDeb2); window._onionDeb2 = setTimeout(function () { onionPatch({ after: v }); }, 100); });
@@ -761,6 +761,7 @@
         if (!open) {
           menu.classList.remove('hidden');
           if (onOpen) onOpen();
+          clampMenuToViewport(menu);
         }
       });
       menu.addEventListener('click', function (e) { e.stopPropagation(); });
@@ -870,11 +871,9 @@
     cameraSlider(el.cameraRot, el.cameraRotVal, 'rot', function (v) { return Math.round(v * 10) / 10 + '°'; });
     el.btnCameraAddKey.addEventListener('click', function () { addCameraKey(); });
     el.btnCameraRemoveKey.addEventListener('click', function () { removeCameraKey(state.playhead); });
-    // Right-panel categories fold / unfold when their title is clicked.
-    var collapsibleTitles = document.querySelectorAll('#rightCol > .collapsible > .side-title');
-    Array.prototype.forEach.call(collapsibleTitles, function (h) {
-      h.addEventListener('click', function () { h.parentElement.classList.toggle('collapsed'); });
-    });
+    // Right-panel categories fold / unfold via the shared collapsible system
+    // (util.js initCollapsibles) so they animate like the paint editor dockers.
+    if (typeof initCollapsibles === 'function') initCollapsibles(el.rightCol || document.querySelector('#rightCol'));
 
     // Reference audio track: load a file, remove it, or mute. The decoded
     // buffer + waveform are derived in audio.js.

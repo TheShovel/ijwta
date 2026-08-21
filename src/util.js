@@ -2,6 +2,84 @@
 
 
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  // Keep an opened dropdown fully inside the viewport. Menus are absolutely
+  // positioned relative to their trigger with `top:100%; right:0` (CSS), so
+  // ones near the
+  // bottom edge (footer layer/onion menus, a long settings/export menu on a
+  // short window) open off-screen. This re-anchors the menu: it still prefers
+  // opening below its trigger but shifts up ("clips up") just enough to stay
+  // visible, clamps horizontally, and falls back to an internal scroll if it
+  // still can't fit vertically.
+  function clampMenuToViewport(menu) {
+    if (!menu || !menu.parentElement) return;
+    var wrap = menu.offsetParent || menu.parentElement; // positioned ancestor
+    var wr = wrap.getBoundingClientRect();
+    // offsetLeft/offsetTop are the layout position (transforms, like the open
+    // animation, don't affect them) and already reflect the menu's CSS anchor
+    // (right:0 for the header menus, left:0 for the layer/onion menus), so we
+    // keep that anchor and only nudge the menu when it would fall off-screen.
+    var vx = wr.left + menu.offsetLeft;
+    var vy = wr.top + menu.offsetTop;
+    var w = menu.offsetWidth, h = menu.offsetHeight;
+    var pad = 8;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    // Clamp horizontally.
+    if (vx < pad) vx = pad;
+    if (vx + w > vw - pad) vx = Math.max(pad, vw - pad - w);
+    // Clamp vertically: keep the menu where CSS put it when it fits, otherwise
+    // pull it up ("clips up") so its bottom edge stays visible.
+    if (vy + h > vh - pad) vy = Math.max(pad, vh - pad - h);
+    if (vy < pad) vy = pad;
+    // If it still can't fit vertically, cap the height and scroll inside.
+    if (h > vh - 2 * pad) { menu.style.maxHeight = (vh - 2 * pad) + 'px'; menu.style.overflowY = 'auto'; }
+    else { menu.style.maxHeight = ''; menu.style.overflowY = ''; }
+    // Convert back to wrap-relative coordinates for the absolute menu.
+    menu.style.left = (vx - wr.left) + 'px';
+    menu.style.top = (vy - wr.top) + 'px';
+    menu.style.right = 'auto';
+  }
+
+  // Universal collapsible panels: any element with class `collapsible` whose
+  // first child has class `collapsible-title` becomes a smooth folding panel
+  // (grid-template-rows animation in CSS). The body must be wrapped in
+  // `.collapsible-body > .collapsible-inner`. Only sections the user actually
+  // toggles persist their state (via `data-collapse-key` in localStorage);
+  // untouched sections keep their HTML `collapsed` class as the default.
+  var COLLAPSIBLE_KEY = 'khuwari-collapsed';
+
+  function collapsibleSaved() {
+    try { var v = JSON.parse(localStorage.getItem(COLLAPSIBLE_KEY) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+  }
+
+  // Wire every collapsible inside `root` (default: the whole document). Calling
+  // it again for a subtree is safe (sections are marked once).
+  function initCollapsibles(root) {
+    root = root || document;
+    var saved = collapsibleSaved();
+    var titles = root.querySelectorAll('.collapsible > .collapsible-title');
+    Array.prototype.forEach.call(titles, function (title) {
+      if (title.getAttribute('data-collapsible-wired')) return;
+      title.setAttribute('data-collapsible-wired', '1');
+      var sec = title.parentElement;
+      var key = sec.getAttribute('data-collapse-key') || '';
+      // Apply the persisted state for sections the user has toggled; keep the
+      // HTML default (e.g. Camera/Audio start collapsed) for everything else.
+      if (key && saved !== null && saved[key] !== undefined) sec.classList.toggle('collapsed', !!saved[key]);
+      title.addEventListener('click', function (e) {
+        e.preventDefault();
+        toggleCollapsible(sec);
+      });
+    });
+  }
+
+  function toggleCollapsible(sec) {
+    sec.classList.toggle('collapsed');
+    var key = sec.getAttribute('data-collapse-key') || '';
+    if (!key) return;
+    var saved = collapsibleSaved() || {};
+    saved[key] = sec.classList.contains('collapsed');
+    try { localStorage.setItem(COLLAPSIBLE_KEY, JSON.stringify(saved)); } catch (e) {}
+  }
   // Largest the timeline can be dragged to: leave room for the toolbar plus a
   // usable preview above it.
   function maxTimelineHeight() {
