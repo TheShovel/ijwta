@@ -428,6 +428,74 @@ async function main() {
     h: Math.min(VIEW_H, (settingsRect ? settingsRect.y + settingsRect.h : 400) + 20) - Math.max(0, (settingsRect ? settingsRect.y : 52) - 20)
   });
 
+  // 16. paint workspace (docs paint)
+  await setupAndWait('__hero();');
+  await pageEval('(function(){ openPaint({ keyframeId: "k1" }); })()');
+  for (let i = 0; i < 40; i++) {
+    await wait(200);
+    const ready = await ev(`!!(window.paintOpen && window.paintReady)`);
+    if (ready) break;
+  }
+  await pageEval(`(function(){
+    // an extra layer + a few strokes so the Layers docker shows real depth
+    var l2 = addLayer('Sketch', true);
+    var g = l2.canvas.getContext('2d');
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = '#4f8fff'; g.lineWidth = 12;
+    g.beginPath(); g.moveTo(130, 430); g.quadraticCurveTo(190, 300, 270, 330);
+    g.quadraticCurveTo(330, 350, 400, 250); g.stroke();
+    g.strokeStyle = '#e6c07b'; g.lineWidth = 8;
+    g.beginPath(); g.moveTo(90, 190); g.quadraticCurveTo(200, 140, 300, 205); g.stroke();
+    g.fillStyle = '#e06c75'; g.beginPath(); g.arc(355, 385, 24, 0, Math.PI * 2); g.fill();
+    rebuildLayerUI();
+    refreshLayerThumbs();
+    compositeDisplay();
+  })()`);
+  await wait(400);
+  await capture('paint.png', R0full());
+  await pageEval('(function(){ closePaint(); })()');
+  await wait(200);
+
+  // 17. camera (docs camera): full window with the camera panel open, a
+  // camera transform applied to the preview, and a tall timeline so the
+  // camera key dots stay visible above the fold.
+  await setupAndWait('__hero(); state.playhead = 0.5; __fabricate(); renderPlayhead();');
+  await pageEval(`(function(){
+    state.camera = { enabled: true, keys: [] }; state.audio = { src: null, name: null, duration: 0, muted: false };
+    setCameraField('x', -0.3);
+    setCameraField('zoom', 1.5);
+    setCameraField('rot', -5);
+    var p = byId('cameraPanel');
+    if (p) p.classList.remove('collapsed');
+    var t = byId('timelineCol'); if (t) t.style.height = '300px';
+    renderCameraPanel();
+    renderPreview();
+    renderTimeline();
+  })()`);
+  await wait(300);
+  await capture('camera.png', R0full());
+
+  // 18. audio (docs audio): full window with the audio panel open and the
+  // waveform lane visible under the timeline (tall timeline, no extra rows).
+  await setupAndWait('__hero(); state.playhead = 0.5; __fabricate(); renderPlayhead();');
+  await pageEval(`(function(){
+    state.camera = { enabled: true, keys: [] }; state.audio = { src: null, name: null, duration: 0, muted: false };
+    // A real audio element would need decoding; for the shot we fabricate the
+    // waveform envelope the same way the asset library art is fabricated.
+    state.audio = { src: 'data:audio/wav;base64,', name: 'scratch-beat.wav', duration: 4, muted: false };
+    audioPeaks = new Float32Array(2000);
+    for (var i = 0; i < 2000; i++) audioPeaks[i] = 0.12 + 0.5 * Math.abs(Math.sin(i * 0.05) * Math.sin(i * 0.011));
+    var aw = byId('audioWrap'); if (aw) aw.classList.remove('collapsed');
+    var t = byId('timelineCol'); if (t) t.style.height = '340px';
+    renderAudioLane();
+    renderAudioPanel();
+    renderPreview();
+    renderTimeline();
+    byId('timeline').scrollTop = byId('timeline').scrollHeight;
+  })()`);
+  await wait(300);
+  await capture('audio.png', R0full());
+
   chrome.kill();
   console.log('done');
 }

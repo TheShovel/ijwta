@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera · Khuwari</title>
+<meta name="description" content="Non-destructive pan, zoom and rotation for the whole frame, keyframed on their own track.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <img src="../logo.svg" alt="" class="brand-logo">
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="paint.html">Paint</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="camera.html" class="active">Camera</a>
+    <a href="audio.html">Audio</a>
+    <a href="undo-redo.html">Undo & redo</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Camera</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Camera</h1>
+      <p>Non-destructive pan, zoom and rotation for the whole frame, keyframed on their own track.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="what-it-is">
+      <h2>What it is</h2>
+      
+        <p>The camera applies a pan, zoom and rotation to the whole frame, on top of your layers. It is non-destructive - your keyframes are never changed - and it is applied to the preview and to exports alike.</p>
+        
+<figure class="doc-fig">
+  <img class="fig-img" src="../shots/camera.png" alt="The camera panel open in the right panel with pan, zoom and rotation sliders, and the Camera track with its key dots along the bottom" width="720">
+  <figcaption>The camera panel. Drag any slider to add a camera key at the playhead, and the keys appear as dots on the Camera track.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="add-key">
+      <h2>Add a camera key</h2>
+      
+        <p>Open the <code>Camera</code> panel at the top of the right panel and move to the moment you want.</p>
+        <ol>
+          <li>Move the playhead to where the change should start.</li>
+          <li>Drag any of the Pan X, Pan Y, Zoom or Rotation sliders.</li>
+          <li>A camera key appears at the playhead. The first key is remembered for the whole timeline, so the pose holds before your camera moves.</li>
+        </ol>
+        <p>You can also press <code>Add key</code> to stamp a key with the current values when you want the pose to stay readable.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="lane">
+      <h2>The Camera track</h2>
+      
+        <p>The timeline has a <code>Camera</code> row under your layers. Each key is a small dot:</p>
+        <ul>
+          <li>Drag a dot to retime it.</li>
+          <li>Double-click a dot to remove that key.</li>
+          <li>With the playhead on a key you can nudge the sliders to edit it, or press <code>Remove key</code>.</li>
+        </ul>
+      
+    </section>
+
+    <section class="doc-sec" id="interpolation">
+      <h2>Between keys</h2>
+      
+        <p>The camera values blend smoothly from key to key, so a slow push-in is just two keys: one at normal zoom, a later one zoomed in. Space your keys on the timeline to shape the easing of the movement.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="export">
+      <h2>Applied to exports</h2>
+      
+        <p>The camera is part of the final composite, so every exported frame includes it. Combine it freely with squash, motion blur and color layers exactly like the rest of the frame.</p>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="blend-modes.html"><span class="pn-dir">Previous</span>Blend modes</a>
+    <a class="pn-link next" href="audio.html"><span class="pn-dir">Next</span>Audio</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="../logo.svg" alt="" class="brand-logo">
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

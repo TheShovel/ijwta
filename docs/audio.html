@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Onion skinning · Khuwari</title>
-<meta name="description" content="Seeing the frames around the current one, and configuring the ghosts.">
+<title>Audio · Khuwari</title>
+<meta name="description" content="A reference audio track that plays in sync with your timeline.">
 <link rel="stylesheet" href="../site.css">
 </head>
 <body>
@@ -37,11 +37,11 @@
     <a href="keyframes.html">Keyframes</a>
     <a href="gaps.html">Gaps & inbetweens</a>
     <a href="color-layers.html">Color layers</a>
-    <a href="onion-skinning.html" class="active">Onion skinning</a>
+    <a href="onion-skinning.html">Onion skinning</a>
     <a href="paint.html">Paint</a>
     <a href="blend-modes.html">Blend modes</a>
     <a href="camera.html">Camera</a>
-    <a href="audio.html">Audio</a>
+    <a href="audio.html" class="active">Audio</a>
     <a href="undo-redo.html">Undo & redo</a>
     <a href="export.html">Export</a>
     <a href="settings.html">Settings</a>
@@ -54,55 +54,57 @@
     <nav class="crumbs rise" aria-label="Breadcrumb">
       <a href="../docs.html">Docs</a>
       <span class="crumb-sep">/</span>
-      <span>Onion skinning</span>
+      <span>Audio</span>
     </nav>
 
     <header class="doc-head rise-1">
-      <h1>Onion skinning</h1>
-      <p>Seeing the frames around the current one, and configuring the ghosts.</p>
+      <h1>Audio</h1>
+      <p>A reference audio track that plays in sync with your timeline.</p>
     </header>
 
     
     <section class="doc-sec" id="what-it-is">
       <h2>What it is</h2>
       
-        <p>Onion skinning shows the frames around the current one, so you can see where the motion is heading while you work. It is a toggle, like the view only keyframes button.</p>
+        <p>The audio track is a scratch track for timing: load a sound file and it plays in sync with the timeline, so you can animate to the beat or to dialogue. It is there to guide you - it is not part of the export.</p>
         
 <figure class="doc-fig">
-  <img class="fig-img" src="../shots/onion.png" alt="Onion skinning with ghost frames around the current one and the settings popup" width="720">
-  <figcaption>Onion skinning keeps the neighboring frames faintly visible while you work.</figcaption>
+  <img class="fig-img" src="../shots/audio.png" alt="The audio panel with a loaded scratch track and the green waveform lane under the timeline" width="720">
+  <figcaption>The reference audio: load it in the Audio panel and a green waveform appears under the timeline, aligned with your keyframes.</figcaption>
 </figure>
       
     </section>
 
-    <section class="doc-sec" id="turn-it-on">
-      <h2>Turn it on</h2>
+    <section class="doc-sec" id="load-remove">
+      <h2>Load and manage audio</h2>
       
-        <p>The onion button in the transport area toggles it on and off. The small arrow next to it opens the settings popup.</p>
+        <p>In the <code>Audio</code> panel in the right column:</p>
+        <ul>
+          <li><code>Load audio...</code> lets you pick a sound file (mp3, wav, ogg - any format your browser plays).</li>
+          <li><code>Mute</code> silences it without removing it.</li>
+          <li><code>Remove</code> drops the track.</li>
+        </ul>
+        <p>The Load and Remove buttons swap: Load shows when there is no audio, Remove when there is.</p>
       
     </section>
 
-    <section class="doc-sec" id="settings">
-      <h2>Settings</h2>
+    <section class="doc-sec" id="waveform">
+      <h2>The waveform lane</h2>
       
-        <ul>
-          <li><strong>Frames before</strong> and <strong>after</strong> choose how many neighbors to show.</li>
-          <li><strong>Opacity</strong> sets how strong the ghosts are.</li>
-          <li><strong>Tint</strong> replaces the ghost look with a flat tint; pick the color and strength.</li>
-        </ul>
+        <p>Once loaded, a green waveform appears in a lane under the timeline. Click anywhere in it to jump the playhead to that moment. The waveform lines up with the same time ruler as your keyframes, so beats line up with frames.</p>
       
     </section>
 
     <section class="doc-sec" id="saved">
-      <h2>Saved automatically</h2>
+      <h2>Saved with the project</h2>
       
-        <p>Your onion skin settings are saved in the browser, so they come back the next time you open Khuwari, even after loading a project.</p>
+        <p>The audio file is stored inside the <code>.khuwari</code> project, so it comes back when you reopen the file - no need to find the sound again. Everything is stored locally on your machine.</p>
       
     </section>
 
     <nav class="pn-nav">
-      <a class="pn-link" href="color-layers.html"><span class="pn-dir">Previous</span>Color layers</a>
-    <a class="pn-link next" href="paint.html"><span class="pn-dir">Next</span>Paint</a>
+      <a class="pn-link" href="camera.html"><span class="pn-dir">Previous</span>Camera</a>
+    <a class="pn-link next" href="undo-redo.html"><span class="pn-dir">Next</span>Undo & redo</a>
     </nav>
   </main>
 

@@ -29,6 +29,14 @@ function bootJS(dom, extraFiles) {
   (extraFiles || []).forEach((f) => {
     vm.runInContext(fs.readFileSync(path.join(SITE, f), 'utf8'), ctx);
   });
+  // jsdom doesn't implement matchMedia; the home page doodles call it. A
+  // `matches:false` stub (reduced-motion off) keeps the animations from
+  // perturbing the assertions.
+  if (!dom.window.matchMedia) {
+    dom.window.matchMedia = function () {
+      return { matches: false, media: '', addListener: function () {}, removeListener: function () {}, addEventListener: function () {}, removeEventListener: function () {}, dispatchEvent: function () { return false; } };
+    };
+  }
   vm.runInContext(fs.readFileSync(path.join(SITE, 'site.js'), 'utf8'), ctx);
   return dom.window;
 }
@@ -48,7 +56,8 @@ function bootJS(dom, extraFiles) {
     t('H4 mascot art references root mascot', document.querySelector('.hero-art img').getAttribute('src') === 'mascot.png');
     t('H5 feature deck has 6 rows', document.querySelectorAll('.feat-deck .feat-row').length === 6);
     t('H5b feature rows alternate text/shot sides', (function () {
-      const rows = document.querySelectorAll('.feat-row');
+      // The private-by-design row is text-only; only the image rows alternate.
+      const rows = Array.prototype.filter.call(document.querySelectorAll('.feat-row'), (r) => r.children.length === 2);
       let ok = true;
       rows.forEach((r, i) => {
         const first = r.querySelector(':scope > :first-child');
@@ -65,7 +74,7 @@ function bootJS(dom, extraFiles) {
     const win = dom.window;
     // Feature figures inject into every shot container and rows reveal.
     const shots = win.document.querySelectorAll('.feat-shot');
-    t('H9c every feature shot got its figure', shots.length === 6 && Array.from(shots).every((s) => s.querySelector('img.fig-img')));
+    t('H9c every feature shot got its figure', shots.length === 5 && Array.from(shots).every((s) => s.querySelector('img.fig-img')));
     t('H9d rows reveal on scroll (IO present)', (function () {
       if (!('IntersectionObserver' in win)) return true;
       const r0 = win.document.querySelector('.feat-row');
@@ -82,7 +91,7 @@ function bootJS(dom, extraFiles) {
   {
     const dom = loadPage('docs.html');
     const { document } = dom.window;
-    t('D1 hub has 11 category cards', document.querySelectorAll('.doc-card').length === 11);
+    t('D1 hub has 15 category cards', document.querySelectorAll('.doc-card').length === 15);
     t('D2 search box present', !!document.getElementById('docSearch'));
     t('D2b search count sits outside the input wrap (icon centers on the input)', (function () {
       const count = document.getElementById('searchCount');
@@ -103,7 +112,12 @@ function bootJS(dom, extraFiles) {
     await sleep(10);
     const hits = Array.from(win.document.querySelectorAll('.search-hit'));
     t('D5 search finds onion topics', hits.length >= 3 && hits.every((h) => h.textContent.toLowerCase().indexOf('onion') !== -1));
-    t('D6 hits link into the onion subpage', hits.every((h) => h.getAttribute('href').indexOf('docs/onion-skinning.html#') !== -1));
+    t('D6 hits link into their topics', hits.every((h) => {
+      const href = h.getAttribute('href');
+      // "onion" matches the Onion skinning category plus the paint tool's
+      // "onion skin in paint" topic, which lives on the paint page.
+      return href.indexOf('docs/onion-skinning.html#') !== -1 || (href.indexOf('docs/paint.html#') !== -1 && href.indexOf('onion') !== -1);
+    }));
     t('D7 category grid hidden while searching', win.document.getElementById('catGrid').classList.contains('hidden'));
     t('D8 count text shows topics', /of \d+ topics/.test(win.document.getElementById('searchCount').textContent));
 
@@ -120,9 +134,9 @@ function bootJS(dom, extraFiles) {
 
   // ---- docs subpages ----
   {
-    const slugs = ['getting-started', 'interface', 'keyframes', 'gaps', 'color-layers', 'onion-skinning', 'blend-modes', 'export', 'settings', 'shortcuts', 'privacy'];
+    const slugs = ['getting-started', 'interface', 'keyframes', 'gaps', 'color-layers', 'onion-skinning', 'paint', 'blend-modes', 'camera', 'audio', 'undo-redo', 'export', 'settings', 'shortcuts', 'privacy'];
     const dir = path.join(SITE, 'docs');
-    t('P1 all 11 subpages exist', slugs.every((s) => fs.existsSync(path.join(dir, s + '.html'))));
+    t('P1 all 15 subpages exist', slugs.every((s) => fs.existsSync(path.join(dir, s + '.html'))));
 
     slugs.forEach((slug) => {
       const dom = loadPage('docs/' + slug + '.html');

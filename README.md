@@ -23,6 +23,9 @@ Khuwari is a browser based animation tool that fills in the frames between your 
 - **Onion skinning.** See the frames around the one you are working on, as ghosts or tinted, with configurable frame counts.
 - **Motion blur.** Per gap motion blur that eases in and out with the movement, to mask small glitches in the generated frames.
 - **Blend modes.** 16 blend modes per keyframe.
+- **Camera.** A non-destructive pan / zoom / rotation track, keyframed on its own row in the timeline and included in exports.
+- **Reference audio.** Load a sound file to animate to; it plays in sync with the timeline, and the file rides along inside your project file.
+- **Undo / redo.** Step any edit back or forward (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y), in the timeline and in the paint tool.
 - **Built-in paint tool.** A Krita-style drawing workspace with layers (opacity, visibility and blend modes), onion skinning and brush stabilizers. Ships with Krita brush presets, loads more `.kpp` brushes, and paint-made library images stay editable (layers + blend modes intact).
 - **Export.** PNG sequence, animated GIF or video (MP4, WebM, MKV, MOV or MPEG-TS), at the resolution you pick.
 - **Local and private.** The whole tool runs in your browser. No accounts, no uploads, no tracking.

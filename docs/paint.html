@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint · Khuwari</title>
+<meta name="description" content="The built-in drawing tool: brushes, layers, color, selection, transform and saving drawings into your animation.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <img src="../logo.svg" alt="" class="brand-logo">
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="paint.html" class="active">Paint</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="camera.html">Camera</a>
+    <a href="audio.html">Audio</a>
+    <a href="undo-redo.html">Undo & redo</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Paint</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Paint</h1>
+      <p>The built-in drawing tool: brushes, layers, color, selection, transform and saving drawings into your animation.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="what-it-is">
+      <h2>What it is</h2>
+      
+        <p>The paint tool is a full drawing workspace built into Khuwari, styled after Krita. You can sketch, ink and color right inside the editor, keep your work on separate layers, and drop the result straight into the timeline.</p>
+        <ul>
+          <li>Brushes, eraser, selection, transform, fill, shapes, line, eyedropper and crop tools.</li>
+          <li>Krita-style layers: opacity, visibility and blend modes.</li>
+          <li>Onion skinning, brush stabilizers and an HSV color wheel.</li>
+          <li>Paint-made images stay editable - their layers are saved with the project.</li>
+        </ul>
+        
+<figure class="doc-fig">
+  <img class="fig-img" src="../shots/paint.png" alt="The paint workspace: toolbar on top, tools on the left, the canvas in the center, and color, brushes and layers dockers on the right" width="720">
+  <figcaption>The paint workspace: a Krita-style window where you draw on the canvas in the center with tools, color, brushes and layers docked around it.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="open">
+      <h2>Open the paint tool</h2>
+      
+        <p>There are three ways in:</p>
+        <ul>
+          <li>The <code>Paint</code> button in the toolbar opens a blank canvas, ready for a new drawing.</li>
+          <li>Right-click a keyframe on the timeline and choose <code>Edit in paint</code> to redraw that pose in place - the existing image stays editable on a layer.</li>
+          <li>When you add a finished drawing to the library it becomes an asset you can drag onto the timeline like any other image.</li>
+        </ul>
+        <p class="doc-note">Leave the tool with <kbd>Esc</kbd> or the close button in the top-right corner. Editing a library image saves automatically when you close.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="tools">
+      <h2>Tools</h2>
+      
+        <p>The tool docker on the left holds everything you need:</p>
+        <table class="doc-table">
+          <thead><tr><th>Tool</th><th>Shortcut</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>Brush</td><td><kbd>B</kbd></td><td>paint with the current brush</td></tr>
+            <tr><td>Eraser</td><td><kbd>E</kbd></td><td>erase pixels</td></tr>
+            <tr><td>Select</td><td><kbd>S</kbd></td><td>rectangle, ellipse or lasso selection</td></tr>
+            <tr><td>Lasso</td><td><kbd>L</kbd></td><td>freehand selection</td></tr>
+            <tr><td>Move</td><td><kbd>V</kbd></td><td>move content, duplicate with Alt</td></tr>
+            <tr><td>Transform</td><td><kbd>T</kbd></td><td>scale, rotate and move with handles</td></tr>
+            <tr><td>Fill</td><td><kbd>G</kbd></td><td>flood fill with tolerance</td></tr>
+            <tr><td>Color picker</td><td><kbd>I</kbd></td><td>pick a color from the canvas</td></tr>
+            <tr><td>Line</td><td><span class="muted">-</span></td><td>straight lines with the current brush</td></tr>
+            <tr><td>Rectangle</td><td><kbd>U</kbd></td><td>outline or filled rectangles</td></tr>
+            <tr><td>Ellipse</td><td><span class="muted">-</span></td><td>outline or filled ellipses</td></tr>
+            <tr><td>Crop</td><td><kbd>C</kbd></td><td>crop the canvas</td></tr>
+          </tbody>
+        </table>
+        <p class="doc-note">Shortcut letters only work while the paint tool is open, and not while you are typing in a field.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="brushes">
+      <h2>Brushes</h2>
+      
+        <p>The brush docker is a Krita-style preset list. The toolbar shows the current brush plus quick <strong>size</strong> and <strong>opacity</strong> sliders - drag to change, double-click to type an exact value.</p>
+        <ul>
+          <li><strong>Hardness</strong> softens the brush edge.</li>
+          <li><strong>Smoothing</strong> adds a stabilizer (none, basic or stabilizer) to tame wobbly strokes.</li>
+          <li>The bundle ships with Krita's default preset brushes (<code>.kpp</code>), including their real brush tips, plus MyPaint (<code>.myb</code>) brushes. Drop more files into <code>brushes/</code> and they are picked up automatically.</li>
+        </ul>
+      
+    </section>
+
+    <section class="doc-sec" id="layers">
+      <h2>Layers</h2>
+      
+        <p>Every drawing can be split across layers, each with its own thumbnail, visibility, opacity and blend mode.</p>
+        <ul>
+          <li>Add, delete, move up and down, and merge a layer down from the layer toolbar.</li>
+          <li>Double-click a layer name to rename it.</li>
+          <li>Select a layer to paint on it. Alt-drag with the move tool duplicates content onto the same layer.</li>
+          <li>Paint layers are saved with the image, so a drawing stays editable no matter how often you save, close and reopen the project.</li>
+        </ul>
+      
+    </section>
+
+    <section class="doc-sec" id="color">
+      <h2>Color</h2>
+      
+        <p>The color docker gives you an HSV color wheel - a saturation/value square and a hue slider - plus a hex field for exact colors. The color picker tool (<kbd>I</kbd>) grabs a color straight off the canvas.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="onion">
+      <h2>Onion skin in paint</h2>
+      
+        <p>Turn on <code>Onion skin</code> in the tool docker to see the neighboring frames while you draw, with the same before/after counts, opacity and tint options as the main viewport.</p>
+        <p>Use the <strong>frame scrubber</strong> at the bottom of the workspace to move the playhead; the ghosts follow it so you can check the motion on either side of the frame you are drawing.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="image-ops">
+      <h2>Canvas and image operations</h2>
+      
+        <p>The <code>Image</code> menu in the toolbar operates on the whole canvas:</p>
+        <ul>
+          <li>Flip horizontal or vertical</li>
+          <li>Rotate 90 degrees clockwise or counter-clockwise</li>
+          <li>Resize the canvas, with optional aspect-lock and scale-content</li>
+        </ul>
+        <p>The <strong>crop</strong> tool (<kbd>C</kbd>) trims to a rectangle you drag; press <kbd>Enter</kbd> to apply or <kbd>Esc</kbd> to cancel. Double-click empty space to re-center the view, scroll to zoom, and hold the middle mouse button (or <kbd>Shift</kbd> with a brush) to pan.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="save">
+      <h2>Save your drawing</h2>
+      
+        <p><code>Save to library</code> in the bottom status bar adds the drawing to the assets panel, where you can drag it onto the timeline like any image.</p>
+        <ul>
+          <li>When you are repainting a keyframe, saving updates that keyframe in place and the gaps around it regenerate.</li>
+          <li>Editing a library image saves automatically when you close the tool.</li>
+          <li>Brand-new drawings ask for a name the first time you add them.</li>
+        </ul>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="onion-skinning.html"><span class="pn-dir">Previous</span>Onion skinning</a>
+    <a class="pn-link next" href="blend-modes.html"><span class="pn-dir">Next</span>Blend modes</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="../logo.svg" alt="" class="brand-logo">
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

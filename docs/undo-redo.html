@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undo & redo · Khuwari</title>
+<meta name="description" content="Step your edits back and forward, in the timeline and in the paint tool.">
+<link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="../index.html">
+    <img src="../logo.svg" alt="" class="brand-logo">
+    Khuwari
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="../index.html">Home</a>
+    <a href="../docs.html" class="active">Docs</a>
+    <a href="../credits.html">Credits</a>
+    <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn primary" href="../editor.html">Open Khuwari</a>
+  </div>
+</nav>
+
+<div class="wrap doc-layout">
+
+  <aside class="doc-side">
+    <a class="doc-side-back" href="../docs.html">All docs</a>
+    <div class="doc-side-title">Categories</div>
+    
+  <nav class="doc-side-nav">
+    <a href="getting-started.html">Getting started</a>
+    <a href="interface.html">The interface</a>
+    <a href="keyframes.html">Keyframes</a>
+    <a href="gaps.html">Gaps & inbetweens</a>
+    <a href="color-layers.html">Color layers</a>
+    <a href="onion-skinning.html">Onion skinning</a>
+    <a href="paint.html">Paint</a>
+    <a href="blend-modes.html">Blend modes</a>
+    <a href="camera.html">Camera</a>
+    <a href="audio.html">Audio</a>
+    <a href="undo-redo.html" class="active">Undo & redo</a>
+    <a href="export.html">Export</a>
+    <a href="settings.html">Settings</a>
+    <a href="shortcuts.html">Keyboard shortcuts</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  </aside>
+
+  <main class="doc-main">
+    <nav class="crumbs rise" aria-label="Breadcrumb">
+      <a href="../docs.html">Docs</a>
+      <span class="crumb-sep">/</span>
+      <span>Undo & redo</span>
+    </nav>
+
+    <header class="doc-head rise-1">
+      <h1>Undo & redo</h1>
+      <p>Step your edits back and forward, in the timeline and in the paint tool.</p>
+    </header>
+
+    
+    <section class="doc-sec" id="undo-redo">
+      <h2>Undo and redo</h2>
+      
+        <p>The transport at the bottom of the timeline has Undo and Redo buttons. Edits to your keyframes, gaps, layers, dots, camera and audio all land on the history stack, so a couple of clicks can walk any change back.</p>
+        
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 200" role="img" aria-label="The undo and redo buttons and the Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y shortcuts" class="fig-border">
+    <rect x="40" y="24" width="150" height="44" rx="10" fill="#2a3038" stroke="#39414d" stroke-width="2"/>
+    <path d="M72 46 l-12-12 12-12" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M60 34 h10 a8 8 0 0 1 0 24 h-10" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round"/>
+    <text x="118" y="51" font-size="15" fill="#e6e9ee">Undo</text>
+    <rect x="210" y="24" width="150" height="44" rx="10" fill="#2a3038" stroke="#39414d" stroke-width="2"/>
+    <path d="M242 34 l12 12-12 12" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M260 34 h-10 a8 8 0 0 0 0 24 h10" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round"/>
+    <text x="288" y="51" font-size="15" fill="#e6e9ee">Redo</text>
+    <g font-family="Helvetica, Arial, sans-serif">
+      <rect x="46" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="77" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="116" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="128" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="149" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Z</text>
+      <rect x="190" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="221" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="260" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="272" y="98" width="72" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="308" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Shift</text>
+      <text x="352" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="364" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="385" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Z</text>
+      <rect x="426" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="457" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="496" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="508" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="529" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Y</text>
+    </g>
+    <text x="46" y="176" font-size="14" fill="#98a1ad">Undo and redo work in the timeline and in the paint tool.</text>
+  </svg>
+  <figcaption>Undo and redo are one keystroke away, in the timeline and in the paint tool.</figcaption>
+</figure>
+      
+    </section>
+
+    <section class="doc-sec" id="shortcuts">
+      <h2>Shortcuts</h2>
+      
+        <table class="doc-table">
+          <thead><tr><th>Key</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>undo</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>, or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd></td><td>redo</td></tr>
+          </tbody>
+        </table>
+      
+    </section>
+
+    <section class="doc-sec" id="paint">
+      <h2>In the paint tool</h2>
+      
+        <p>The paint tool keeps its own history, separate from the timeline's. <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd> undoes your last stroke or tool action; <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd> redoes it. Each time you open the tool it starts fresh.</p>
+      
+    </section>
+
+    <section class="doc-sec" id="coalescing">
+      <h2>Slider edits collapse</h2>
+      
+        <p>Dragging a slider - a camera pan or a squash amount, for example - records one undo step for the whole gesture, not one per frame. So one <kbd>Ctrl</kbd> + <kbd>Z</kbd> reverts the entire drag instead of just the last tick.</p>
+      
+    </section>
+
+    <nav class="pn-nav">
+      <a class="pn-link" href="audio.html"><span class="pn-dir">Previous</span>Audio</a>
+    <a class="pn-link next" href="export.html"><span class="pn-dir">Next</span>Export</a>
+    </nav>
+  </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="../logo.svg" alt="" class="brand-logo">
+      Khuwari
+    </div>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="../docs.html">Docs</a>
+      <a href="../credits.html">Credits</a>
+      <a href="https://github.com/TheShovel/khuwari">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script src="../site.js"></script>
+</body>
+</html>

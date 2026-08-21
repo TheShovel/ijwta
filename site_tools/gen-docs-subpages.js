@@ -153,6 +153,49 @@ const FIG = {
   </svg>
   <figcaption>The shortcuts are easy to reach while you work.</figcaption>
 </figure>`,
+  paintWorkspace: `
+<figure class="doc-fig">
+  <img class="fig-img" src="../shots/paint.png" alt="The paint workspace: toolbar on top, tools on the left, the canvas in the center, and color, brushes and layers dockers on the right" width="720">
+  <figcaption>The paint workspace: a Krita-style window where you draw on the canvas in the center with tools, color, brushes and layers docked around it.</figcaption>
+</figure>`,
+  cameraFig: `
+<figure class="doc-fig">
+  <img class="fig-img" src="../shots/camera.png" alt="The camera panel open in the right panel with pan, zoom and rotation sliders, and the Camera track with its key dots along the bottom" width="720">
+  <figcaption>The camera panel. Drag any slider to add a camera key at the playhead, and the keys appear as dots on the Camera track.</figcaption>
+</figure>`,
+  audioFig: `
+<figure class="doc-fig">
+  <img class="fig-img" src="../shots/audio.png" alt="The audio panel with a loaded scratch track and the green waveform lane under the timeline" width="720">
+  <figcaption>The reference audio: load it in the Audio panel and a green waveform appears under the timeline, aligned with your keyframes.</figcaption>
+</figure>`,
+  historyFig: `
+<figure class="doc-fig">
+  <svg viewBox="0 0 720 200" role="img" aria-label="The undo and redo buttons and the Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y shortcuts" class="fig-border">
+    <rect x="40" y="24" width="150" height="44" rx="10" fill="#2a3038" stroke="#39414d" stroke-width="2"/>
+    <path d="M72 46 l-12-12 12-12" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M60 34 h10 a8 8 0 0 1 0 24 h-10" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round"/>
+    <text x="118" y="51" font-size="15" fill="#e6e9ee">Undo</text>
+    <rect x="210" y="24" width="150" height="44" rx="10" fill="#2a3038" stroke="#39414d" stroke-width="2"/>
+    <path d="M242 34 l12 12-12 12" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M260 34 h-10 a8 8 0 0 0 0 24 h10" fill="none" stroke="#e6e9ee" stroke-width="3" stroke-linecap="round"/>
+    <text x="288" y="51" font-size="15" fill="#e6e9ee">Redo</text>
+    <g font-family="Helvetica, Arial, sans-serif">
+      <rect x="46" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="77" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="116" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="128" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="149" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Z</text>
+      <rect x="190" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="221" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="260" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="272" y="98" width="72" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="308" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Shift</text>
+      <text x="352" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="364" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="385" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Z</text>
+      <rect x="426" y="98" width="62" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="457" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Ctrl</text>
+      <text x="496" y="126" font-size="17" fill="#c3ab7d" text-anchor="middle">+</text>
+      <rect x="508" y="98" width="42" height="46" rx="9" fill="#2a3038" stroke="#39414d" stroke-width="2"/><text x="529" y="126" font-size="14" fill="#e6e9ee" text-anchor="middle">Y</text>
+    </g>
+    <text x="46" y="176" font-size="14" fill="#98a1ad">Undo and redo work in the timeline and in the paint tool.</text>
+  </svg>
+  <figcaption>Undo and redo are one keystroke away, in the timeline and in the paint tool.</figcaption>
+</figure>`,
   privacy: ``
 };
 
@@ -374,6 +417,93 @@ const CATEGORIES = [
     ]
   },
   {
+    slug: 'paint', title: 'Paint',
+    blurb: 'The built-in drawing tool: brushes, layers, color, selection, transform and saving drawings into your animation.',
+    sections: [
+      { id: 'what-it-is', title: 'What it is', html: `
+        <p>The paint tool is a full drawing workspace built into Khuwari, styled after Krita. You can sketch, ink and color right inside the editor, keep your work on separate layers, and drop the result straight into the timeline.</p>
+        <ul>
+          <li>Brushes, eraser, selection, transform, fill, shapes, line, eyedropper and crop tools.</li>
+          <li>Krita-style layers: opacity, visibility and blend modes.</li>
+          <li>Onion skinning, brush stabilizers and an HSV color wheel.</li>
+          <li>Paint-made images stay editable - their layers are saved with the project.</li>
+        </ul>
+        ${FIG.paintWorkspace}
+      ` },
+      { id: 'open', title: 'Open the paint tool', html: `
+        <p>There are three ways in:</p>
+        <ul>
+          <li>The <code>Paint</code> button in the toolbar opens a blank canvas, ready for a new drawing.</li>
+          <li>Right-click a keyframe on the timeline and choose <code>Edit in paint</code> to redraw that pose in place - the existing image stays editable on a layer.</li>
+          <li>When you add a finished drawing to the library it becomes an asset you can drag onto the timeline like any other image.</li>
+        </ul>
+        <p class="doc-note">Leave the tool with <kbd>Esc</kbd> or the close button in the top-right corner. Editing a library image saves automatically when you close.</p>
+      ` },
+      { id: 'tools', title: 'Tools', html: `
+        <p>The tool docker on the left holds everything you need:</p>
+        <table class="doc-table">
+          <thead><tr><th>Tool</th><th>Shortcut</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>Brush</td><td><kbd>B</kbd></td><td>paint with the current brush</td></tr>
+            <tr><td>Eraser</td><td><kbd>E</kbd></td><td>erase pixels</td></tr>
+            <tr><td>Select</td><td><kbd>S</kbd></td><td>rectangle, ellipse or lasso selection</td></tr>
+            <tr><td>Lasso</td><td><kbd>L</kbd></td><td>freehand selection</td></tr>
+            <tr><td>Move</td><td><kbd>V</kbd></td><td>move content, duplicate with Alt</td></tr>
+            <tr><td>Transform</td><td><kbd>T</kbd></td><td>scale, rotate and move with handles</td></tr>
+            <tr><td>Fill</td><td><kbd>G</kbd></td><td>flood fill with tolerance</td></tr>
+            <tr><td>Color picker</td><td><kbd>I</kbd></td><td>pick a color from the canvas</td></tr>
+            <tr><td>Line</td><td><span class="muted">-</span></td><td>straight lines with the current brush</td></tr>
+            <tr><td>Rectangle</td><td><kbd>U</kbd></td><td>outline or filled rectangles</td></tr>
+            <tr><td>Ellipse</td><td><span class="muted">-</span></td><td>outline or filled ellipses</td></tr>
+            <tr><td>Crop</td><td><kbd>C</kbd></td><td>crop the canvas</td></tr>
+          </tbody>
+        </table>
+        <p class="doc-note">Shortcut letters only work while the paint tool is open, and not while you are typing in a field.</p>
+      ` },
+      { id: 'brushes', title: 'Brushes', html: `
+        <p>The brush docker is a Krita-style preset list. The toolbar shows the current brush plus quick <strong>size</strong> and <strong>opacity</strong> sliders - drag to change, double-click to type an exact value.</p>
+        <ul>
+          <li><strong>Hardness</strong> softens the brush edge.</li>
+          <li><strong>Smoothing</strong> adds a stabilizer (none, basic or stabilizer) to tame wobbly strokes.</li>
+          <li>The bundle ships with Krita's default preset brushes (<code>.kpp</code>), including their real brush tips, plus MyPaint (<code>.myb</code>) brushes. Drop more files into <code>brushes/</code> and they are picked up automatically.</li>
+        </ul>
+      ` },
+      { id: 'layers', title: 'Layers', html: `
+        <p>Every drawing can be split across layers, each with its own thumbnail, visibility, opacity and blend mode.</p>
+        <ul>
+          <li>Add, delete, move up and down, and merge a layer down from the layer toolbar.</li>
+          <li>Double-click a layer name to rename it.</li>
+          <li>Select a layer to paint on it. Alt-drag with the move tool duplicates content onto the same layer.</li>
+          <li>Paint layers are saved with the image, so a drawing stays editable no matter how often you save, close and reopen the project.</li>
+        </ul>
+      ` },
+      { id: 'color', title: 'Color', html: `
+        <p>The color docker gives you an HSV color wheel - a saturation/value square and a hue slider - plus a hex field for exact colors. The color picker tool (<kbd>I</kbd>) grabs a color straight off the canvas.</p>
+      ` },
+      { id: 'onion', title: 'Onion skin in paint', html: `
+        <p>Turn on <code>Onion skin</code> in the tool docker to see the neighboring frames while you draw, with the same before/after counts, opacity and tint options as the main viewport.</p>
+        <p>Use the <strong>frame scrubber</strong> at the bottom of the workspace to move the playhead; the ghosts follow it so you can check the motion on either side of the frame you are drawing.</p>
+      ` },
+      { id: 'image-ops', title: 'Canvas and image operations', html: `
+        <p>The <code>Image</code> menu in the toolbar operates on the whole canvas:</p>
+        <ul>
+          <li>Flip horizontal or vertical</li>
+          <li>Rotate 90 degrees clockwise or counter-clockwise</li>
+          <li>Resize the canvas, with optional aspect-lock and scale-content</li>
+        </ul>
+        <p>The <strong>crop</strong> tool (<kbd>C</kbd>) trims to a rectangle you drag; press <kbd>Enter</kbd> to apply or <kbd>Esc</kbd> to cancel. Double-click empty space to re-center the view, scroll to zoom, and hold the middle mouse button (or <kbd>Shift</kbd> with a brush) to pan.</p>
+      ` },
+      { id: 'save', title: 'Save your drawing', html: `
+        <p><code>Save to library</code> in the bottom status bar adds the drawing to the assets panel, where you can drag it onto the timeline like any image.</p>
+        <ul>
+          <li>When you are repainting a keyframe, saving updates that keyframe in place and the gaps around it regenerate.</li>
+          <li>Editing a library image saves automatically when you close the tool.</li>
+          <li>Brand-new drawings ask for a name the first time you add them.</li>
+        </ul>
+      ` }
+    ]
+  },
+  {
     slug: 'blend-modes', title: 'Blend modes',
     blurb: '16 blend modes per keyframe, from multiply to luminosity.',
     sections: [
@@ -391,6 +521,89 @@ const CATEGORIES = [
           </tbody>
         </table>
         ${FIG.blend}
+      ` }
+    ]
+  },
+  {
+    slug: 'camera', title: 'Camera',
+    blurb: 'Non-destructive pan, zoom and rotation for the whole frame, keyframed on their own track.',
+    sections: [
+      { id: 'what-it-is', title: 'What it is', html: `
+        <p>The camera applies a pan, zoom and rotation to the whole frame, on top of your layers. It is non-destructive - your keyframes are never changed - and it is applied to the preview and to exports alike.</p>
+        ${FIG.cameraFig}
+      ` },
+      { id: 'add-key', title: 'Add a camera key', html: `
+        <p>Open the <code>Camera</code> panel at the top of the right panel and move to the moment you want.</p>
+        <ol>
+          <li>Move the playhead to where the change should start.</li>
+          <li>Drag any of the Pan X, Pan Y, Zoom or Rotation sliders.</li>
+          <li>A camera key appears at the playhead. The first key is remembered for the whole timeline, so the pose holds before your camera moves.</li>
+        </ol>
+        <p>You can also press <code>Add key</code> to stamp a key with the current values when you want the pose to stay readable.</p>
+      ` },
+      { id: 'lane', title: 'The Camera track', html: `
+        <p>The timeline has a <code>Camera</code> row under your layers. Each key is a small dot:</p>
+        <ul>
+          <li>Drag a dot to retime it.</li>
+          <li>Double-click a dot to remove that key.</li>
+          <li>With the playhead on a key you can nudge the sliders to edit it, or press <code>Remove key</code>.</li>
+        </ul>
+      ` },
+      { id: 'interpolation', title: 'Between keys', html: `
+        <p>The camera values blend smoothly from key to key, so a slow push-in is just two keys: one at normal zoom, a later one zoomed in. Space your keys on the timeline to shape the easing of the movement.</p>
+      ` },
+      { id: 'export', title: 'Applied to exports', html: `
+        <p>The camera is part of the final composite, so every exported frame includes it. Combine it freely with squash, motion blur and color layers exactly like the rest of the frame.</p>
+      ` }
+    ]
+  },
+  {
+    slug: 'audio', title: 'Audio',
+    blurb: 'A reference audio track that plays in sync with your timeline.',
+    sections: [
+      { id: 'what-it-is', title: 'What it is', html: `
+        <p>The audio track is a scratch track for timing: load a sound file and it plays in sync with the timeline, so you can animate to the beat or to dialogue. It is there to guide you - it is not part of the export.</p>
+        ${FIG.audioFig}
+      ` },
+      { id: 'load-remove', title: 'Load and manage audio', html: `
+        <p>In the <code>Audio</code> panel in the right column:</p>
+        <ul>
+          <li><code>Load audio...</code> lets you pick a sound file (mp3, wav, ogg - any format your browser plays).</li>
+          <li><code>Mute</code> silences it without removing it.</li>
+          <li><code>Remove</code> drops the track.</li>
+        </ul>
+        <p>The Load and Remove buttons swap: Load shows when there is no audio, Remove when there is.</p>
+      ` },
+      { id: 'waveform', title: 'The waveform lane', html: `
+        <p>Once loaded, a green waveform appears in a lane under the timeline. Click anywhere in it to jump the playhead to that moment. The waveform lines up with the same time ruler as your keyframes, so beats line up with frames.</p>
+      ` },
+      { id: 'saved', title: 'Saved with the project', html: `
+        <p>The audio file is stored inside the <code>.khuwari</code> project, so it comes back when you reopen the file - no need to find the sound again. Everything is stored locally on your machine.</p>
+      ` }
+    ]
+  },
+  {
+    slug: 'undo-redo', title: 'Undo & redo',
+    blurb: 'Step your edits back and forward, in the timeline and in the paint tool.',
+    sections: [
+      { id: 'undo-redo', title: 'Undo and redo', html: `
+        <p>The transport at the bottom of the timeline has Undo and Redo buttons. Edits to your keyframes, gaps, layers, dots, camera and audio all land on the history stack, so a couple of clicks can walk any change back.</p>
+        ${FIG.historyFig}
+      ` },
+      { id: 'shortcuts', title: 'Shortcuts', html: `
+        <table class="doc-table">
+          <thead><tr><th>Key</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>undo</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>, or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd></td><td>redo</td></tr>
+          </tbody>
+        </table>
+      ` },
+      { id: 'paint', title: 'In the paint tool', html: `
+        <p>The paint tool keeps its own history, separate from the timeline's. <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd> undoes your last stroke or tool action; <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd> redoes it. Each time you open the tool it starts fresh.</p>
+      ` },
+      { id: 'coalescing', title: 'Slider edits collapse', html: `
+        <p>Dragging a slider - a camera pan or a squash amount, for example - records one undo step for the whole gesture, not one per frame. So one <kbd>Ctrl</kbd> + <kbd>Z</kbd> reverts the entire drag instead of just the last tick.</p>
       ` }
     ]
   },
@@ -459,6 +672,8 @@ const CATEGORIES = [
           <thead><tr><th>Key</th><th>Action</th></tr></thead>
           <tbody>
             <tr><td><kbd>Delete</kbd> or <kbd>Backspace</kbd></td><td>delete the selected keyframe</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>undo</td></tr>
+            <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> or <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd></td><td>redo</td></tr>
           </tbody>
         </table>
         <p>Shortcuts are ignored while you are typing in a field.</p>
