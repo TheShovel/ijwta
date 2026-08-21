@@ -105,6 +105,7 @@
     renderSelectedPanel();
     renderLane();
     renderPreview();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel(); // lock state follows the layer
   }
 
   function addLayer() {
@@ -126,6 +127,8 @@
     renderLayerPanel();
     renderSelectedPanel();
     renderLane();
+    renderPreview();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel();
   }
 
   // A generative color-fill layer: holds dots that flood-fill the layer ABOVE
@@ -151,6 +154,7 @@
     renderSelectedPanel();
     renderLane();
     renderPreview();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel(); // lock while on the fill layer
     toast('Color layer added. Click the preview to place a color dot');
   }
 

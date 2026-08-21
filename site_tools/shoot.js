@@ -246,6 +246,8 @@ window.__colorFill = function () {
 };
 `;
 
+module.exports = { ART };
+
 // ---------- shots ----------
 async function setupAndWait(fn) {
   await pageEval('(function(){' + ART + fn + '})()');
@@ -457,22 +459,26 @@ async function main() {
   await wait(200);
 
   // 17. camera (docs camera): full window with the camera panel open, a
-  // camera transform applied to the preview, and a tall timeline so the
-  // camera key dots stay visible above the fold.
+  // camera transform and a couple of effects applied to the preview, and a
+  // tall timeline so the camera key dots stay visible above the fold.
   await setupAndWait('__hero(); state.playhead = 0.5; __fabricate(); renderPlayhead();');
   await pageEval(`(function(){
     state.camera = { enabled: true, keys: [] }; state.audio = { src: null, name: null, duration: 0, muted: false };
     setCameraField('x', -0.3);
     setCameraField('zoom', 1.5);
     setCameraField('rot', -5);
+    setCameraField('fx.fisheye', 0.4);
+    setCameraField('fx.chroma', 0.5);
+    setCameraField('fx.vignette', 0.35);
+    setCameraField('fx.grain', 0.2);
     var p = byId('cameraPanel');
     if (p) p.classList.remove('collapsed');
-    var t = byId('timelineCol'); if (t) t.style.height = '300px';
+    var t = byId('timelineCol'); if (t) t.style.height = '340px';
     renderCameraPanel();
     renderPreview();
     renderTimeline();
   })()`);
-  await wait(300);
+  await wait(400);
   await capture('camera.png', R0full());
 
   // 18. audio (docs audio): full window with the audio panel open and the
@@ -500,4 +506,8 @@ async function main() {
   console.log('done');
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Run only when invoked directly; requiring this module just exposes ART and
+// the helpers above (used by the animation-capture tool).
+if (require.main === module) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

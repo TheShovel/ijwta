@@ -383,7 +383,7 @@
         if (rect.width > 0 && rect.height > 0) {
           var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
           var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-          var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
+          var cam = cameraActive() ? cameraAt(state.playhead) : null;
           var w = screenToWorld(nx, ny, cam);
           var hit = dotAt(w.x, w.y, active);
           if (hit) {
@@ -419,7 +419,7 @@
         if (rect.width > 0 && rect.height > 0) {
           var nx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
           var ny = clamp((e.clientY - rect.top) / rect.height, 0, 1);
-          var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
+          var cam = cameraActive() ? cameraAt(state.playhead) : null;
           var w = screenToWorld(nx, ny, cam);
           ds.dot.x = clamp(ds.startPX + (w.x - ds.startNX), 0, 1);
           ds.dot.y = clamp(ds.startPY + (w.y - ds.startNY), 0, 1);
@@ -869,6 +869,15 @@
     cameraSlider(el.cameraY, el.cameraYVal, 'y', function (v) { return Math.round(v * 100) + '%'; });
     cameraSlider(el.cameraZoom, el.cameraZoomVal, 'zoom', function (v) { return Math.round(v * 100) / 100 + 'x'; });
     cameraSlider(el.cameraRot, el.cameraRotVal, 'rot', function (v) { return Math.round(v * 10) / 10 + '°'; });
+    // Camera effects: the five intensity sliders write into the key's fx config
+    // (0..1), also auto-creating a camera key at the playhead if needed.
+    function fxPct(v) { return Math.round(v * 100) + '%'; }
+    cameraSlider(el.cameraFxFisheye, el.cameraFxFisheyeVal, 'fx.fisheye', fxPct);
+    cameraSlider(el.cameraFxGrain, el.cameraFxGrainVal, 'fx.grain', fxPct);
+    cameraSlider(el.cameraFxChroma, el.cameraFxChromaVal, 'fx.chroma', fxPct);
+    cameraSlider(el.cameraFxVig, el.cameraFxVigVal, 'fx.vignette', fxPct);
+    cameraSlider(el.cameraFxShake, el.cameraFxShakeVal, 'fx.shake', fxPct);
+    cameraSlider(el.cameraFxShakeSpeed, el.cameraFxShakeSpeedVal, 'fx.shakeSpeed', fxPct);
     el.btnCameraAddKey.addEventListener('click', function () { addCameraKey(); });
     el.btnCameraRemoveKey.addEventListener('click', function () { removeCameraKey(state.playhead); });
     // Right-panel categories fold / unfold via the shared collapsible system

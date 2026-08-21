@@ -149,7 +149,24 @@
     // can't crash the renderer; keys are validated into plain numbers.
     var cam = data.camera;
     state.camera = (cam && Array.isArray(cam.keys))
-      ? { enabled: true, keys: cam.keys.map(function (k) { return { t: +k.t || 0, x: +k.x || 0, y: +k.y || 0, zoom: +k.zoom || 1, rot: +k.rot || 0 }; }) }
+      ? { enabled: true, keys: cam.keys.map(function (k) {
+          var nk = { t: +k.t || 0, x: +k.x || 0, y: +k.y || 0, zoom: +k.zoom || 1, rot: +k.rot || 0 };
+          // Effects config is optional; normalize any present fields to 0..1.
+          if (k.fx && typeof k.fx === 'object') {
+            nk.fx = {};
+            ['fisheye', 'grain', 'chroma', 'vignette', 'shake'].forEach(function (f) {
+              var v = parseFloat(k.fx[f]);
+              nk.fx[f] = isFinite(v) ? clamp(v, 0, 1) : 0;
+            });
+            // Shake speed is stored per key when set; absent keys fall back to
+            // the 0.5 default in fxOf, so old projects keep a natural wobble.
+            if (k.fx.hasOwnProperty('shakeSpeed')) {
+              var sp = parseFloat(k.fx.shakeSpeed);
+              nk.fx.shakeSpeed = isFinite(sp) ? clamp(sp, 0, 1) : 0.5;
+            }
+          }
+          return nk;
+        }) }
       : { enabled: true, keys: [] };
     // Reference audio track: only the source + meta persist; the decoded
     // buffer (and waveform peaks) are re-derived on load / play.

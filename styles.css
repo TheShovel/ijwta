@@ -690,6 +690,23 @@ body.dragging-asset * { cursor: grabbing !important; }
 .squash-group:not(.hidden) { display: flex; flex-direction: column; }
 .squash-group { gap: 10px; }
 .squash-group .field { gap: 6px; }
+/* Small sub-section heading inside a collapsible panel (e.g. Camera > Effects). */
+.side-subhead {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  opacity: 0.75;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(57, 65, 77, 0.35);
+}
+/* Camera panel while a color layer is selected: controls dim + disabled so
+   the inactive camera (see cameraActive) never edits invisibly. */
+#cameraPanel.camera-off .field input { opacity: 0.45; }
+#cameraPanel.camera-off .menu-row .btn { opacity: 0.45; }
+#cameraFillNote { margin-top: 2px; }
 /* Reusable modern slider: thin rounded track, filled progress, compact thumb.
    Set --val (0..1) via JS or inline style to draw the filled portion. */
 .slider {

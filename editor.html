@@ -177,10 +177,30 @@
         <label class="field">Rotation <span id="cameraRotVal" class="mono">0°</span>
           <input id="cameraRot" class="slider" type="range" min="-180" max="180" step="1" value="0">
         </label>
+        <div class="side-subhead">Effects</div>
+        <label class="field">Fisheye <span id="cameraFxFisheyeVal" class="mono">0%</span>
+          <input id="cameraFxFisheye" class="slider" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="field">Film grain <span id="cameraFxGrainVal" class="mono">0%</span>
+          <input id="cameraFxGrain" class="slider" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="field">Chromatic aberration <span id="cameraFxChromaVal" class="mono">0%</span>
+          <input id="cameraFxChroma" class="slider" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="field">Vignette <span id="cameraFxVigVal" class="mono">0%</span>
+          <input id="cameraFxVig" class="slider" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="field">Handheld shake <span id="cameraFxShakeVal" class="mono">0%</span>
+          <input id="cameraFxShake" class="slider" type="range" min="0" max="1" step="0.01" value="0">
+        </label>
+        <label class="field">Shake speed <span id="cameraFxShakeSpeedVal" class="mono">50%</span>
+          <input id="cameraFxShakeSpeed" class="slider" type="range" min="0" max="1" step="0.01" value="0.5">
+        </label>
         <div class="menu-row">
           <button id="btnCameraAddKey" class="btn">Add key</button>
           <button id="btnCameraRemoveKey" class="btn danger">Remove key</button>
         </div>
+        <div id="cameraFillNote" class="squash-hint hidden">The camera is off while a Color layer is selected, so dots land exactly where you click. Switch to a normal layer to use it again.</div>
           </div>
         </div>
       </div>

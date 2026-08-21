@@ -34,9 +34,16 @@
     // Playing always redraws: editor-only overlays (onion ghosts, dot markers)
     // must never linger on the canvas during playback, even when the composite
     // is unchanged (held keyframes reuse the same image).
-    var cam = state.camera.enabled ? cameraAt(state.playhead) : null;
-    var hasCamEffect = cam && (cam.x !== 0 || cam.y !== 0 || cam.zoom !== 1 || cam.rot !== 0);
+    var cam = cameraActive() ? cameraAt(state.playhead) : null;
+    var hasCamEffect = cam && (cam.x !== 0 || cam.y !== 0 || cam.zoom !== 1 || cam.rot !== 0 || fxActive(cam.fx));
     var camKey = cam ? '|#cam#' + cam.x.toFixed(4) + ',' + cam.y.toFixed(4) + ',' + cam.zoom.toFixed(4) + ',' + cam.rot.toFixed(3) : '';
+    if (cam && fxActive(cam.fx)) {
+      camKey += ',fx' + cam.fx.fisheye.toFixed(2) + ',' + cam.fx.grain.toFixed(2) + ',' +
+        cam.fx.chroma.toFixed(2) + ',' + cam.fx.vignette.toFixed(2) + ',' + cam.fx.shake.toFixed(2) + ',' +
+        cam.fx.shakeSpeed.toFixed(2);
+      // Handheld shake changes per frame, so the cache key must reflect the time.
+      if (cam.fx.shake > 0) camKey += '@' + state.playhead.toFixed(3);
+    }
     var key = compositeKey(state.playhead, state.keysOnly) + camKey;
     if (!state.playing && lastPreview && lastPreview.key === key) {
       drawDotMarkers(octx, cam);
@@ -46,7 +53,7 @@
     var missing = frames.some(function (f) { return !imgCache.get(f.img); });
     if (missing) {
       // Keep the previous composite on screen while the new images decode.
-      if (lastPreview && lastPreview.bits.length) drawComposite(ctx, lastPreview.bits, workW, workH, false, cam);
+      if (lastPreview && lastPreview.bits.length) drawComposite(ctx, lastPreview.bits, workW, workH, false, cam, state.playhead);
       else {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, workW, workH);
@@ -63,7 +70,7 @@
         var octx2 = el.previewOverlay.getContext('2d');
         octx2.clearRect(0, 0, workW, workH);
         var bits = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
-        drawComposite(ctx2, bits, workW, workH, false, cam);
+        drawComposite(ctx2, bits, workW, workH, false, cam, state.playhead);
         if (state.onion && !hasCamEffect) drawOnion(ctx2);
         drawDotMarkers(octx2, cam);
         lastPreview = { key: key, bits: bits };
@@ -71,7 +78,7 @@
       return;
     }
     var bits2 = layerBitmaps(state.playhead, state.keysOnly, workW, workH);
-    drawComposite(ctx, bits2, workW, workH, false, cam);
+    drawComposite(ctx, bits2, workW, workH, false, cam, state.playhead);
     if (state.onion && !hasCamEffect) drawOnion(ctx);
     drawDotMarkers(octx, cam);
     lastPreview = { key: key, bits: bits2 };

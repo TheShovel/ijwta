@@ -160,8 +160,8 @@ const FIG = {
 </figure>`,
   cameraFig: `
 <figure class="doc-fig">
-  <img class="fig-img" src="../shots/camera.png" alt="The camera panel open in the right panel with pan, zoom and rotation sliders, and the Camera track with its key dots along the bottom" width="720">
-  <figcaption>The camera panel. Drag any slider to add a camera key at the playhead, and the keys appear as dots on the Camera track.</figcaption>
+  <img class="fig-img" src="../shots/camera.png" alt="The camera panel open in the right panel with pan, zoom, rotation and the effects sliders, a lens-warped preview, and the Camera track with its key dots along the bottom" width="720">
+  <figcaption>The camera panel. Drag any slider to add a camera key at the playhead, and the keys appear as dots on the Camera track. The Effects sliders add lens and film looks on top of the pan, zoom and rotation.</figcaption>
 </figure>`,
   audioFig: `
 <figure class="doc-fig">
@@ -526,17 +526,18 @@ const CATEGORIES = [
   },
   {
     slug: 'camera', title: 'Camera',
-    blurb: 'Non-destructive pan, zoom and rotation for the whole frame, keyframed on their own track.',
+    blurb: 'A non-destructive camera: pan, zoom and rotation plus lens and film effects, every value keyframed on its own track.',
     sections: [
       { id: 'what-it-is', title: 'What it is', html: `
-        <p>The camera applies a pan, zoom and rotation to the whole frame, on top of your layers. It is non-destructive - your keyframes are never changed - and it is applied to the preview and to exports alike.</p>
+        <p>The camera applies a pan, zoom and rotation to the whole frame, on top of your layers, and can add lens and film looks with the Effects sliders: fisheye, film grain, chromatic aberration, vignette and handheld shake. It is non-destructive - your keyframes are never changed - and it is applied to the preview and to exports alike.</p>
+        <p class="doc-note">While a <strong>Color layer</strong> is selected the camera steps aside and the panel locks, so dots land exactly where you click. Switch back to a normal layer and the camera returns, keys intact.</p>
         ${FIG.cameraFig}
       ` },
       { id: 'add-key', title: 'Add a camera key', html: `
         <p>Open the <code>Camera</code> panel at the top of the right panel and move to the moment you want.</p>
         <ol>
           <li>Move the playhead to where the change should start.</li>
-          <li>Drag any of the Pan X, Pan Y, Zoom or Rotation sliders.</li>
+          <li>Drag any of the Pan X, Pan Y, Zoom, Rotation or Effects sliders.</li>
           <li>A camera key appears at the playhead. The first key is remembered for the whole timeline, so the pose holds before your camera moves.</li>
         </ol>
         <p>You can also press <code>Add key</code> to stamp a key with the current values when you want the pose to stay readable.</p>
@@ -549,11 +550,22 @@ const CATEGORIES = [
           <li>With the playhead on a key you can nudge the sliders to edit it, or press <code>Remove key</code>.</li>
         </ul>
       ` },
+      { id: 'effects', title: 'The Effects sliders', html: `
+        <p>Five effects sit under the transform sliders, each with an intensity from 0 (off) to 100 percent. Like every camera value, the intensity is remembered per key and blends between keys, so you can ease an effect in or out over time.</p>
+        <ul>
+          <li><strong>Fisheye</strong> warps the frame outward like a wide lens, magnifying the centre.</li>
+          <li><strong>Chromatic aberration</strong> splits red and blue along the edges for a cheap lens look.</li>
+          <li><strong>Film grain</strong> adds a seeded speckle over the whole frame.</li>
+          <li><strong>Vignette</strong> darkens the corners to focus the centre.</li>
+          <li><strong>Handheld shake</strong> adds a smooth, low-frequency wobble to the frame for a real-camera feel, and the <strong>Shake speed</strong> slider right below it tunes how quickly it wobbles - a slow drift up to an energetic handheld look.</li>
+        </ul>
+        <p>Grain and shake are deterministic: the same frame always renders the same way in the preview, the filmstrip and your exports.</p>
+      ` },
       { id: 'interpolation', title: 'Between keys', html: `
-        <p>The camera values blend smoothly from key to key, so a slow push-in is just two keys: one at normal zoom, a later one zoomed in. Space your keys on the timeline to shape the easing of the movement.</p>
+        <p>Every camera value, transforms and effects alike, blends smoothly from key to key. A slow push-in is just two keys: one at normal zoom, a later one zoomed in. Easing a fisheye in from a punch-out is two keys too. Space your keys on the timeline to shape the easing of the movement.</p>
       ` },
       { id: 'export', title: 'Applied to exports', html: `
-        <p>The camera is part of the final composite, so every exported frame includes it. Combine it freely with squash, motion blur and color layers exactly like the rest of the frame.</p>
+        <p>The camera is part of the final composite, so every exported frame includes it, lens effects and all. Combine it freely with squash, motion blur and color layers exactly like the rest of the frame.</p>
       ` }
     ]
   },

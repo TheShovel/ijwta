@@ -200,18 +200,26 @@
   // default (previews, filmstrip). Normal layers draw their frame image directly
   // (no canvas allocation); fill layers draw their computed fill canvas. When
   // `transparent` is set the backdrop is left clear so PNG exports keep alpha.
-  function drawComposite(ctx, bits, W, H, transparent, camera) {
+  function drawComposite(ctx, bits, W, H, transparent, camera, t) {
     if (!transparent) {
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, W, H);
     }
+    var fx = camera ? camera.fx : null;
+    var hasFx = fxActive(fx);
     if (camera) {
       // Non-destructive camera: transformed around the frame centre. The
       // backdrop (above) is drawn untransformed, so when the zoom is in we crop
       // to the content and when it's out the surrounding border stays the
-      // (white or, for transparent exports, clear) backdrop.
+      // (white or, for transparent exports, clear) backdrop. Handheld shake adds
+      // a screen-space jitter on top of the pan.
       ctx.save();
-      ctx.translate(W / 2 + camera.x * W, H / 2 + camera.y * H);
+      var shX = 0, shY = 0;
+      if (hasFx) {
+        var sh = cameraShake(t == null ? state.playhead : t, fx);
+        shX = sh.x; shY = sh.y;
+      }
+      ctx.translate(W / 2 + camera.x * W + shX, H / 2 + camera.y * H + shY);
       ctx.rotate(camera.rot * Math.PI / 180);
       ctx.scale(camera.zoom, camera.zoom);
       ctx.translate(-W / 2, -H / 2);
@@ -232,4 +240,6 @@
     }
     if (cam) ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
+    // Lens and film effects run after the layers are composited, in place.
+    if (hasFx) applyCameraFx(ctx, W, H, fx, t == null ? state.playhead : t);
   }

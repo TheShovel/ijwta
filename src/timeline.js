@@ -23,7 +23,7 @@
     return Promise.all(frames.map(function (f) {
       return loadImage(f.img).catch(function () { return null; });
     })).then(function () {
-      drawComposite(ctx, layerBitmaps(t, false, tw, th), tw, th, false, state.camera.enabled ? cameraAt(t) : null);
+      drawComposite(ctx, layerBitmaps(t, false, tw, th), tw, th, false, cameraActive() ? cameraAt(t) : null, t);
       return canvas.toDataURL('image/png');
     });
   }

@@ -54,7 +54,7 @@ function bootJS(dom, extraFiles) {
       return btn && btn.getAttribute('href') === 'editor.html';
     })());
     t('H4 mascot art references root mascot', document.querySelector('.hero-art img').getAttribute('src') === 'mascot.png');
-    t('H5 feature deck has 6 rows', document.querySelectorAll('.feat-deck .feat-row').length === 6);
+    t('H5 feature deck has 5 rows', document.querySelectorAll('.feat-deck .feat-row').length === 5);
     t('H5b feature rows alternate text/shot sides', (function () {
       // The private-by-design row is text-only; only the image rows alternate.
       const rows = Array.prototype.filter.call(document.querySelectorAll('.feat-row'), (r) => r.children.length === 2);
@@ -74,7 +74,7 @@ function bootJS(dom, extraFiles) {
     const win = dom.window;
     // Feature figures inject into every shot container and rows reveal.
     const shots = win.document.querySelectorAll('.feat-shot');
-    t('H9c every feature shot got its figure', shots.length === 5 && Array.from(shots).every((s) => s.querySelector('img.fig-img')));
+    t('H9c every feature shot got its figure', shots.length === 4 && Array.from(shots).every((s) => s.querySelector('img.fig-img')));
     t('H9d rows reveal on scroll (IO present)', (function () {
       if (!('IntersectionObserver' in win)) return true;
       const r0 = win.document.querySelector('.feat-row');

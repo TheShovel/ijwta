@@ -163,19 +163,22 @@ window.KHUWARI_DOCS = [
 
   // ---- camera ----
   { cat: 'Camera', slug: 'camera', id: 'what-it-is', title: 'What it is',
-    text: 'The camera applies a pan, zoom and rotation to the whole frame on top of your layers. It is non-destructive and applied to the preview and to exports alike.',
+    text: 'The camera applies a pan, zoom and rotation to the whole frame on top of your layers, plus lens and film effects: fisheye, film grain, chromatic aberration, vignette and handheld shake. It is non-destructive and applied to the preview and to exports alike. While a Color layer is selected the camera steps aside and the panel locks, so dots land exactly where you click.',
     url: 'docs/camera.html' },
   { cat: 'Camera', slug: 'camera', id: 'add-key', title: 'Add a camera key',
-    text: 'Open the Camera panel, move the playhead, and drag the Pan X, Pan Y, Zoom or Rotation sliders to add a camera key at that moment. The first key is remembered for the whole timeline so the pose holds before the camera moves. Add key stamps the current values.',
+    text: 'Open the Camera panel, move the playhead, and drag the Pan X, Pan Y, Zoom, Rotation or Effects sliders to add a camera key at that moment. The first key is remembered for the whole timeline so the pose holds before the camera moves. Add key stamps the current values.',
     url: 'docs/camera.html' },
   { cat: 'Camera', slug: 'camera', id: 'lane', title: 'The Camera track',
     text: 'Camera keys appear as dots on the Camera row under your layers in the timeline. Drag a dot to retime it, double-click to remove it, and use Remove key when the playhead sits on one.',
     url: 'docs/camera.html' },
+  { cat: 'Camera', slug: 'camera', id: 'effects', title: 'The Effects sliders',
+    text: 'Five camera effects have intensity sliders from 0 to 100 percent: fisheye warps the frame like a wide lens, chromatic aberration splits red and blue at the edges (gentler at low values), film grain adds a seeded speckle, vignette darkens the corners, and handheld shake adds a smooth low-frequency wobble with its own speed slider. Each is remembered per key and blends between keys.',
+    url: 'docs/camera.html' },
   { cat: 'Camera', slug: 'camera', id: 'interpolation', title: 'Between keys',
-    text: 'Camera values blend smoothly from key to key. Two keys make a slow push-in or pull-out, and spacing the keys shapes the easing of the movement.',
+    text: 'Every camera value, transforms and effects alike, blends smoothly from key to key. Two keys make a slow push-in or pull-out, or ease an effect in and out. Spacing the keys shapes the easing of the movement.',
     url: 'docs/camera.html' },
   { cat: 'Camera', slug: 'camera', id: 'export', title: 'Applied to exports',
-    text: 'The camera is part of the final composite, so every exported frame includes it. Use it with squash, motion blur and color layers like the rest of the frame.',
+    text: 'The camera is part of the final composite, so every exported frame includes it, lens effects and all. Use it with squash, motion blur and color layers like the rest of the frame.',
     url: 'docs/camera.html' },
 
   // ---- audio ----

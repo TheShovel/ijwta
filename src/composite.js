@@ -177,7 +177,7 @@
       return loadImage(f.img).catch(function () { return null; });
     })).then(function () {
       drawComposite(ctx, layerBitmaps(t, false, workW, workH), workW, workH, transparent,
-        state.camera.enabled ? cameraAt(t) : null);
+        cameraActive() ? cameraAt(t) : null, t);
       return canvas;
     });
   }

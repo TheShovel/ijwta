@@ -86,6 +86,10 @@
     renderSelectedPanel();
     renderLayerPanel();
     renderLane();
+    // The active layer may have changed: drop/restore the camera (see
+    // cameraActive) and refresh the locked panel state.
+    renderPreview();
+    if (typeof renderCameraPanel === 'function') renderCameraPanel();
   }
 
   function replaceKeyframeImage(id) {

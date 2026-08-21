@@ -1,9 +1,10 @@
-/* Home page feature figures: real screenshots of the editor, injected into
- * the .feat-shot containers on the home page by site.js. */
+/* Home page feature figures: short looping animations of each feature (a mouse
+ * cursor performing the action) plus the app behind it, captured with
+ * site_tools/animate.js and encoded to GIF. Injected into the .feat-shot
+ * containers on the home page by site.js. */
 window.HOME_FIGS = {
-  ml: `<img class="fig-img" src="shots/timeline_ml.png" alt="The timeline with two keyframes and the generated frames between them" width="720">`,
-  paint: `<img class="fig-img" src="shots/paint.png" alt="The paint workspace with a drawing on the canvas and the tool, color, brush and layer dockers around it" width="720">`,
-  fill: `<img class="fig-img" src="shots/colorfill.png" alt="Color dots flooding the line art shapes on the canvas" width="720">`,
-  camera: `<img class="fig-img" src="shots/camera.png" alt="The camera panel open with pan, zoom and rotation sliders and camera keys on their timeline track" width="720">`,
-  blur: `<img class="fig-img" src="shots/blur.png" alt="A gap with motion blur on and its intensity slider in the right panel" width="720">`,
+  ml: `<img class="fig-img" src="shots/ml.gif" alt="A keyframe dragged onto the timeline, then the machine generates the inbetweens between the frames" width="640">`,
+  paint: `<img class="fig-img" src="shots/paint.gif" alt="A mouse cursor drawing a stroke on the canvas with the brush in the paint tool" width="640">`,
+  fill: `<img class="fig-img" src="shots/fill.gif" alt="Clicking to drop color dots that flood-fill the line art shapes" width="640">`,
+  camera: `<img class="fig-img" src="shots/camera.gif" alt="Dragging the fisheye effect slider and the frame bulges outward like a wide lens" width="640">`,
 };
